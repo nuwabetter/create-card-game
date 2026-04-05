@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>CARD REALM — カード作成</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Noto+Sans+JP:wght@300;400;700&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#c9a84c;--gold-light:#f0d080;--gold-dim:#7a6430;--deep:#0a0a14;--panel:#0f1020;--panel2:#141428;--text:#e8e0d0;--text-dim:#8a8070;--border:rgba(201,168,76,0.25)}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100vh}
+.bg{position:fixed;inset:0;z-index:0}
+.star{position:absolute;width:2px;height:2px;background:#fff;border-radius:50%;animation:twinkle var(--d,3s) ease-in-out infinite var(--delay,0s)}
+@keyframes twinkle{0%,100%{opacity:.1}50%{opacity:.8}}
+.wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:1rem 1rem 4rem}
+.ph{display:flex;align-items:center;gap:1rem;margin-bottom:1.2rem;flex-wrap:wrap}
+.back{color:var(--gold-dim);text-decoration:none;font-family:'Rajdhani',sans-serif;font-size:.88rem;letter-spacing:.15em;text-transform:uppercase}
+.back:hover{color:var(--gold)}
+.ptitle-main{font-family:'Cinzel Decorative',serif;font-size:1.6rem;background:linear-gradient(135deg,var(--gold-dim),var(--gold-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+
+.layout{display:grid;grid-template-columns:260px 1fr;gap:1.5rem;align-items:start}
+@media(max-width:780px){.layout{grid-template-columns:1fr}.preview-wrap{order:-1}}
+
+.preview-wrap{position:sticky;top:1rem}
+.prev-label{font-family:'Rajdhani',sans-serif;font-size:.72rem;letter-spacing:.3em;color:var(--gold-dim);text-transform:uppercase;text-align:center;margin-bottom:.8rem}
+
+/* CARD */
+.card-tmpl{width:220px;height:330px;margin:0 auto 1rem;border-radius:14px;border:2px solid var(--cb,#7a6430);background:#05050e;position:relative;overflow:hidden;box-shadow:0 15px 50px rgba(0,0,0,.8),0 0 25px var(--cglow,rgba(201,168,76,.1));transition:all .3s;display:flex;flex-direction:column}
+.card-tmpl:hover{transform:rotateY(-4deg) rotateX(2deg) scale(1.04);box-shadow:0 25px 70px rgba(0,0,0,.9),0 0 35px var(--cglow)}
+.c-stripe{position:absolute;top:0;left:0;right:0;height:5px;z-index:10}
+.c-left{position:absolute;top:0;left:0;bottom:0;width:5px;z-index:10}
+.c-head{padding:.5rem .65rem .4rem;display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.94);border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0;z-index:2;position:relative}
+.c-name{font-family:'Cinzel Decorative',serif;font-size:.78rem;color:var(--cacc,var(--gold-light));text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:120px;letter-spacing:.03em}
+.c-cost{width:30px;height:30px;border-radius:50%;background:var(--cacc,var(--gold));color:#000;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1rem;flex-shrink:0;box-shadow:0 0 10px var(--cglow)}
+.c-art{height:130px;position:relative;overflow:hidden;background:rgba(255,255,255,.02);display:flex;align-items:center;justify-content:center;font-size:4.5rem;flex-shrink:0}
+.c-art::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,transparent 55%,rgba(0,0,0,.95) 100%);pointer-events:none}
+.c-art img{width:100%;height:100%;object-fit:cover}
+.c-colors{display:flex;gap:4px;padding:.28rem .65rem;background:rgba(0,0,0,.96);border-top:1px solid rgba(255,255,255,.04);flex-shrink:0}
+.c-cdot{display:inline-block;width:11px;height:11px;border-radius:50%}
+.c-stats{display:flex;justify-content:space-around;padding:.45rem .4rem;background:rgba(0,0,0,.96);flex-shrink:0}
+.c-stat-box{text-align:center}
+.c-stat-lbl{font-family:'Rajdhani',sans-serif;font-size:.6rem;letter-spacing:.15em;color:var(--cacc,var(--gold-dim));text-transform:uppercase;display:block}
+.c-stat-val{font-family:'Rajdhani',sans-serif;font-size:1.4rem;font-weight:700;color:var(--cacc,var(--gold-light))}
+.c-stat-div{width:1px;background:rgba(255,255,255,.08);margin:.1rem 0}
+.c-flavor{flex:1;padding:.4rem .65rem .5rem;background:rgba(0,0,0,.93);border-top:1px solid rgba(255,255,255,.04);overflow:hidden}
+.c-flavor-txt{font-size:.63rem;color:rgba(255,255,255,.45);font-style:italic;line-height:1.55;display:block;margin-bottom:.22rem}
+.c-skill-txt{font-size:.6rem;line-height:1.5;display:block}
+
+/* Form */
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:1.1rem;margin-bottom:1rem}
+.sec-title{font-family:'Rajdhani',sans-serif;font-size:.72rem;letter-spacing:.28em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:.85rem;padding-bottom:.4rem;border-bottom:1px solid var(--border)}
+.frow{margin-bottom:.88rem}
+label{display:block;font-size:.8rem;color:var(--text-dim);margin-bottom:.32rem;font-family:'Rajdhani',sans-serif;letter-spacing:.08em;text-transform:uppercase}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:7px;padding:.62rem .88rem;color:var(--text);font-family:'Noto Sans JP',sans-serif;font-size:.92rem;outline:none;transition:border-color .2s;-webkit-appearance:none}
+input:focus,textarea:focus,select:focus{border-color:var(--gold-dim)}
+textarea{resize:vertical;min-height:70px;line-height:1.55}
+select option{background:var(--panel2)}
+
+/* Color */
+.color-multi{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem}
+.cm{padding:.55rem .2rem;border-radius:8px;border:2px solid transparent;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.9rem;text-align:center;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:.22rem;touch-action:manipulation}
+.cm .ci{font-size:1.25rem}
+.cm.red{background:rgba(192,57,43,.15);color:#e74c3c;border-color:rgba(192,57,43,.25)}
+.cm.blue{background:rgba(36,113,163,.15);color:#3498db;border-color:rgba(36,113,163,.25)}
+.cm.yellow{background:rgba(212,172,13,.15);color:#f1c40f;border-color:rgba(212,172,13,.25)}
+.cm.green{background:rgba(30,132,73,.15);color:#2ecc71;border-color:rgba(30,132,73,.25)}
+.cm.red.on{border-color:#e74c3c;box-shadow:0 0 14px rgba(231,76,60,.4);background:rgba(231,76,60,.22)}
+.cm.blue.on{border-color:#3498db;box-shadow:0 0 14px rgba(52,152,219,.4);background:rgba(52,152,219,.22)}
+.cm.yellow.on{border-color:#f1c40f;box-shadow:0 0 14px rgba(241,196,15,.4);background:rgba(241,196,15,.22)}
+.cm.green.on{border-color:#2ecc71;box-shadow:0 0 14px rgba(46,204,113,.4);background:rgba(46,204,113,.22)}
+.color-hint{font-size:.72rem;color:var(--text-dim);margin-top:.4rem}
+
+.stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem}
+
+/* Illust */
+.illust-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:.4rem;margin-bottom:.65rem}
+.ib{aspect-ratio:1;background:var(--panel2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:1.4rem;display:flex;align-items:center;justify-content:center;transition:all .18s;touch-action:manipulation}
+.ib:hover{border-color:var(--gold-dim);transform:scale(1.1)}
+.ib.on{border-color:var(--gold);background:rgba(201,168,76,.12)}
+
+/* Image upload */
+.img-upload-area{border:2px dashed var(--border);border-radius:8px;padding:1rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:.65rem;position:relative;overflow:hidden}
+.img-upload-area:hover{border-color:var(--gold-dim);background:rgba(201,168,76,.04)}
+.img-upload-area.has-img{border-color:var(--gold);border-style:solid}
+.img-preview{width:100%;max-height:120px;object-fit:contain;border-radius:6px;display:none}
+.img-upload-area.has-img .img-preview{display:block}
+.img-upload-hint{font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--text-dim);margin-top:.4rem}
+.img-upload-area.has-img .img-upload-hint{font-size:.68rem}
+input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+
+/* Effect builder */
+.effect-entry{background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:8px;padding:.9rem;position:relative;margin-bottom:.7rem}
+.eff-num{font-family:'Rajdhani',sans-serif;font-size:.68rem;letter-spacing:.15em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:.6rem}
+.eff-row2{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.6rem}
+.eff-preview{background:rgba(201,168,76,.04);border:1px solid var(--border);border-radius:6px;padding:.55rem .65rem;font-size:.8rem;color:var(--gold);font-style:italic;line-height:1.5;min-height:2rem;margin-top:.5rem}
+.del-eff{position:absolute;top:.6rem;right:.6rem;background:rgba(192,57,43,.85);color:#fff;border:none;border-radius:5px;padding:.22rem .55rem;font-family:'Rajdhani',sans-serif;font-size:.7rem;cursor:pointer;touch-action:manipulation}
+.add-eff{display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.55rem;border-radius:8px;border:1px dashed var(--gold-dim);background:transparent;color:var(--gold-dim);font-family:'Rajdhani',sans-serif;font-size:.84rem;font-weight:700;cursor:pointer;transition:all .2s;width:100%;touch-action:manipulation}
+.add-eff:hover{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.06)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;padding:.62rem 1.15rem;border:none;border-radius:8px;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:all .18s;touch-action:manipulation}
+.btn:active{transform:scale(.95)}
+.btn-gold{background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:var(--deep);box-shadow:0 3px 12px rgba(201,168,76,.3)}
+.btn-gold:hover{box-shadow:0 5px 20px rgba(201,168,76,.5)}
+.btn-outline{background:transparent;color:var(--gold);border:1px solid var(--gold-dim)}
+.btn-outline:hover{background:rgba(201,168,76,.08)}
+.btn-danger{background:transparent;color:#e74c3c;border:1px solid rgba(231,76,60,.3)}
+.form-actions{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:.75rem}
+
+/* Edit banner */
+.edit-banner{background:rgba(36,113,163,.15);border:1px solid rgba(52,152,219,.4);border-radius:8px;padding:.6rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;font-family:'Rajdhani',sans-serif;font-size:.85rem;color:#3498db;flex-wrap:wrap}
+
+/* Deck */
+.deck-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;flex-wrap:wrap;gap:.5rem}
+.deck-title{font-family:'Rajdhani',sans-serif;font-size:1rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase}
+.deck-cards{display:flex;flex-wrap:wrap;gap:.7rem;min-height:60px}
+.mini{width:82px;height:116px;border-radius:8px;border:1.5px solid;background:var(--panel2);display:flex;flex-direction:column;cursor:default;transition:all .18s;position:relative;overflow:hidden;flex-shrink:0}
+.mini:hover{transform:translateY(-5px)}
+.mini-art{flex:1;display:flex;align-items:center;justify-content:center;font-size:1.8rem;background:rgba(0,0,0,.3)}
+.mini-art img{width:100%;height:100%;object-fit:cover}
+.mini-bot{padding:3px 4px;background:rgba(0,0,0,.78)}
+.mini-name{font-size:.56rem;font-family:'Rajdhani',sans-serif;color:rgba(255,255,255,.75);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;margin-bottom:1px}
+.mini-stats{display:flex;justify-content:space-around;font-size:.54rem;font-family:'Rajdhani',sans-serif}
+.mini-actions{position:absolute;top:2px;right:2px;display:flex;gap:2px;opacity:0;transition:opacity .18s}
+.mini:hover .mini-actions{opacity:1}
+.mini-abtn{width:20px;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#fff;cursor:pointer;border:none;touch-action:manipulation}
+.mini-edit-btn{background:rgba(36,113,163,.88)}
+.mini-del-btn{background:rgba(192,57,43,.88)}
+.mini-author{font-size:.48rem;color:var(--text-dim);text-align:center;margin-top:2px;font-family:'Rajdhani',sans-serif}
+.empty-deck{color:var(--text-dim);font-size:.84rem;font-style:italic;padding:1rem 0}
+
+.toast{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(130px);background:var(--panel);border:1px solid var(--gold);border-radius:8px;padding:.65rem 1.3rem;font-family:'Rajdhani',sans-serif;font-size:.88rem;letter-spacing:.08em;color:var(--gold);z-index:1000;transition:transform .4s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="bg" id="bgStars"></div>
+<div class="wrap">
+  <div class="ph">
+    <a href="index.html" class="back">← ホーム</a>
+    <h1 class="ptitle-main">カード作成</h1>
+    <div style="margin-left:auto;font-family:'Rajdhani',sans-serif;font-size:.85rem;color:var(--text-dim)" id="authorLabel"></div>
+  </div>
+  <div class="edit-banner" id="editBanner" style="display:none">
+    ✏️ 編集中: <span id="editCardName" style="font-weight:700;color:#3498db"></span>
+    <button style="margin-left:auto;padding:.28rem .7rem;font-size:.72rem;border-radius:6px;background:transparent;color:var(--gold);border:1px solid var(--gold-dim);cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700" onclick="cancelEdit()">✕ キャンセル</button>
+  </div>
+
+  <div class="layout">
+    <!-- Preview -->
+    <div class="preview-wrap">
+      <div class="prev-label">✦ プレビュー ✦</div>
+      <div class="card-tmpl" id="cardTmpl">
+        <div class="c-stripe" id="pStripe"></div>
+        <div class="c-left"   id="pLeft"></div>
+        <div class="c-head">
+          <div class="c-name" id="pName">カード名</div>
+          <div class="c-cost" id="pCost">1</div>
+        </div>
+        <div class="c-art" id="pArt">🗡️</div>
+        <div class="c-colors" id="pColors"></div>
+        <div class="c-stats">
+          <div class="c-stat-box"><span class="c-stat-lbl">ATK</span><span class="c-stat-val" id="pAtk">0</span></div>
+          <div class="c-stat-div"></div>
+          <div class="c-stat-box"><span class="c-stat-lbl">DEF</span><span class="c-stat-val" id="pDef">0</span></div>
+        </div>
+        <div class="c-flavor">
+          <span class="c-flavor-txt" id="pFlavor">フレーバーテキスト</span>
+          <span class="c-skill-txt"  id="pSkill"></span>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:.75rem;flex-wrap:wrap">
+        <button class="btn btn-gold" onclick="saveCard()" id="saveBtn">＋ 保存</button>
+        <button class="btn btn-outline" onclick="resetForm()">リセット</button>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <div>
+      <div class="panel">
+        <div class="sec-title">カラー（複数選択可）</div>
+        <div class="color-multi">
+          <button class="cm red on" onclick="toggleColor('red',this)"><span class="ci">🔥</span>赤</button>
+          <button class="cm blue"   onclick="toggleColor('blue',this)"><span class="ci">💧</span>青</button>
+          <button class="cm yellow" onclick="toggleColor('yellow',this)"><span class="ci">⚡</span>黄</button>
+          <button class="cm green"  onclick="toggleColor('green',this)"><span class="ci">🌿</span>緑</button>
+        </div>
+        <div class="color-hint">複数選択で多色カード。出す時はいずれかの色でマッチ。</div>
+      </div>
+
+      <div class="panel">
+        <div class="sec-title">基本情報</div>
+        <div class="frow"><label>カード名</label><input type="text" id="cardName" placeholder="例：炎の剣士" maxlength="20" oninput="updatePrev()"></div>
+        <div class="stats-row">
+          <div class="frow"><label>コスト</label><input type="number" id="cardCost" value="1" min="1" max="10" oninput="updatePrev()"></div>
+          <div class="frow"><label>攻撃力</label><input type="number" id="cardAtk"  value="2" min="0" max="20" oninput="updatePrev()"></div>
+          <div class="frow"><label>防御力</label><input type="number" id="cardDef"  value="2" min="0" max="20" oninput="updatePrev()"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="sec-title">イラスト</div>
+        <!-- File upload -->
+        <div style="margin-bottom:.75rem">
+          <label>📁 ファイルから読み込み</label>
+          <div class="img-upload-area" id="uploadArea" onclick="triggerFileInput()">
+            <input type="file" id="fileInput" accept="image/*" onchange="onFileSelect(event)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2">
+            <img id="imgPreview" class="img-preview" alt="preview">
+            <div class="img-upload-hint" id="uploadHint">クリックまたはドロップで画像を選択<br><span style="font-size:.65rem;opacity:.6">JPG / PNG / GIF / WebP</span></div>
+          </div>
+          <button class="btn btn-outline" style="padding:.32rem .65rem;font-size:.72rem;margin-top:.4rem" onclick="clearUpload()" id="clearUploadBtn" style="display:none">🗑 画像を削除</button>
+        </div>
+        <!-- Emoji grid -->
+        <label>絵文字イラスト</label>
+        <div class="illust-grid" id="illustGrid"></div>
+        <!-- URL -->
+        <div style="font-size:.76rem;color:var(--text-dim);margin-bottom:.35rem">または画像URL:</div>
+        <input type="text" id="customUrl" placeholder="https://..." oninput="setCustomUrl(this.value)">
+      </div>
+
+      <div class="panel">
+        <div class="sec-title">フレーバーテキスト</div>
+        <textarea id="cardFlavor" placeholder="カードの雰囲気を表す文章..." oninput="updatePrev()"></textarea>
+      </div>
+
+      <div class="panel">
+        <div class="sec-title">スキル設定（複数追加可）</div>
+        <div id="effectsList"></div>
+        <button class="add-eff" onclick="addEffect()">＋ スキルを追加する</button>
+        <div style="font-size:.72rem;color:var(--text-dim);margin-top:.55rem">スキルはカード下部に自動記載されます</div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-gold" onclick="saveCard()" id="saveBtn2">＋ カードを保存</button>
+        <button class="btn btn-outline" onclick="resetForm()">リセット</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deck -->
+  <div class="panel">
+    <div class="deck-head">
+      <div class="deck-title">🃏 カード一覧（全員共有）<span style="font-size:.8rem;color:var(--text-dim);font-family:'Rajdhani',sans-serif;margin-left:.5rem" id="deckCount">0枚</span></div>
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+        <button class="btn btn-outline" style="padding:.32rem .65rem;font-size:.72rem" onclick="exportDeck()">📤 エクスポート</button>
+        <button class="btn btn-outline" style="padding:.32rem .65rem;font-size:.72rem" onclick="importDeck()">📥 インポート</button>
+        <button class="btn-danger" style="padding:.32rem .65rem;font-size:.72rem;border-radius:6px;background:transparent;color:#e74c3c;border:1px solid rgba(231,76,60,.3);cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700" onclick="clearMyCards()">🗑 自分削除</button>
+      </div>
+    </div>
+    <div class="deck-cards" id="deckCards"><div class="empty-deck">Firebase から読み込み中...</div></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, onValue, remove }
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const FB={apiKey:"AIzaSyCXyreqDjZXIWnZqWZShw1yjwubHduqCoc",authDomain:"createcardgame-8edbf.firebaseapp.com",databaseURL:"https://createcardgame-8edbf-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"createcardgame-8edbf",storageBucket:"createcardgame-8edbf.firebasestorage.app",messagingSenderId:"173024784980",appId:"1:173024784980:web:606d80ee258239d656f3c1"};
+const db=getDatabase(initializeApp(FB));
+const cardsRef=ref(db,'sharedCards');
+
+const ILLS=['🗡️','🛡️','🔥','💧','⚡','🌿','⚔️','🏹','🪄','🐉','🦋','💀','🌙','☀️','⭐','🌊','🍀','🌸','💎','🔮','🦅','🐺','🦁','🐍','🏔️','🌋','🌪️','❄️','🎯','💥','🌺','🦄'];
+const CM={red:{border:'#c0392b',accent:'#e74c3c',glow:'rgba(192,57,43,.35)',dot:'#e74c3c'},blue:{border:'#2471a3',accent:'#3498db',glow:'rgba(36,113,163,.35)',dot:'#3498db'},yellow:{border:'#d4ac0d',accent:'#f1c40f',glow:'rgba(212,172,13,.35)',dot:'#f1c40f'},green:{border:'#1e8449',accent:'#2ecc71',glow:'rgba(30,132,73,.35)',dot:'#2ecc71'}};
+const CN={red:'赤',blue:'青',yellow:'黄',green:'緑'};
+
+const TRIGS=[{v:'',l:'（条件なし）'},{v:'onAttack',l:'攻撃時'},{v:'onDefend',l:'防御時'},{v:'onPlay',l:'場に出た時'},{v:'onDamage',l:'ダメージを与えた時'},{v:'onDraw',l:'ドローした時'},{v:'onTurnStart',l:'ターン開始時'},{v:'ifHpLow',l:'自分のHPがn以下の時'},{v:'ifChance',l:'n%の確率で発動'}];
+const EFFS=[{v:'',l:'（効果なし）'},{v:'draw',l:'カードをドロー'},{v:'buffAtk',l:'手札ATKアップ'},{v:'buffDef',l:'手札DEFアップ'},{v:'heal',l:'HPを回復'},{v:'damage',l:'相手に追加ダメージ'},{v:'costReduce',l:'次コスト低下'},{v:'costGain',l:'所持コスト増加'}];
+const ECOLS={draw:'#3498db',buffAtk:'#e74c3c',buffDef:'#3498db',heal:'#2ecc71',damage:'#e74c3c',costReduce:'#f1c40f',costGain:'#f1c40f'};
+
+const myName=localStorage.getItem('myName')||'名無し';
+document.getElementById('authorLabel').textContent='作成者: '+myName;
+
+let selColors=['red'],curIll='🗡️',imgSrc='',allCards=[],effects=[],editingId=null,eid=0;
+// imgSrc: data:URL from file upload, or http URL, or empty (use emoji)
+
+// FB listener
+onValue(cardsRef,snap=>{
+  allCards=Object.values(snap.val()||{}).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  renderDeck();localStorage.setItem('cardrealmDeck',JSON.stringify(allCards));
+});
+
+// ===== IMAGE HANDLING =====
+window.triggerFileInput=function(e){
+  // Don't trigger if already have file input click
+};
+
+window.onFileSelect=function(e){
+  const f=e.target.files[0];if(!f)return;
+  if(f.size>2*1024*1024){showToast('画像は2MB以内にしてください');return;}
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    imgSrc=ev.target.result; // data:URL
+    setImagePreview(imgSrc);
+    // Clear emoji/URL selection
+    document.querySelectorAll('.ib').forEach(b=>b.classList.remove('on'));
+    document.getElementById('customUrl').value='';
+    updatePrev();
+  };
+  reader.readAsDataURL(f);
+};
+
+function setImagePreview(src){
+  const area=document.getElementById('uploadArea');
+  const prev=document.getElementById('imgPreview');
+  const hint=document.getElementById('uploadHint');
+  prev.src=src;
+  area.classList.add('has-img');
+  hint.textContent='クリックで別の画像を選択';
+  document.getElementById('clearUploadBtn').style.display='inline-flex';
+}
+
+window.clearUpload=function(){
+  imgSrc='';
+  const area=document.getElementById('uploadArea');
+  const prev=document.getElementById('imgPreview');
+  const hint=document.getElementById('uploadHint');
+  prev.src='';area.classList.remove('has-img');
+  hint.innerHTML='クリックまたはドロップで画像を選択<br><span style="font-size:.65rem;opacity:.6">JPG / PNG / GIF / WebP</span>';
+  document.getElementById('clearUploadBtn').style.display='none';
+  document.getElementById('fileInput').value='';
+  // Restore emoji
+  curIll='🗡️';
+  document.querySelectorAll('.ib').forEach((b,i)=>b.classList.toggle('on',i===0));
+  updatePrev();
+};
+
+// Drag and drop
+const uploadArea=document.getElementById('uploadArea');
+uploadArea.addEventListener('dragover',e=>{e.preventDefault();uploadArea.style.borderColor='var(--gold)';});
+uploadArea.addEventListener('dragleave',()=>{uploadArea.style.borderColor='';});
+uploadArea.addEventListener('drop',e=>{
+  e.preventDefault();uploadArea.style.borderColor='';
+  const f=e.dataTransfer.files[0];if(!f||!f.type.startsWith('image/'))return;
+  const input=document.getElementById('fileInput');
+  // Create fake event
+  const dt=new DataTransfer();dt.items.add(f);input.files=dt.files;
+  const ev={target:input};window.onFileSelect(ev);
+});
+
+window.setCustomUrl=function(url){
+  if(!url){return;}
+  imgSrc=url;
+  document.querySelectorAll('.ib').forEach(b=>b.classList.remove('on'));
+  clearUpload();imgSrc=url;// restore after clearUpload
+  const area=document.getElementById('uploadArea');
+  const prev=document.getElementById('imgPreview');
+  prev.src=url;area.classList.add('has-img');
+  document.getElementById('uploadHint').textContent='URLから読み込み中...';
+  updatePrev();
+};
+
+// Illust grid
+const ig=document.getElementById('illustGrid');
+ILLS.forEach((e,i)=>{
+  const b=document.createElement('button');b.className='ib'+(i===0?' on':'');b.textContent=e;
+  b.onclick=()=>{
+    document.querySelectorAll('.ib').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+    curIll=e;imgSrc='';
+    // Also clear upload
+    document.getElementById('uploadArea').classList.remove('has-img');
+    document.getElementById('imgPreview').src='';
+    document.getElementById('uploadHint').innerHTML='クリックまたはドロップで画像を選択<br><span style="font-size:.65rem;opacity:.6">JPG / PNG / GIF / WebP</span>';
+    document.getElementById('clearUploadBtn').style.display='none';
+    document.getElementById('customUrl').value='';
+    document.getElementById('fileInput').value='';
+    updatePrev();
+  };
+  ig.appendChild(b);
+});
+
+window.toggleColor=function(col,btn){
+  if(selColors.includes(col)){if(selColors.length<=1){showToast('最低1色必要');return;}selColors=selColors.filter(c=>c!==col);btn.classList.remove('on');}
+  else{selColors.push(col);btn.classList.add('on');}updatePrev();
+};
+
+// ===== EFFECTS =====
+function effLabel(e){
+  const tmap={onAttack:'攻撃時',onDefend:'防御時',onPlay:'場に出た時',onDamage:'ダメージ時',onDraw:'ドロー時',onTurnStart:'ターン開始時',ifHpLow:`HP${e.val}以下の時`,ifChance:`${e.val}%の確率で`};
+  const emap={draw:v=>`${v}枚ドロー`,buffAtk:v=>`ATK+${v}`,buffDef:v=>`DEF+${v}`,heal:v=>`HP+${v}回復`,damage:v=>`${v}追加ダメージ`,costReduce:v=>`次コスト-${v}`,costGain:v=>`コスト+${v}`};
+  const t=tmap[e.trigger]||'';const ef=emap[e.eff]?emap[e.eff](e.val||1):'';
+  return (t||ef)?`【${t||'発動'}】${ef}`:'（スキルなし）';
+}
+
+function renderEffects(){
+  document.getElementById('effectsList').innerHTML=effects.map((e,idx)=>`
+    <div class="effect-entry" id="ee_${e.id}">
+      <div class="eff-num">スキル ${idx+1}</div>
+      <button class="del-eff" onclick="removeEff('${e.id}')">✕ 削除</button>
+      <div class="eff-row2">
+        <div><label>発動条件</label>
+          <select onchange="effChg('${e.id}','trigger',this.value)">
+            ${TRIGS.map(t=>`<option value="${t.v}"${e.trigger===t.v?' selected':''}>${t.l}</option>`).join('')}
+          </select></div>
+        <div><label>効果</label>
+          <select onchange="effChg('${e.id}','eff',this.value)">
+            ${EFFS.map(t=>`<option value="${t.v}"${e.eff===t.v?' selected':''}>${t.l}</option>`).join('')}
+          </select></div>
+      </div>
+      <div class="frow"><label>効果量 / 確率(%) / HP閾値</label>
+        <input type="number" value="${e.val||1}" min="1" max="100" onchange="effChg('${e.id}','val',this.value)" oninput="effChg('${e.id}','val',this.value)">
+      </div>
+      <div class="eff-preview" id="ep_${e.id}">${effLabel(e)}</div>
+    </div>`).join('');
+}
+
+window.addEffect=function(){effects.push({id:'e'+(eid++),trigger:'',eff:'',val:1});renderEffects();updatePrev();};
+window.removeEff=function(id){effects=effects.filter(e=>e.id!==id);renderEffects();updatePrev();};
+window.effChg=function(id,field,val){
+  const e=effects.find(x=>x.id===id);if(!e)return;
+  e[field]=field==='val'?parseInt(val)||1:val;
+  const ep=document.getElementById('ep_'+id);if(ep)ep.textContent=effLabel(e);updatePrev();
+};
+
+// ===== PREVIEW =====
+window.updatePrev=function(){
+  const name=document.getElementById('cardName').value||'カード名';
+  const cost=document.getElementById('cardCost').value||'1';
+  const atk=document.getElementById('cardAtk').value||'0';
+  const def=document.getElementById('cardDef').value||'0';
+  const flavor=document.getElementById('cardFlavor').value||'フレーバーテキスト';
+  const mc=CM[selColors[0]]||CM.red;
+  const tmpl=document.getElementById('cardTmpl');
+  tmpl.style.setProperty('--cb',mc.border);tmpl.style.setProperty('--cacc',mc.accent);tmpl.style.setProperty('--cglow',mc.glow);
+  const grad=selColors.map(c=>CM[c]?.accent||'#888').join(',');
+  document.getElementById('pStripe').style.background=selColors.length>1?`linear-gradient(90deg,${grad})`:mc.accent;
+  document.getElementById('pLeft').style.background=selColors.length>1?`linear-gradient(180deg,${grad})`:mc.accent;
+  document.getElementById('pName').textContent=name;document.getElementById('pCost').textContent=cost;
+  document.getElementById('pAtk').textContent=atk;document.getElementById('pDef').textContent=def;
+  document.getElementById('pFlavor').textContent=flavor;
+  const art=document.getElementById('pArt');
+  if(imgSrc){art.innerHTML=`<img src="${imgSrc}" onerror="this.outerHTML='🖼️'">`;}
+  else art.textContent=curIll;
+  document.getElementById('pColors').innerHTML=selColors.map(c=>`<span class="c-cdot" style="background:${CM[c]?.dot||'#888'}" title="${CN[c]||c}"></span>`).join('');
+  const sk=effects.filter(e=>e.eff||e.trigger);
+  document.getElementById('pSkill').innerHTML=sk.map(e=>`<span style="color:${ECOLS[e.eff]||'#f1c40f'};display:block">${effLabel(e)}</span>`).join('');
+};
+
+// ===== SAVE =====
+window.saveCard=async function(){
+  const name=document.getElementById('cardName').value||'';
+  if(!name.trim()){showToast('カード名を入力してください');return;}
+  const id=editingId||('card_'+Date.now()+'_'+Math.random().toString(36).slice(2,6));
+  const card={
+    id,name:name.trim(),colors:selColors,color:selColors[0],
+    cost:parseInt(document.getElementById('cardCost').value)||1,
+    atk:parseInt(document.getElementById('cardAtk').value)||0,
+    def:parseInt(document.getElementById('cardDef').value)||0,
+    flavor:document.getElementById('cardFlavor').value||'',
+    illust:imgSrc||curIll,
+    effects:effects.filter(e=>e.eff||e.trigger),
+    effect:effects[0]?{trigger:effects[0].trigger,type:effects[0].eff,value:effects[0].val||1}:{trigger:'',type:'',value:1},
+    author:myName,
+    createdAt:editingId?allCards.find(c=>c.id===editingId)?.createdAt||Date.now():Date.now()
+  };
+  // Note: data:URLs can be large. For production, use Firebase Storage.
+  // For now we store them in Realtime DB (limit ~10MB per node)
+  try{
+    await set(ref(db,`sharedCards/${id}`),card);
+    showToast(editingId?`「${card.name}」を更新！`:`「${card.name}」を保存！`);
+    if(editingId)cancelEdit();else resetForm();
+  }catch(e){
+    showToast('保存に失敗しました（画像が大きすぎる可能性があります）');console.error(e);
+  }
+};
+
+// ===== EDIT =====
+window.editCard=function(id){
+  const card=allCards.find(c=>c.id===id);
+  if(!card){showToast('見つかりません');return;}
+  if(card.author&&card.author!==myName){showToast('自分のカードのみ編集できます');return;}
+  editingId=id;
+  document.getElementById('cardName').value=card.name||'';
+  document.getElementById('cardCost').value=card.cost||1;
+  document.getElementById('cardAtk').value=card.atk||0;
+  document.getElementById('cardDef').value=card.def||0;
+  document.getElementById('cardFlavor').value=card.flavor||'';
+  selColors=Array.isArray(card.colors)?[...card.colors]:[card.color||'red'];
+  ['red','blue','yellow','green'].forEach(c=>document.querySelector('.cm.'+c)?.classList.toggle('on',selColors.includes(c)));
+  // Restore image
+  imgSrc='';
+  document.getElementById('customUrl').value='';
+  if(card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))){
+    imgSrc=card.illust;setImagePreview(imgSrc);
+    document.querySelectorAll('.ib').forEach(b=>b.classList.remove('on'));
+  } else {
+    curIll=card.illust||'🗡️';
+    document.querySelectorAll('.ib').forEach(b=>b.classList.toggle('on',b.textContent===curIll));
+    clearUpload();imgSrc='';// reset upload
+  }
+  // Effects
+  if(card.effects&&card.effects.length){
+    effects=card.effects.map(e=>({id:'e'+(eid++),trigger:e.trigger||'',eff:e.eff||e.effType||e.type||'',val:e.val||e.effVal||e.value||1}));
+  } else if(card.effect&&(card.effect.trigger||card.effect.type)){
+    effects=[{id:'e'+(eid++),trigger:card.effect.trigger||'',eff:card.effect.type||'',val:card.effect.value||1}];
+  } else effects=[];
+  renderEffects();
+  document.getElementById('editBanner').style.display='flex';
+  document.getElementById('editCardName').textContent='「'+card.name+'」';
+  document.getElementById('saveBtn').textContent='✓ 更新';
+  document.getElementById('saveBtn2').textContent='✓ 更新';
+  updatePrev();window.scrollTo({top:0,behavior:'smooth'});showToast('編集モード: '+card.name);
+};
+
+window.cancelEdit=function(){
+  editingId=null;
+  document.getElementById('editBanner').style.display='none';
+  document.getElementById('saveBtn').textContent='＋ 保存';
+  document.getElementById('saveBtn2').textContent='＋ カードを保存';
+  resetForm();
+};
+
+window.deleteCard=async function(id){
+  const card=allCards.find(c=>c.id===id);if(!card)return;
+  if(card.author&&card.author!==myName){showToast('自分のカードのみ削除できます');return;}
+  if(!confirm(`「${card.name}」を削除しますか？`))return;
+  await remove(ref(db,`sharedCards/${id}`));showToast('削除しました');
+};
+
+function renderDeck(){
+  const el=document.getElementById('deckCards');
+  document.getElementById('deckCount').textContent=allCards.length+'枚';
+  if(!allCards.length){el.innerHTML='<div class="empty-deck">まだカードがありません</div>';return;}
+  el.innerHTML=allCards.map(card=>{
+    const cols=Array.isArray(card.colors)?card.colors:[card.color||'red'];
+    const c=CM[cols[0]]||CM.red;
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:cover" onerror="this.outerHTML='🃏'">`:(card.illust||'🃏');
+    const isOwn=!card.author||card.author===myName;
+    return `<div style="flex-shrink:0">
+      <div class="mini" style="border-color:${c.border};box-shadow:0 0 8px ${c.glow}" title="${card.name}\n作成者:${card.author||'不明'}">
+        <div class="mini-actions">
+          ${isOwn?`<button class="mini-abtn mini-edit-btn" onclick="editCard('${card.id}')">✏</button>`:''}
+          ${isOwn?`<button class="mini-abtn mini-del-btn"  onclick="deleteCard('${card.id}')">✕</button>`:''}
+        </div>
+        <div class="mini-art">${ill}</div>
+        <div class="mini-bot">
+          <div class="mini-stats"><span style="color:${c.accent}">C${card.cost}</span><span>A${card.atk}</span><span>D${card.def}</span></div>
+          <div class="mini-name">${card.name}</div>
+        </div>
+      </div>
+      <div class="mini-author">${card.author||''}</div>
+    </div>`;
+  }).join('');
+}
+
+window.resetForm=function(){
+  document.getElementById('cardName').value='';document.getElementById('cardCost').value=1;
+  document.getElementById('cardAtk').value=2;document.getElementById('cardDef').value=2;
+  document.getElementById('cardFlavor').value='';document.getElementById('customUrl').value='';
+  selColors=['red'];curIll='🗡️';imgSrc='';
+  ['red','blue','yellow','green'].forEach(c=>document.querySelector('.cm.'+c)?.classList.toggle('on',c==='red'));
+  document.querySelectorAll('.ib').forEach((b,i)=>b.classList.toggle('on',i===0));
+  clearUpload();imgSrc='';effects=[];renderEffects();updatePrev();
+};
+
+window.clearMyCards=async function(){
+  const mine=allCards.filter(c=>!c.author||c.author===myName);
+  if(!mine.length){showToast('自分のカードはありません');return;}
+  if(!confirm(`自分のカード${mine.length}枚を削除しますか？`))return;
+  for(const c of mine)await remove(ref(db,`sharedCards/${c.id}`));showToast('削除しました');
+};
+
+window.exportDeck=function(){
+  const b=new Blob([JSON.stringify(allCards,null,2)],{type:'application/json'});
+  const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='cardrealm.json';a.click();URL.revokeObjectURL(u);showToast('エクスポートしました');
+};
+window.importDeck=function(){
+  const i=document.createElement('input');i.type='file';i.accept='.json';
+  i.onchange=async e=>{
+    const f=e.target.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=async ev=>{
+      try{
+        const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw 0;
+        for(const card of d){const id=card.id||('card_'+Date.now()+'_'+Math.random().toString(36).slice(2,5));card.id=id;card.author=card.author||myName;await set(ref(db,`sharedCards/${id}`),card);}
+        showToast(`${d.length}枚インポートしました`);
+      }catch{showToast('インポート失敗');}
+    };r.readAsText(f);
+  };i.click();
+};
+
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+
+const bg=document.getElementById('bgStars');
+for(let i=0;i<80;i++){const s=document.createElement('div');s.className='star';s.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*100}%;--d:${2+Math.random()*4}s;--delay:${-Math.random()*4}s`;bg.appendChild(s);}
+
+updatePrev();
+</script>
+</body>
+</html>

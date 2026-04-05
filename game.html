@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CARD REALM — 対戦</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Noto+Sans+JP:wght@300;400;700&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#c9a84c;--gold-light:#f0d080;--gold-dim:#7a6430;--deep:#080810;--panel:#0f1020;--panel2:#141428;--text:#e8e0d0;--text-dim:#8a8070;--border:rgba(201,168,76,.2);--red:#e74c3c;--blue:#3498db;--green:#2ecc71}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-serif;display:flex;flex-direction:column}
+#loadScr{position:fixed;inset:0;background:var(--deep);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;z-index:999}
+.load-logo{font-family:'Cinzel Decorative',serif;font-size:2rem;background:linear-gradient(135deg,#7a6430,#f0d080);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.load-msg{font-family:'Rajdhani',sans-serif;letter-spacing:.2em;color:var(--text-dim);font-size:.88rem}
+.load-bar{width:200px;height:3px;background:#141428;border-radius:3px;overflow:hidden}
+.load-fill{height:100%;width:0;background:linear-gradient(90deg,#7a6430,#c9a84c);border-radius:3px;transition:width .5s}
+#gameApp{display:flex;flex-direction:column;height:100%;overflow:hidden}
+/* HUD */
+.hud{display:flex;align-items:center;gap:.5rem;padding:.38rem .65rem;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0;min-height:42px}
+.hud-back{color:var(--gold-dim);text-decoration:none;font-family:'Rajdhani',sans-serif;font-size:.75rem;letter-spacing:.08em}
+.hud-title{font-family:'Cinzel Decorative',serif;font-size:.82rem;color:var(--gold);flex:1;text-align:center}
+.tbadge{font-family:'Rajdhani',sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.1em;padding:.22rem .6rem;border-radius:4px;text-transform:uppercase}
+.tb-a{background:rgba(231,76,60,.14);color:var(--red);border:1px solid rgba(231,76,60,.4)}
+.tb-d{background:rgba(52,152,219,.14);color:var(--blue);border:1px solid rgba(52,152,219,.4)}
+.tb-w{background:rgba(138,128,112,.1);color:var(--text-dim);border:1px solid rgba(138,128,112,.18)}
+/* Weather */
+.wbar{display:flex;align-items:center;gap:.55rem;padding:.32rem .65rem;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;font-family:'Rajdhani',sans-serif}
+.wi{font-size:1.15rem}.wn{font-size:.8rem;font-weight:700;letter-spacing:.08em}
+.we{font-size:.68rem;color:var(--text-dim);letter-spacing:.04em}.wc{font-size:.65rem;color:var(--text-dim);margin-left:auto}
+/* Scroll */
+.gscroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:.45rem .5rem .8rem}
+/* Player row */
+.prow{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:.58rem .75rem;margin-bottom:.45rem;transition:border-color .3s,box-shadow .3s}
+.prow.my-a{border-color:var(--red);box-shadow:0 0 14px rgba(231,76,60,.14)}
+.prow.my-d{border-color:var(--blue);box-shadow:0 0 14px rgba(52,152,219,.14)}
+.prow.opp-a{border-color:rgba(231,76,60,.45)}
+.pinfo{display:flex;align-items:center;gap:.55rem;margin-bottom:.38rem;flex-wrap:wrap}
+.pname{font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:700;letter-spacing:.07em;color:var(--gold);flex-shrink:0}
+.rpill{font-family:'Rajdhani',sans-serif;font-size:.62rem;font-weight:700;letter-spacing:.1em;padding:.14rem .44rem;border-radius:3px;text-transform:uppercase;flex-shrink:0}
+.rp-a{background:rgba(231,76,60,.18);color:var(--red);border:1px solid rgba(231,76,60,.4)}
+.rp-d{background:rgba(52,152,219,.18);color:var(--blue);border:1px solid rgba(52,152,219,.4)}
+.rp-w{background:rgba(138,128,112,.1);color:var(--text-dim);border:1px solid rgba(138,128,112,.18)}
+.hp-wrap{flex:1;min-width:90px}
+.hp-lbl{font-family:'Rajdhani',sans-serif;font-size:.62rem;color:var(--text-dim);display:flex;justify-content:space-between;margin-bottom:2px}
+.hp-bar{height:6px;background:var(--panel2);border-radius:3px;overflow:hidden;border:1px solid var(--border)}
+.hp-fill{height:100%;border-radius:3px;transition:width .5s;background:linear-gradient(90deg,var(--red),#f39c12,var(--green))}
+.cost-chip{font-family:'Rajdhani',sans-serif;font-size:.7rem;color:var(--gold);background:rgba(201,168,76,.07);border:1px solid var(--border);border-radius:5px;padding:.14rem .45rem;flex-shrink:0}
+/* Hand */
+.hand-label{font-family:'Rajdhani',sans-serif;font-size:.62rem;letter-spacing:.18em;color:var(--text-dim);text-transform:uppercase;margin-bottom:.28rem}
+.hand-scroll{display:flex;gap:.4rem;overflow-x:auto;padding:.22rem .1rem;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory}
+.hand-scroll::-webkit-scrollbar{height:3px}
+.hand-scroll::-webkit-scrollbar-thumb{background:rgba(201,168,76,.28);border-radius:2px}
+/* Field */
+.field-wrap{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin:.4rem 0}
+.field-col-label{font-family:'Rajdhani',sans-serif;font-size:.58rem;letter-spacing:.15em;color:var(--text-dim);text-transform:uppercase;margin-bottom:.2rem}
+.field-area{background:rgba(0,0,0,.32);border:1px solid var(--border);border-radius:8px;padding:.38rem;min-height:92px;display:flex;align-items:center;gap:.45rem;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.field-empty{border:1px dashed rgba(201,168,76,.12);border-radius:6px;width:58px;height:82px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;opacity:.14;flex-shrink:0}
+.fc-wrap{position:relative;flex-shrink:0}
+.fc-age{position:absolute;top:-5px;right:-4px;background:rgba(231,76,60,.92);color:#fff;font-size:.5rem;font-family:'Rajdhani',sans-serif;font-weight:700;padding:1px 4px;border-radius:3px;z-index:3}
+/* Card */
+.gc{width:62px;height:88px;border-radius:6px;border:1.5px solid;background:var(--panel2);display:flex;flex-direction:column;cursor:pointer;transition:all .17s;position:relative;overflow:hidden;flex-shrink:0;scroll-snap-align:start}
+.gc:hover{transform:translateY(-7px) scale(1.05);z-index:10}
+.gc.sel{transform:translateY(-11px) scale(1.09);z-index:20;outline:2px solid var(--gold)}
+.gc.dim{opacity:.28;cursor:not-allowed}
+.gc.dim:hover{transform:none}
+.gc.facedown{background:repeating-linear-gradient(45deg,var(--panel2)0,var(--panel2)3px,rgba(201,168,76,.04)3px,rgba(201,168,76,.04)6px);cursor:default}
+.gc-head{padding:2px 3px;display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.82);flex-shrink:0}
+.gc-cost{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.6rem;color:#000;flex-shrink:0}
+.gc-name{font-size:.44rem;color:rgba(255,255,255,.6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:36px;font-family:'Rajdhani',sans-serif;font-weight:700}
+.gc-art{flex:1;display:flex;align-items:center;justify-content:center;font-size:1.5rem;background:rgba(0,0,0,.18);position:relative;overflow:hidden}
+.gc-art img{width:100%;height:100%;object-fit:cover}
+.gc-art::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,transparent 60%,rgba(0,0,0,.75)100%);pointer-events:none}
+.gc-stats{display:flex;justify-content:space-around;padding:2px;background:rgba(0,0,0,.85);flex-shrink:0;font-family:'Rajdhani',sans-serif;font-size:.58rem;font-weight:700}
+.gc-cdots{display:flex;gap:1px;position:absolute;bottom:14px;left:2px;z-index:3}
+.gc-cdot{width:4px;height:4px;border-radius:50%}
+.gc-skill-dot{position:absolute;top:2px;right:2px;width:5px;height:5px;border-radius:50%;background:#f1c40f;box-shadow:0 0 4px #f1c40f;z-index:3}
+/* Action bar */
+.abar{display:flex;gap:.4rem;align-items:center;padding:.45rem .55rem;background:var(--panel);border-top:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.28rem;padding:.48rem .82rem;border:none;border-radius:7px;font-family:'Rajdhani',sans-serif;font-size:.8rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .15s;touch-action:manipulation;-webkit-user-select:none;user-select:none;white-space:nowrap}
+.btn:active{transform:scale(.93)}
+.btn-gold{background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:var(--deep);box-shadow:0 2px 10px rgba(201,168,76,.3)}
+.btn-gold:disabled{opacity:.25;cursor:not-allowed}
+.btn-blue{background:linear-gradient(135deg,#1a4a6b,#2471a3);color:#fff}
+.btn-blue:disabled{opacity:.25;cursor:not-allowed}
+.btn-red{background:linear-gradient(135deg,#7b241c,#c0392b);color:#fff}
+.btn-red:disabled{opacity:.25;cursor:not-allowed}
+.btn-outline{background:transparent;color:var(--gold);border:1px solid var(--gold-dim)}
+.btn-gray{background:rgba(100,100,120,.22);color:var(--text-dim);border:1px solid rgba(100,100,120,.28);font-size:.72rem;padding:.45rem .65rem}
+/* Log */
+.glog{height:72px;overflow-y:auto;padding:.38rem .6rem;background:var(--panel);border-top:1px solid var(--border);flex-shrink:0;font-size:.7rem;line-height:1.6}
+.glog::-webkit-scrollbar{width:3px}
+.glog::-webkit-scrollbar-thumb{background:rgba(201,168,76,.28)}
+.le{color:var(--text-dim)}.le.hl{color:var(--gold)}.le.dmg{color:var(--red)}.le.heal{color:var(--green)}.le.eff{color:#f1c40f}.le.wth{color:#87ceeb}
+/* Status banner */
+.status-banner{padding:.35rem .65rem;background:rgba(201,168,76,.08);border-bottom:1px solid var(--border);font-family:'Rajdhani',sans-serif;font-size:.75rem;color:var(--gold);text-align:center;letter-spacing:.08em;flex-shrink:0}
+/* Tooltip */
+.tooltip{position:fixed;z-index:200;background:var(--panel);border:1px solid var(--gold-dim);border-radius:8px;padding:.65rem;font-size:.74rem;max-width:185px;pointer-events:none;display:none;line-height:1.55}
+.tt-name{color:var(--gold);font-family:'Rajdhani',sans-serif;font-size:.92rem;font-weight:700;margin-bottom:.22rem}
+.tt-stat{color:var(--text-dim);margin-bottom:.22rem;font-family:'Rajdhani',sans-serif;font-size:.78rem}
+.tt-skill{color:#f1c40f;font-style:italic;font-size:.74rem}
+.tt-flavor{color:var(--text-dim);font-style:italic;font-size:.68rem;margin-top:.2rem;border-top:1px solid var(--border);padding-top:.2rem}
+/* Float dmg */
+.dmg-float{position:fixed;z-index:300;font-family:'Rajdhani',sans-serif;font-size:1.9rem;font-weight:700;pointer-events:none;animation:fup 1.4s ease-out forwards}
+@keyframes fup{0%{opacity:1;transform:translateY(0)scale(1)}100%{opacity:0;transform:translateY(-65px)scale(1.4)}}
+.df-r{color:var(--red);text-shadow:0 0 15px var(--red)}
+.df-g{color:var(--green);text-shadow:0 0 15px var(--green)}
+/* Modal */
+.moverlay{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal{background:var(--panel);border:1px solid var(--gold);border-radius:16px;padding:2rem 1.5rem;text-align:center;max-width:380px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.8)}
+.modal-title{font-family:'Cinzel Decorative',serif;font-size:1.7rem;color:var(--gold);margin-bottom:.4rem;animation:mglow 2s ease-in-out infinite}
+@keyframes mglow{0%,100%{filter:drop-shadow(0 0 8px rgba(201,168,76,.4))}50%{filter:drop-shadow(0 0 22px rgba(201,168,76,.85))}}
+.modal-sub{color:var(--text-dim);font-size:.88rem;margin-bottom:1.2rem}
+.modal-btns{display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap}
+.toast{position:fixed;bottom:5.5rem;left:50%;transform:translateX(-50%) translateY(110px);background:var(--panel);border:1px solid var(--gold);border-radius:7px;padding:.6rem 1.2rem;font-family:'Rajdhani',sans-serif;font-size:.85rem;letter-spacing:.08em;color:var(--gold);z-index:400;transition:transform .35s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:88vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div id="loadScr">
+  <div class="load-logo">CARD REALM</div>
+  <div class="load-msg" id="loadMsg">対戦を準備中...</div>
+  <div class="load-bar"><div class="load-fill" id="loadFill"></div></div>
+</div>
+
+<div id="gameApp" style="display:none">
+  <div class="hud">
+    <a href="index.html" class="hud-back">← ホーム</a>
+    <div class="hud-title">⚔ CARD REALM</div>
+    <div class="tbadge tb-w" id="turnBadge">準備中</div>
+  </div>
+  <div class="status-banner" id="statusBanner">読み込み中...</div>
+  <div class="wbar">
+    <div class="wi" id="wIcon">☀️</div>
+    <div class="wn" id="wName">晴れ</div>
+    <div class="we" id="wEffect">天候効果なし</div>
+    <div class="wc" id="wChange">変化まで—</div>
+  </div>
+  <div class="gscroll" id="gscroll">
+    <div id="playersPanel"></div>
+    <div class="field-wrap">
+      <div>
+        <div class="field-col-label">🗡️ 攻撃フィールド</div>
+        <div class="field-area" id="atkField"></div>
+      </div>
+      <div>
+        <div class="field-col-label">🛡️ 防御フィールド</div>
+        <div class="field-area" id="defField"></div>
+      </div>
+    </div>
+    <div style="margin:.4rem 0">
+      <div class="hand-label">あなたの手札 <span id="handCnt" style="color:var(--gold)"></span></div>
+      <div class="hand-scroll" id="myHand"></div>
+    </div>
+  </div>
+  <div class="abar">
+    <button class="btn btn-blue"  id="btnDraw" onclick="extraDraw()"  disabled>+ドロー<small style="opacity:.6;font-size:.65rem">(HP-2)</small></button>
+    <button class="btn btn-gold"  id="btnPlay" onclick="playCard()"   disabled>▶ カードを出す</button>
+    <button class="btn btn-red"   id="btnEnd"  onclick="endTurn()"   disabled>⏩ターン終了</button>
+    <button class="btn btn-gray"               onclick="forceEnd()">🚫 強制終了</button>
+  </div>
+  <div class="glog" id="glog"></div>
+</div>
+
+<div class="moverlay" id="resultModal" style="display:none">
+  <div class="modal">
+    <div class="modal-title" id="resTitle">勝利！</div>
+    <div class="modal-sub"   id="resSub"></div>
+    <div class="modal-btns">
+      <button class="btn btn-gold" onclick="rematch()">もう一度</button>
+      <a href="index.html" class="btn btn-outline">ホームへ</a>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tt-name"   id="ttName"></div>
+  <div class="tt-stat"   id="ttStat"></div>
+  <div class="tt-skill"  id="ttSkill"></div>
+  <div class="tt-flavor" id="ttFlavor"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, onValue, get, remove }
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const FB={apiKey:"AIzaSyCXyreqDjZXIWnZqWZShw1yjwubHduqCoc",authDomain:"createcardgame-8edbf.firebaseapp.com",databaseURL:"https://createcardgame-8edbf-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"createcardgame-8edbf",storageBucket:"createcardgame-8edbf.firebasestorage.app",messagingSenderId:"173024784980",appId:"1:173024784980:web:606d80ee258239d656f3c1"};
+const db=getDatabase(initializeApp(FB));
+const gameRef=ref(db,'gameState');
+const cardsRef=ref(db,'sharedCards');
+const lobbyRef=ref(db,'lobby');
+
+const CM={red:{border:'#c0392b',accent:'#e74c3c',glow:'rgba(192,57,43,.4)',cost:'#c0392b',dot:'#e74c3c'},blue:{border:'#2471a3',accent:'#3498db',glow:'rgba(36,113,163,.4)',cost:'#2471a3',dot:'#3498db'},yellow:{border:'#d4ac0d',accent:'#f1c40f',glow:'rgba(212,172,13,.4)',cost:'#d4ac0d',dot:'#f1c40f'},green:{border:'#1e8449',accent:'#2ecc71',glow:'rgba(30,132,73,.4)',cost:'#1e8449',dot:'#2ecc71'}};
+const CN={red:'赤',blue:'青',yellow:'黄',green:'緑'};
+const WEATHERS=[{id:'sun',icon:'☀️',name:'晴れ',eff:'天候効果なし'},{id:'rain',icon:'🌧️',name:'雨',eff:'コスト-1(最低1)'},{id:'storm',icon:'⛈️',name:'嵐',eff:'ATK×1.5(4回変化後)'}];
+const TMAP={onAttack:'攻撃時',onDefend:'防御時',onPlay:'場に出た時',onDamage:'ダメージ時',onDraw:'ドロー時',onTurnStart:'ターン開始時',ifHpLow:'HP低下時',ifChance:'確率発動'};
+const EMAP={draw:v=>`${v}枚ドロー`,buffAtk:v=>`ATK+${v}`,buffDef:v=>`DEF+${v}`,heal:v=>`HP+${v}回復`,damage:v=>`追加${v}ダメージ`,costReduce:v=>`次コスト-${v}`,costGain:v=>`コスト+${v}`};
+
+let G=null;
+let mySlot=parseInt(localStorage.getItem('mySlot')||'1');
+let numP=parseInt(localStorage.getItem('actualPlayers')||'2');
+let myName=localStorage.getItem('myName')||('P'+mySlot);
+let pNames=JSON.parse(localStorage.getItem('playerNames')||'{}');
+let selCard=-1;
+let pool=[];  // card pool for infinite draw
+
+// ============================================================
+// HELPERS
+// ============================================================
+function wData(id){return WEATHERS.find(w=>w.id===id)||WEATHERS[0];}
+function getColors(card){return Array.isArray(card.colors)?card.colors:[card.color||'red'];}
+function mainC(card){return CM[getColors(card)[0]]||CM.red;}
+function clone(o){return JSON.parse(JSON.stringify(o));}
+function setLoad(p,m){document.getElementById('loadFill').style.width=p+'%';document.getElementById('loadMsg').textContent=m;}
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
+function floatDmg(n,bad){
+  const el=document.createElement('div');el.className='dmg-float '+(bad?'df-r':'df-g');
+  el.textContent=(bad?'-':'+')+n;el.style.cssText=`left:${30+Math.random()*40}vw;top:${38+Math.random()*22}vh`;
+  document.body.appendChild(el);setTimeout(()=>el.remove(),1500);
+}
+
+// Infinite draw from pool
+function drawCard(){
+  if(!pool.length)return null;
+  return clone(pool[Math.floor(Math.random()*pool.length)]);
+}
+
+// ============================================================
+// WEATHER
+// ============================================================
+function wCost(card,S){
+  S=S||G;const c=card.cost||1;
+  return S.weather.current==='rain'?Math.max(1,c-1):c;
+}
+function wAtk(card,S){
+  S=S||G;const a=card.atk||0;
+  if(S.weather.current==='storm'&&(S.weather.changeCount||0)>=4)return Math.floor(a*1.5);
+  return a;
+}
+function weatherTick(S){
+  S.weather.defendsDone=(S.weather.defendsDone||0)+1;
+  const need=2*S.numP;
+  if(S.weather.defendsDone>=need){
+    S.weather.defendsDone=0;
+    const ids=['sun','rain','storm'];
+    const avail=ids.filter(w=>w!==S.weather.current&&(w!=='storm'||(S.weather.changeCount||0)>=3));
+    const pick=avail.length?avail[Math.floor(Math.random()*avail.length)]:ids.filter(w=>w!==S.weather.current)[0];
+    S.weather.current=pick;S.weather.changeCount=(S.weather.changeCount||0)+1;
+    const wd=wData(pick);S.log.push(`🌤 天候変化 → ${wd.icon}${wd.name}（${wd.eff}）`);
+  }
+}
+
+// ============================================================
+// CAN PLAY  ← BUG FIX: use provided state S, never G directly
+// ============================================================
+function canPlay(card,S){
+  // S must be provided explicitly (use G only as default)
+  if(!S)S=G;
+  const me=S.players[mySlot];
+  if(!me)return false;
+  const cost=wCost(card,S);
+  if(me.cost<cost)return false;
+  // First card of the game (no lastCard) → any card OK
+  if(!S.lastCard)return true;
+  // First card of MY turn in attack phase → check against lastCard from previous round
+  const myColors=getColors(card);
+  const lastColors=getColors(S.lastCard);
+  const colorMatch=myColors.some(c=>lastColors.includes(c));
+  const costMatch=card.cost===S.lastCard.cost;
+  return colorMatch||costMatch;
+}
+
+// ============================================================
+// SKILL HELPERS
+// ============================================================
+function skillLabel(e){
+  const t=TMAP[e.trigger||'']||'';
+  const key=e.eff||e.effType||e.type||'';
+  const ef=EMAP[key]?EMAP[key](e.val||e.effVal||e.value||1):'';
+  return (t||ef)?`【${t||'発動'}】${ef}`:'';
+}
+function cardSkillLines(card){
+  const effs=card.effects&&card.effects.length?card.effects
+    :(card.effect&&(card.effect.trigger||card.effect.type)?[{trigger:card.effect.trigger,eff:card.effect.type,val:card.effect.value}]:[]);
+  return effs.map(e=>skillLabel(e)).filter(Boolean);
+}
+
+// ============================================================
+// APPLY EFFECTS
+// ============================================================
+function applyEff(card,S,slot,trigger){
+  if(!card)return;
+  const effs=card.effects&&card.effects.length?card.effects
+    :(card.effect&&(card.effect.trigger||card.effect.type)?[{trigger:card.effect.trigger,eff:card.effect.type,val:card.effect.value}]:[]);
+  const opp=getOpp(slot,S);
+  for(const e of effs){
+    const trig=e.trigger||'';
+    const eff=e.eff||e.effType||e.type||'';
+    const val=e.val||e.effVal||e.value||1;
+    // Condition/trigger matching
+    if(trig==='ifHpLow'){if((S.players[slot]?.hp||0)>val)continue;}
+    else if(trig==='ifChance'){if(Math.random()*100>val)continue;}
+    else if(trig!==trigger)continue;
+    if(!S.players[slot])continue;
+    switch(eff){
+      case 'draw':{for(let i=0;i<val;i++){const d=drawCard();if(d)S.players[slot].hand.push(d);}S.log.push(`🌟「${card.name}」→${val}枚ドロー`);break;}
+      case 'buffAtk':{const h=S.players[slot].hand;if(h.length){const ri=Math.floor(Math.random()*h.length);h[ri].atk=(h[ri].atk||0)+val;}S.log.push(`🌟「${card.name}」→ATK+${val}`);break;}
+      case 'buffDef':{const h=S.players[slot].hand;if(h.length){const ri=Math.floor(Math.random()*h.length);h[ri].def=(h[ri].def||0)+val;}S.log.push(`🌟「${card.name}」→DEF+${val}`);break;}
+      case 'heal':{S.players[slot].hp=Math.min(S.players[slot].maxHp,(S.players[slot].hp||0)+val);S.log.push(`🌟「${card.name}」→HP+${val}回復`);break;}
+      case 'damage':{if(opp&&S.players[opp])S.players[opp].hp=Math.max(0,(S.players[opp].hp||0)-val);S.log.push(`🌟「${card.name}」→追加${val}ダメージ`);break;}
+      case 'costReduce':{S.players[slot]._cBonus=(S.players[slot]._cBonus||0)+val;S.log.push(`🌟「${card.name}」→次コスト-${val}`);break;}
+      case 'costGain':{S.players[slot].cost=Math.min(S.players[slot].maxCost,(S.players[slot].cost||0)+val);S.log.push(`🌟「${card.name}」→コスト+${val}`);break;}
+    }
+  }
+}
+
+function getOpp(slot,S){
+  if(S.numP===2)return slot===1?2:1;
+  const atkP=S.lastAtkPlayer;
+  if(atkP&&slot!==atkP)return atkP;
+  const ni=(S.seqIdx+1)%S.seq.length;
+  return S.seq[ni%S.seq.length].player;
+}
+
+// ============================================================
+// TURN HELPERS
+// ============================================================
+function cur(S){S=S||G;return S.seq[S.seqIdx%S.seq.length];}
+function isMyTurn(S){return cur(S).player===mySlot;}
+function phase(S){return cur(S).phase;}
+
+// ============================================================
+// BUILD INITIAL STATE
+// ============================================================
+function buildState(n){
+  // Sequence: P1 atk→P2 def→P2 atk→P3 def→...→Pn atk→P1 def→repeat
+  const seq=[];
+  for(let i=1;i<=n;i++){
+    const next=(i===n)?1:i+1;
+    seq.push({player:i,phase:'attack'});
+    seq.push({player:next,phase:'defend'});
+  }
+  const players={};
+  for(let i=1;i<=n;i++){
+    const hand=Array.from({length:i===1?7:8},()=>drawCard()).filter(Boolean);
+    players[i]={hp:20,maxHp:20,cost:i===1?1:2,maxCost:10,hand,_cBonus:0};
+  }
+  return{
+    status:'playing',numP:n,seqIdx:0,seq,players,
+    field:{},            // field[slotNum] = array of cards on field
+    lastCard:null,       // last played card (for color/cost matching)
+    lastAtkPlayer:null,  // who attacked last (for combat resolution)
+    playedThisTurn:false,
+    weather:{current:'sun',changeCount:0,defendsDone:0},
+    log:['ゲーム開始！']
+  };
+}
+
+// ============================================================
+// INIT
+// ============================================================
+async function init(){
+  setLoad(15,'カード読み込み中...');
+
+  // Load shared card pool from Firebase
+  const csnap=await get(cardsRef);
+  const cdata=csnap.val()||{};
+  pool=Object.values(cdata);
+
+  // Fallback: localStorage or default
+  if(!pool.length){
+    pool=JSON.parse(localStorage.getItem('activeCards')||localStorage.getItem('cardrealmDeck')||'[]');
+  }
+  if(!pool.length) pool=genDefault();
+
+  setLoad(40,'ゲーム状態確認...');
+  const snap=await get(gameRef);
+  const ex=snap.val();
+
+  // Resume only if same numP and still playing
+  if(ex&&ex.status==='playing'&&ex.numP===numP){
+    G=ex;setLoad(85,'ゲームに復帰...');
+  } else {
+    setLoad(60,'ゲーム初期化...');
+    G=buildState(numP);
+    await save(G);
+  }
+
+  setLoad(100,'開始！');
+  setTimeout(()=>{
+    document.getElementById('loadScr').style.display='none';
+    document.getElementById('gameApp').style.display='flex';
+    renderAll();
+  },350);
+
+  // Real-time sync
+  onValue(gameRef,snap=>{
+    if(!snap.val())return;
+    G=snap.val();
+    renderAll();
+    checkWin();
+  });
+}
+
+// ============================================================
+// SAVE
+// ============================================================
+async function save(s){
+  G=s;
+  try{await set(gameRef,s);}catch(e){console.warn('save fail',e);}
+  renderAll();checkWin();
+}
+
+// ============================================================
+// ACTIONS
+// ============================================================
+window.selCardFn=function(i){
+  if(!isMyTurn()){showToast('あなたのターンではありません');return;}
+  if(G.playedThisTurn){showToast('今ターンはすでにカードを出しました');return;}
+  const card=G.players[mySlot]?.hand?.[i];
+  if(!card)return;
+
+  // Toggle selection: clicking selected card deselects it
+  if(selCard===i){selCard=-1;renderMyHand();updateBtns();return;}
+
+  // Validate
+  const cost=wCost(card);
+  if(G.players[mySlot].cost<cost){showToast(`コストが足りません（必要: ${cost}、所持: ${G.players[mySlot].cost}）`);return;}
+  if(!canPlay(card)){
+    if(G.lastCard){
+      showToast(`出せません。前のカード「${G.lastCard.name}」と色かコストが一致するカードのみ出せます`);
+    } else {
+      showToast('コストが足りません');
+    }
+    return;
+  }
+  selCard=i;
+  renderMyHand();
+  updateBtns();
+};
+
+window.playCard=async function(){
+  if(selCard<0||!isMyTurn()||G.playedThisTurn)return;
+  const me=G.players[mySlot];
+  const card=me.hand?.[selCard];
+  if(!card){selCard=-1;renderMyHand();return;}
+
+  const S=clone(G);
+  const p=S.players[mySlot];
+  const cost=wCost(card,S);
+  const bonus=p._cBonus||0;
+  const finalCost=Math.max(0,cost-bonus);
+  p.cost-=finalCost;p._cBonus=0;
+  p.hand.splice(selCard,1);
+  const fc={...card,age:0};
+  if(!S.field[mySlot])S.field[mySlot]=[];
+  S.field[mySlot].push(fc);
+  S.lastCard=card;
+  S.playedThisTurn=true;
+
+  if(phase(S)==='attack'){
+    S.lastAtkPlayer=mySlot;
+    const av=wAtk(card,S);
+    S.log.push(`P${mySlot}「${pNames[mySlot]||myName}」→「${card.name}」ATK:${av} DEF:${card.def}`);
+    applyEff(fc,S,mySlot,'onPlay');
+    applyEff(fc,S,mySlot,'onAttack');
+  } else {
+    // DEFEND: resolve combat against the attacker's card
+    const atkP=S.lastAtkPlayer;
+    if(atkP&&S.field[atkP]){
+      const atkField=S.field[atkP];
+      const atkCard=atkField[atkField.length-1];
+      if(atkCard){
+        const av=wAtk(atkCard,S);
+        const dmg=Math.max(0,av-fc.def);
+        if(dmg>0){
+          p.hp=Math.max(0,p.hp-dmg);
+          S.log.push(`⚔ 「${atkCard.name}」ATK:${av} vs 「${fc.name}」DEF:${fc.def} → ${dmg}ダメージ！`);
+          floatDmg(dmg,true);
+        } else {
+          S.log.push(`🛡 「${atkCard.name}」ATK:${av} vs 「${fc.name}」DEF:${fc.def} → ブロック！`);
+        }
+      }
+    }
+    applyEff(fc,S,mySlot,'onDefend');
+    S.log.push(`P${mySlot}「${pNames[mySlot]||myName}」→「${card.name}」で防御`);
+    weatherTick(S);
+  }
+
+  selCard=-1;
+  await save(S);
+};
+
+window.extraDraw=async function(){
+  if(!isMyTurn()||phase()!=='attack')return;
+  const S=clone(G);const p=S.players[mySlot];
+  if((p.hp||0)<=2){showToast('HP2消費できません（HPが足りない）');return;}
+  const card=drawCard();if(!card){showToast('カードプールが空です');return;}
+  p.hp-=2;p.hand.push(card);
+  applyEff(card,S,mySlot,'onDraw');
+  S.log.push(`P${mySlot}がHP2消費で追加ドロー`);
+  await save(S);showToast('ドロー！');
+};
+
+window.endTurn=async function(){
+  if(!isMyTurn())return;
+  const S=clone(G);
+  const c=S.seq[S.seqIdx%S.seq.length];
+
+  // Defend skipped → take full attack damage
+  if(c.phase==='defend'&&!S.playedThisTurn){
+    const atkP=S.lastAtkPlayer;
+    if(atkP&&S.field[atkP]){
+      const ac=S.field[atkP][S.field[atkP].length-1];
+      if(ac){
+        const av=wAtk(ac,S);
+        if(av>0){
+          S.players[c.player].hp=Math.max(0,(S.players[c.player].hp||0)-av);
+          S.log.push(`P${c.player}がガードせず ${av}ダメージ！`);
+          floatDmg(av,c.player===mySlot);
+        }
+      }
+    }
+    weatherTick(S);
+  }
+
+  // Age field cards: age 0 → 1 → removed
+  Object.keys(S.field).forEach(slot=>{
+    S.field[slot]=(S.field[slot]||[]).map(x=>({...x,age:(x.age||0)+1})).filter(x=>x.age<2);
+  });
+
+  // Next turn
+  S.seqIdx=(S.seqIdx+1)%S.seq.length;
+  S.playedThisTurn=false;
+  const next=S.seq[S.seqIdx%S.seq.length];
+
+  if(next.phase==='attack'){
+    const np=S.players[next.player];
+    if(np){
+      const drawn=drawCard();
+      if(drawn){np.hand.push(drawn);applyEff(drawn,S,next.player,'onDraw');}
+      np.cost=Math.min(np.maxCost,(np.cost||0)+2);
+      S.log.push(`P${next.player}「${pNames[next.player]||'P'+next.player}」の攻撃ターン（コスト+2、1枚ドロー）`);
+    }
+  } else {
+    S.log.push(`P${next.player}「${pNames[next.player]||'P'+next.player}」の防御ターン`);
+  }
+
+  selCard=-1;
+  await save(S);
+};
+
+window.forceEnd=async function(){
+  if(!confirm('試合を強制終了しますか？ロビーもリセットされます。'))return;
+  await remove(gameRef);
+  await remove(lobbyRef);  // Reset lobby so new game can start
+  window.location.href='index.html';
+};
+
+window.rematch=async function(){
+  document.getElementById('resultModal').style.display='none';
+  // Clear lobby so players re-enter
+  await remove(lobbyRef);
+  G=buildState(numP);
+  await save(G);
+  selCard=-1;
+};
+
+// ============================================================
+// WIN CHECK
+// ============================================================
+function checkWin(){
+  if(!G||G.status!=='playing')return;
+  const dead=[];
+  for(let i=1;i<=G.numP;i++) if(G.players[i]&&(G.players[i].hp||0)<=0) dead.push(i);
+  if(!dead.length)return;
+  // Mark game over to prevent double-trigger
+  G.status='over';
+  const survivors=[];
+  for(let i=1;i<=G.numP;i++) if(!dead.includes(i)) survivors.push(i);
+  const iLose=dead.includes(mySlot);
+  const winnerName=survivors.map(i=>pNames[i]||`P${i}`).join('・');
+  document.getElementById('resTitle').textContent=iLose?'💀 敗北...':'🏆 勝利！';
+  document.getElementById('resSub').textContent=iLose?`${winnerName} の勝利`:`おめでとうございます！`;
+  document.getElementById('resultModal').style.display='flex';
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function renderAll(){
+  if(!G)return;
+  renderWeather();
+  renderStatusBanner();
+  renderPlayers();
+  renderFields();
+  renderMyHand();
+  renderLog();
+  updateBtns();
+}
+
+function renderWeather(){
+  const w=wData(G.weather.current);
+  document.getElementById('wIcon').textContent=w.icon;
+  document.getElementById('wName').textContent=w.name;
+  document.getElementById('wEffect').textContent=w.eff+(G.weather.current==='storm'&&(G.weather.changeCount||0)<4?' ※4回変化後有効':'');
+  const need=2*G.numP,rem=need-(G.weather.defendsDone||0);
+  document.getElementById('wChange').textContent=`変化まで${rem}防御`;
+}
+
+function renderStatusBanner(){
+  const c=cur();
+  const name=pNames[c.player]||`P${c.player}`;
+  const tb=document.getElementById('turnBadge');
+  let banner='';
+  if(isMyTurn()&&phase()==='attack'){
+    tb.className='tbadge tb-a';tb.textContent='あなたの攻撃ターン';
+    banner=`💎コスト: ${G.players[mySlot]?.cost||0} | カードを選んで「出す」を押してください`;
+  } else if(isMyTurn()&&phase()==='defend'){
+    tb.className='tbadge tb-d';tb.textContent='あなたの防御ターン';
+    const atkP=G.lastAtkPlayer;
+    const atkName=atkP?(pNames[atkP]||`P${atkP}`):'?';
+    banner=`🛡️ ${atkName}の攻撃に対して防御カードを出すか、ターン終了でダメージを受けます`;
+  } else {
+    tb.className='tbadge tb-w';
+    tb.textContent=phase()==='attack'?`${name}の攻撃`:`${name}の防御`;
+    banner=`⏳ ${name}のターン（${phase()==='attack'?'攻撃':'防御'}中）`;
+  }
+  document.getElementById('statusBanner').textContent=banner;
+}
+
+function renderPlayers(){
+  const pp=document.getElementById('playersPanel');
+  const c=cur();pp.innerHTML='';
+  for(let i=1;i<=G.numP;i++){
+    const p=G.players[i];if(!p)continue;
+    const isMe=i===mySlot;
+    const isAtk=c.player===i&&c.phase==='attack';
+    const isDef=c.player===i&&c.phase==='defend';
+    const hpPct=Math.max(0,Math.min(100,(p.hp/p.maxHp)*100));
+    let rowCls='prow',roleCls='rp-w',roleText='待機';
+    if(isAtk){roleCls='rp-a';roleText='攻撃中';if(isMe)rowCls+=' my-a';else rowCls+=' opp-a';}
+    else if(isDef){roleCls='rp-d';roleText='防御中';if(isMe)rowCls+=' my-d';}
+    const name=pNames[i]||`P${i}`;
+    const d=document.createElement('div');d.className=rowCls;
+    d.innerHTML=`<div class="pinfo">
+      <div class="pname">${name}${isMe?' 👤':''}</div>
+      <div class="rpill ${roleCls}">${roleText}</div>
+      <div class="hp-wrap">
+        <div class="hp-lbl"><span>HP</span><span>${p.hp}/${p.maxHp}</span></div>
+        <div class="hp-bar"><div class="hp-fill" style="width:${hpPct}%"></div></div>
+      </div>
+      <div class="cost-chip">💎${p.cost}</div>
+      ${!isMe?`<span style="font-family:'Rajdhani',sans-serif;font-size:.62rem;color:var(--text-dim)">🃏${p.hand?.length||0}</span>`:''}
+    </div>
+    ${!isMe&&p.hand?.length?`<div class="hand-scroll">${
+      Array(Math.min(p.hand.length,10)).fill(0).map(()=>
+        `<div class="gc facedown" style="border-color:rgba(201,168,76,.18)"><div class="gc-art" style="font-size:1rem;z-index:1;position:relative">🃏</div></div>`
+      ).join('')
+    }${p.hand.length>10?`<span style="font-size:.6rem;color:var(--text-dim);align-self:center;flex-shrink:0">+${p.hand.length-10}</span>`:''}</div>`:''}`;
+    pp.appendChild(d);
+  }
+  const me=G.players[mySlot];
+  document.getElementById('handCnt').textContent=me?`(${me.hand?.length||0}枚)`:'';
+}
+
+function renderFields(){
+  // Show attacker's cards on left, current defender's cards on right
+  const c=cur();
+  const atkSlot=G.lastAtkPlayer;
+  const defSlot=(c.phase==='defend')?c.player:null;
+  renderFieldArea('atkField',atkSlot?(G.field[atkSlot]||[]):[]);
+  renderFieldArea('defField',defSlot?(G.field[defSlot]||[]):[]);
+}
+
+function renderFieldArea(id,cards){
+  const el=document.getElementById(id);
+  if(!cards.length){el.innerHTML='<div class="field-empty">🃏</div>';return;}
+  el.innerHTML=cards.map(card=>{
+    const mc=mainC(card);const av=wAtk(card);const atkCh=av!==(card.atk||0);
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:(card.illust||'🃏');
+    const cdots=getColors(card).map(c=>`<div class="gc-cdot" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
+    return `<div class="fc-wrap">
+      <div class="fc-age">${card.age===0?'今':'消滅間近'}</div>
+      <div class="gc" style="border-color:${mc.border};box-shadow:0 0 10px ${mc.glow};cursor:default">
+        <div class="gc-head"><div class="gc-cost" style="background:${mc.cost}">${card.cost}</div><div class="gc-name">${card.name||'?'}</div></div>
+        <div class="gc-art">${ill}<div class="gc-cdots">${cdots}</div></div>
+        <div class="gc-stats"><span style="color:${atkCh?'#f1c40f':mc.accent}">${av>0?'⚔':''}${av}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div>
+      </div></div>`;
+  }).join('');
+}
+
+function renderMyHand(){
+  const me=G?.players?.[mySlot];
+  const hand=me?.hand||[];
+  const el=document.getElementById('myHand');
+  if(!hand.length){el.innerHTML='<div style="color:var(--text-dim);font-size:.78rem;padding:.4rem">手札なし</div>';return;}
+
+  const myT=isMyTurn();
+  const ph=phase();
+
+  el.innerHTML=hand.map((card,i)=>{
+    const mc=mainC(card);
+    const effAtk=wAtk(card);const atkCh=effAtk!==(card.atk||0);
+    const effCost=wCost(card);const cstCh=effCost!==card.cost;
+    const isSel=selCard===i;
+
+    // ★ FIX: dim only when it's my turn AND card cannot be played
+    // When it's NOT my turn, show cards normally (not dimmed, not clickable)
+    let isDim=false;
+    if(myT){
+      // Check if card is playable
+      const hasCost=(me.cost>=effCost);
+      let colorOk=true;
+      if(G.lastCard){
+        const myC=getColors(card);const lC=getColors(G.lastCard);
+        colorOk=myC.some(c=>lC.includes(c))||card.cost===G.lastCard.cost;
+      }
+      isDim=!(hasCost&&colorOk);
+    }
+
+    const hasSkill=cardSkillLines(card).length>0;
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:(card.illust||'🃏');
+    const cdots=getColors(card).map(c=>`<div class="gc-cdot" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
+
+    return `<div class="gc${isSel?' sel':''}${isDim?' dim':''}"
+      style="border-color:${mc.border};box-shadow:${isSel?'0 0 14px '+mc.glow:'none'}"
+      onclick="${myT?`selCardFn(${i})`:'void(0)'}"
+      onmouseenter="showTT(event,${i})"
+      onmouseleave="hideTT()"
+      ontouchstart="showTT(event,${i})"
+      ontouchend="hideTT()">
+      ${hasSkill?'<div class="gc-skill-dot"></div>':''}
+      <div class="gc-head">
+        <div class="gc-cost" style="background:${mc.cost};${cstCh?'outline:2px solid #f1c40f;outline-offset:-1px':''}">${effCost}</div>
+        <div class="gc-name">${card.name||'?'}</div>
+      </div>
+      <div class="gc-art">${ill}<div class="gc-cdots">${cdots}</div></div>
+      <div class="gc-stats">
+        <span style="color:${atkCh?'#f1c40f':mc.accent}">${effAtk>0?'⚔':''}${effAtk}</span>
+        <span style="color:${mc.accent}">🛡${card.def||0}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderLog(){
+  const el=document.getElementById('glog');
+  const logs=(G.log||[]).slice(-14);
+  el.innerHTML=logs.map(t=>{
+    let cls='le';
+    if(t.includes('ダメージ')||t.includes('ガード'))cls+=' dmg';
+    else if(t.includes('回復'))cls+=' heal';
+    else if(t.includes('🌟'))cls+=' eff';
+    else if(t.includes('天候')||t.includes('🌤'))cls+=' wth';
+    else if(t.includes('開始')||t.includes('ゲーム'))cls+=' hl';
+    return `<div class="${cls}">▸ ${t}</div>`;
+  }).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+function updateBtns(){
+  const myT=isMyTurn();
+  const ph=phase();
+  document.getElementById('btnDraw').disabled=!myT||ph!=='attack';
+  document.getElementById('btnPlay').disabled=!myT||selCard<0||G.playedThisTurn;
+  document.getElementById('btnEnd').disabled=!myT;
+}
+
+// ============================================================
+// TOOLTIP
+// ============================================================
+window.showTT=function(e,i){
+  const me=G?.players?.[mySlot];if(!me)return;
+  const card=me.hand?.[i];if(!card)return;
+  const t=document.getElementById('tooltip');
+  document.getElementById('ttName').textContent=card.name||'?';
+  const av=wAtk(card),cv=wCost(card);
+  document.getElementById('ttStat').textContent=`コスト:${cv} ATK:${av} DEF:${card.def||0} [${getColors(card).map(c=>CN[c]||c).join('/')}]`;
+  document.getElementById('ttSkill').textContent=cardSkillLines(card).join('\n')||'スキルなし';
+  document.getElementById('ttFlavor').textContent=card.flavor||'';
+  t.style.display='block';
+  const cx=e.touches?e.touches[0].clientX:e.clientX;
+  const cy=e.touches?e.touches[0].clientY:e.clientY;
+  t.style.left=Math.min(cx+12,window.innerWidth-200)+'px';
+  t.style.top=Math.max(cy-100,10)+'px';
+};
+window.hideTT=function(){document.getElementById('tooltip').style.display='none';};
+
+// ============================================================
+// DEFAULT DECK
+// ============================================================
+function genDefault(){
+  const cols=[['red'],['blue'],['yellow'],['green'],['red','blue'],['yellow','green']];
+  const names=['騎士','魔法使い','竜','妖精','戦士','弓使い','僧侶','忍者','海賊','錬金術師','天使','悪魔','剣士','盗賊','召喚士','聖騎士','魔剣士','竜騎士','幻術師','召喚魔法'];
+  const ills=['⚔️','🔮','🐉','🦋','🛡️','🏹','✨','🌸','🗡️','🧪','👼','😈','⚡','🗺️','📖','🏰','🌙','🦅','🌀','🔥'];
+  return names.map((n,i)=>({id:'def'+i,name:n,colors:cols[i%cols.length],color:cols[i%cols.length][0],cost:1+Math.floor(i/4),atk:2+(i%5),def:1+(i%4),illust:ills[i],flavor:'',effects:[],effect:{trigger:'',type:'',value:1}}));
+}
+
+init();
+</script>
+</body>
+</html>
