@@ -584,15 +584,28 @@
   // TODO: Firebaseプロジェクトを作成してこの設定を変更してください
   // https://console.firebase.google.com/ でプロジェクトを作成し、
   // Realtime Databaseを有効にしてください
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
-  };
+  // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyCXyreqDjZXIWnZqWZShw1yjwubHduqCoc",
+  authDomain: "createcardgame-8edbf.firebaseapp.com",
+  databaseURL: "https://createcardgame-8edbf-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "createcardgame-8edbf",
+  storageBucket: "createcardgame-8edbf.firebasestorage.app",
+  messagingSenderId: "173024784980",
+  appId: "1:173024784980:web:606d80ee258239d656f3c1",
+  measurementId: "G-DDB5KGS7K3"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
   let db, matchRef, connectedRef;
   let mySlot = null;
