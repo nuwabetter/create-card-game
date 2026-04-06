@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CARD REALM — 対戦</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Noto+Sans+JP:wght@300;400;700&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#c9a84c;--gold-light:#f0d080;--gold-dim:#7a6430;--deep:#080810;--panel:#0f1020;--panel2:#141428;--text:#e8e0d0;--text-dim:#8a8070;--border:rgba(201,168,76,.2);--red:#e74c3c;--blue:#3498db;--green:#2ecc71;--orange:#e67e22}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-serif;display:flex;flex-direction:column}
+#loadScr{position:fixed;inset:0;background:var(--deep);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;z-index:999}
+.load-logo{font-family:'Cinzel Decorative',serif;font-size:2rem;background:linear-gradient(135deg,#7a6430,#f0d080);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.load-msg{font-family:'Rajdhani',sans-serif;letter-spacing:.2em;color:var(--text-dim);font-size:.88rem}
+.load-bar{width:200px;height:3px;background:#141428;border-radius:3px;overflow:hidden}
+.load-fill{height:100%;width:0;background:linear-gradient(90deg,#7a6430,#c9a84c);border-radius:3px;transition:width .5s}
+#gameApp{display:flex;flex-direction:column;height:100%;overflow:hidden}
+
+/* ===== HUD ===== */
+.hud{display:flex;align-items:center;gap:.45rem;padding:.35rem .6rem;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0;min-height:40px}
+.hud-back{color:var(--gold-dim);text-decoration:none;font-family:'Rajdhani',sans-serif;font-size:.72rem;letter-spacing:.08em;flex-shrink:0}
+.hud-title{font-family:'Cinzel Decorative',serif;font-size:.78rem;color:var(--gold);flex:1;text-align:center}
+.tbadge{font-family:'Rajdhani',sans-serif;font-size:.68rem;font-weight:700;letter-spacing:.08em;padding:.2rem .55rem;border-radius:4px;text-transform:uppercase;flex-shrink:0}
+.tb-a{background:rgba(231,76,60,.14);color:var(--red);border:1px solid rgba(231,76,60,.4)}
+.tb-d{background:rgba(52,152,219,.14);color:var(--blue);border:1px solid rgba(52,152,219,.4)}
+.tb-w{background:rgba(138,128,112,.1);color:var(--text-dim);border:1px solid rgba(138,128,112,.18)}
+
+/* ===== MY STATUS BAR (always visible, prominent) ===== */
+.my-status-bar{display:flex;align-items:center;gap:.6rem;padding:.4rem .7rem;background:rgba(0,0,0,.5);border-bottom:2px solid rgba(201,168,76,.35);flex-shrink:0;flex-wrap:wrap}
+.mys-name{font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:700;color:var(--gold);flex-shrink:0}
+.mys-hp-wrap{display:flex;align-items:center;gap:.35rem;flex:1;min-width:100px}
+.mys-hp-icon{font-size:.85rem;flex-shrink:0}
+.mys-hp-bar-outer{flex:1;height:10px;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden;border:1px solid rgba(255,255,255,.1)}
+.mys-hp-bar{height:100%;border-radius:5px;transition:width .5s;background:linear-gradient(90deg,var(--red),#f39c12,var(--green))}
+.mys-hp-label{font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;color:#fff;flex-shrink:0;min-width:40px;text-align:right}
+.mys-cost{font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;color:var(--gold);background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.4);border-radius:6px;padding:.22rem .55rem;flex-shrink:0}
+.mys-turn-indicator{font-family:'Rajdhani',sans-serif;font-size:.72rem;font-weight:700;padding:.2rem .55rem;border-radius:5px;flex-shrink:0}
+.mti-attack{background:rgba(231,76,60,.2);color:var(--red);border:1px solid rgba(231,76,60,.5);animation:pulse-a .8s ease-in-out infinite alternate}
+.mti-defend{background:rgba(52,152,219,.2);color:var(--blue);border:1px solid rgba(52,152,219,.5);animation:pulse-d .8s ease-in-out infinite alternate}
+.mti-wait{background:rgba(138,128,112,.1);color:var(--text-dim);border:1px solid rgba(138,128,112,.2)}
+@keyframes pulse-a{from{box-shadow:0 0 0 rgba(231,76,60,0)}to{box-shadow:0 0 8px rgba(231,76,60,.6)}}
+@keyframes pulse-d{from{box-shadow:0 0 0 rgba(52,152,219,0)}to{box-shadow:0 0 8px rgba(52,152,219,.6)}}
+
+/* ===== WEATHER ===== */
+.wbar{display:flex;align-items:center;gap:.5rem;padding:.3rem .6rem;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;font-family:'Rajdhani',sans-serif}
+.wi{font-size:1.1rem}.wn{font-size:.78rem;font-weight:700}.we{font-size:.65rem;color:var(--text-dim)}.wc{font-size:.62rem;color:var(--text-dim);margin-left:auto}
+
+/* ===== SCROLL AREA ===== */
+.gscroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:.4rem .48rem .7rem}
+
+/* ===== OPPONENTS ===== */
+.opp-area{background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:.52rem .68rem;margin-bottom:.4rem;transition:border-color .3s}
+.opp-area.opp-a{border-color:rgba(231,76,60,.5);box-shadow:0 0 10px rgba(231,76,60,.1)}
+.opp-area.opp-d{border-color:rgba(52,152,219,.5);box-shadow:0 0 10px rgba(52,152,219,.1)}
+.opp-info{display:flex;align-items:center;gap:.5rem;margin-bottom:.32rem;flex-wrap:wrap}
+.opp-name{font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:700;color:var(--gold);flex-shrink:0}
+.rpill{font-family:'Rajdhani',sans-serif;font-size:.58rem;font-weight:700;letter-spacing:.1em;padding:.12rem .4rem;border-radius:3px;text-transform:uppercase;flex-shrink:0}
+.rp-a{background:rgba(231,76,60,.18);color:var(--red);border:1px solid rgba(231,76,60,.4)}
+.rp-d{background:rgba(52,152,219,.18);color:var(--blue);border:1px solid rgba(52,152,219,.4)}
+.rp-w{background:rgba(138,128,112,.1);color:var(--text-dim);border:1px solid rgba(138,128,112,.18)}
+.opp-hp-row{display:flex;align-items:center;gap:.4rem;flex:1;min-width:80px}
+.opp-hp-bar-outer{flex:1;height:7px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
+.opp-hp-bar{height:100%;border-radius:3px;transition:width .5s;background:linear-gradient(90deg,var(--red),#f39c12,var(--green))}
+.opp-hp-txt{font-family:'Rajdhani',sans-serif;font-size:.75rem;color:var(--text-dim);flex-shrink:0}
+.opp-cost{font-family:'Rajdhani',sans-serif;font-size:.7rem;color:var(--gold);border:1px solid var(--border);border-radius:4px;padding:.1rem .38rem;flex-shrink:0}
+
+/* ===== BATTLEFIELD ===== */
+.battlefield{display:grid;grid-template-columns:1fr auto 1fr;gap:.4rem;align-items:start;margin:.35rem 0}
+.field-col{display:flex;flex-direction:column;gap:.18rem}
+.field-col-label{font-family:'Rajdhani',sans-serif;font-size:.55rem;letter-spacing:.15em;color:var(--text-dim);text-transform:uppercase;text-align:center}
+.field-area{background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:8px;padding:.35rem;min-height:100px;display:flex;align-items:center;justify-content:center;gap:.4rem;flex-wrap:wrap}
+.field-empty-slot{border:1px dashed rgba(201,168,76,.12);border-radius:6px;width:62px;height:88px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;opacity:.13}
+
+/* Discard pile (center) */
+.discard-col{display:flex;flex-direction:column;align-items:center;gap:.18rem}
+.discard-label{font-family:'Rajdhani',sans-serif;font-size:.5rem;letter-spacing:.12em;color:var(--gold-dim);text-transform:uppercase;text-align:center}
+.discard-area{background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.2);border-radius:8px;padding:.35rem;width:72px;min-height:100px;display:flex;align-items:center;justify-content:center}
+.discard-empty{font-size:.85rem;color:rgba(201,168,76,.25);text-align:center;font-family:'Rajdhani',sans-serif;font-size:.5rem;letter-spacing:.1em}
+
+/* ===== CARDS ===== */
+.gc{width:62px;height:88px;border-radius:6px;border:1.5px solid;background:var(--panel2);display:flex;flex-direction:column;cursor:pointer;transition:transform .15s,box-shadow .15s;position:relative;overflow:hidden;flex-shrink:0}
+.gc:hover{transform:translateY(-6px) scale(1.04);z-index:10}
+.gc.sel{transform:translateY(-12px) scale(1.1);z-index:20;outline:2px solid var(--gold)}
+.gc.dim{opacity:.25;cursor:not-allowed}
+.gc.dim:hover,.gc.dim:active{transform:none}
+.gc.no-hover:hover{transform:none}
+.gc.facedown{background:repeating-linear-gradient(45deg,var(--panel2)0,var(--panel2)3px,rgba(201,168,76,.04)3px,rgba(201,168,76,.04)6px);cursor:default}
+.gc-head{padding:2px 3px;display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.85);flex-shrink:0}
+.gc-cost{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.62rem;color:#000;flex-shrink:0}
+.gc-name{font-size:.46rem;color:rgba(255,255,255,.65);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:36px;font-family:'Rajdhani',sans-serif;font-weight:700}
+.gc-art{flex:1;display:flex;align-items:center;justify-content:center;font-size:1.5rem;background:rgba(0,0,0,.15);position:relative;overflow:hidden}
+.gc-art img{width:100%;height:100%;object-fit:cover}
+.gc-art::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,transparent 58%,rgba(0,0,0,.8)100%);pointer-events:none}
+.gc-stats{display:flex;justify-content:space-around;padding:2px;background:rgba(0,0,0,.88);flex-shrink:0;font-family:'Rajdhani',sans-serif;font-size:.6rem;font-weight:700}
+.gc-cdots{display:flex;gap:1px;position:absolute;bottom:14px;left:2px;z-index:3}
+.gc-cdot{width:4px;height:4px;border-radius:50%}
+.gc-skill-dot{position:absolute;top:2px;right:2px;width:5px;height:5px;border-radius:50%;background:#f1c40f;box-shadow:0 0 4px #f1c40f;z-index:3}
+
+/* ===== MY HAND ===== */
+.my-hand-section{margin:.3rem 0}
+.hand-label{font-family:'Rajdhani',sans-serif;font-size:.6rem;letter-spacing:.18em;color:var(--text-dim);text-transform:uppercase;margin-bottom:.25rem}
+.hand-scroll{display:flex;gap:.38rem;overflow-x:auto;padding:.2rem .08rem .35rem;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory}
+.hand-scroll::-webkit-scrollbar{height:3px}
+.hand-scroll::-webkit-scrollbar-thumb{background:rgba(201,168,76,.3);border-radius:2px}
+
+/* ===== ACTION BAR ===== */
+.abar{display:flex;gap:.38rem;align-items:center;padding:.42rem .52rem;background:rgba(0,0,0,.7);border-top:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.26rem;padding:.46rem .8rem;border:none;border-radius:7px;font-family:'Rajdhani',sans-serif;font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .15s;touch-action:manipulation;-webkit-user-select:none;user-select:none;white-space:nowrap}
+.btn:active{transform:scale(.92)}
+.btn-gold{background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:var(--deep);box-shadow:0 2px 10px rgba(201,168,76,.35)}
+.btn-gold:disabled{opacity:.22;cursor:not-allowed}
+.btn-blue{background:linear-gradient(135deg,#1a4a6b,#2471a3);color:#fff}
+.btn-blue:disabled{opacity:.22;cursor:not-allowed}
+.btn-red{background:linear-gradient(135deg,#7b241c,#c0392b);color:#fff}
+.btn-red:disabled{opacity:.22;cursor:not-allowed}
+.btn-gray{background:rgba(90,90,110,.25);color:var(--text-dim);border:1px solid rgba(90,90,110,.3);font-size:.7rem;padding:.42rem .62rem}
+
+/* ===== LOG ===== */
+.glog{height:66px;overflow-y:auto;padding:.35rem .55rem;background:rgba(0,0,0,.6);border-top:1px solid var(--border);flex-shrink:0;font-size:.68rem;line-height:1.62}
+.glog::-webkit-scrollbar{width:3px}
+.glog::-webkit-scrollbar-thumb{background:rgba(201,168,76,.25)}
+.le{color:var(--text-dim)}.le.hl{color:var(--gold)}.le.dmg{color:var(--red)}.le.heal{color:var(--green)}.le.eff{color:#f1c40f}.le.wth{color:#87ceeb}
+
+/* ===== STATUS HINT ===== */
+.status-hint{padding:.3rem .6rem;background:rgba(201,168,76,.07);border-bottom:1px solid var(--border);font-family:'Rajdhani',sans-serif;font-size:.72rem;color:var(--gold);text-align:center;flex-shrink:0;letter-spacing:.07em}
+
+/* Tooltip */
+.tooltip{position:fixed;z-index:200;background:rgba(8,8,20,.97);border:1px solid var(--gold-dim);border-radius:8px;padding:.6rem;font-size:.72rem;max-width:180px;pointer-events:none;display:none;line-height:1.55;backdrop-filter:blur(4px)}
+.tt-name{color:var(--gold);font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:700;margin-bottom:.2rem}
+.tt-stat{color:var(--text-dim);margin-bottom:.2rem;font-family:'Rajdhani',sans-serif;font-size:.76rem}
+.tt-skill{color:#f1c40f;font-style:italic;font-size:.72rem}
+.tt-flavor{color:var(--text-dim);font-style:italic;font-size:.66rem;margin-top:.18rem;border-top:1px solid var(--border);padding-top:.18rem}
+
+/* Float dmg */
+.dmg-float{position:fixed;z-index:300;font-family:'Rajdhani',sans-serif;font-size:1.8rem;font-weight:700;pointer-events:none;animation:fup 1.3s ease-out forwards;text-shadow:0 2px 8px rgba(0,0,0,.5)}
+@keyframes fup{0%{opacity:1;transform:translateY(0)scale(1)}100%{opacity:0;transform:translateY(-60px)scale(1.35)}}
+.df-r{color:var(--red)}.df-g{color:var(--green)}
+
+/* Modal */
+.moverlay{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px)}
+.modal{background:var(--panel);border:1px solid var(--gold);border-radius:16px;padding:1.8rem 1.4rem;text-align:center;max-width:360px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.8)}
+.modal-title{font-family:'Cinzel Decorative',serif;font-size:1.6rem;color:var(--gold);margin-bottom:.4rem;animation:mg 2s ease-in-out infinite}
+@keyframes mg{0%,100%{filter:drop-shadow(0 0 8px rgba(201,168,76,.4))}50%{filter:drop-shadow(0 0 22px rgba(201,168,76,.85))}}
+.modal-sub{color:var(--text-dim);font-size:.85rem;margin-bottom:1.1rem}
+.modal-btns{display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap}
+
+.toast{position:fixed;bottom:5.2rem;left:50%;transform:translateX(-50%) translateY(110px);background:var(--panel);border:1px solid var(--gold);border-radius:7px;padding:.58rem 1.15rem;font-family:'Rajdhani',sans-serif;font-size:.82rem;letter-spacing:.08em;color:var(--gold);z-index:400;transition:transform .35s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:88vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="loadScr">
+  <div class="load-logo">CARD REALM</div>
+  <div class="load-msg" id="loadMsg">対戦を準備中...</div>
+  <div class="load-bar"><div class="load-fill" id="loadFill"></div></div>
+</div>
+
+<div id="gameApp" style="display:none">
+  <div class="hud">
+    <a href="index.html" class="hud-back">← ホーム</a>
+    <div class="hud-title">⚔ CARD REALM</div>
+    <div class="tbadge tb-w" id="turnBadge">準備中</div>
+  </div>
+
+  <!-- MY STATUS (prominent, always visible) -->
+  <div class="my-status-bar">
+    <div class="mys-name" id="myNameDisp">あなた</div>
+    <div class="mys-turn-indicator mti-wait" id="myTurnIndicator">待機中</div>
+    <div class="mys-hp-wrap">
+      <div class="mys-hp-icon">❤️</div>
+      <div class="mys-hp-bar-outer"><div class="mys-hp-bar" id="myHpBar" style="width:100%"></div></div>
+      <div class="mys-hp-label" id="myHpLabel">20/20</div>
+    </div>
+    <div class="mys-cost" id="myCostDisp">💎 0</div>
+  </div>
+
+  <div class="status-hint" id="statusHint">読み込み中...</div>
+
+  <div class="wbar">
+    <div class="wi" id="wIcon">☀️</div>
+    <div class="wn" id="wName">晴れ</div>
+    <div class="we" id="wEffect">天候効果なし</div>
+    <div class="wc" id="wChange">—</div>
+  </div>
+
+  <div class="gscroll">
+    <!-- Opponents -->
+    <div id="oppsPanel"></div>
+
+    <!-- Battlefield: atk | discard | def -->
+    <div class="battlefield">
+      <div class="field-col">
+        <div class="field-col-label">🗡️ 攻撃</div>
+        <div class="field-area" id="atkField"></div>
+      </div>
+      <div class="discard-col">
+        <div class="discard-label">捨て札</div>
+        <div class="discard-area" id="discardArea"></div>
+      </div>
+      <div class="field-col">
+        <div class="field-col-label">🛡️ 防御</div>
+        <div class="field-area" id="defField"></div>
+      </div>
+    </div>
+
+    <!-- My hand -->
+    <div class="my-hand-section">
+      <div class="hand-label">あなたの手札 <span id="handCnt" style="color:var(--gold)"></span></div>
+      <div class="hand-scroll" id="myHand"></div>
+    </div>
+  </div>
+
+  <div class="abar">
+    <button class="btn btn-blue"  id="btnDraw" onclick="extraDraw()"  disabled>+ドロー <small style="opacity:.6;font-size:.65rem">(HP-2)</small></button>
+    <button class="btn btn-gold"  id="btnPlay" onclick="playCard()"   disabled>▶ カードを出す</button>
+    <button class="btn btn-red"   id="btnEnd"  onclick="endTurn()"   disabled>⏩ ターン終了</button>
+    <button class="btn btn-gray"               onclick="forceEnd()"          >🚫 強制終了</button>
+  </div>
+  <div class="glog" id="glog"></div>
+</div>
+
+<div class="moverlay" id="resultModal" style="display:none">
+  <div class="modal">
+    <div class="modal-title" id="resTitle">勝利！</div>
+    <div class="modal-sub"   id="resSub"></div>
+    <div class="modal-btns">
+      <button class="btn btn-gold" onclick="rematch()">もう一度</button>
+      <a href="index.html" class="btn btn-outline" style="border:1px solid var(--gold-dim);color:var(--gold);text-decoration:none">ホームへ</a>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tt-name"   id="ttName"></div>
+  <div class="tt-stat"   id="ttStat"></div>
+  <div class="tt-skill"  id="ttSkill"></div>
+  <div class="tt-flavor" id="ttFlavor"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, onValue, get, remove }
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const FB={apiKey:"AIzaSyCXyreqDjZXIWnZqWZShw1yjwubHduqCoc",authDomain:"createcardgame-8edbf.firebaseapp.com",databaseURL:"https://createcardgame-8edbf-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"createcardgame-8edbf",storageBucket:"createcardgame-8edbf.firebasestorage.app",messagingSenderId:"173024784980",appId:"1:173024784980:web:606d80ee258239d656f3c1"};
+const db=getDatabase(initializeApp(FB));
+const gameRef=ref(db,'gameState');
+const cardsRef=ref(db,'sharedCards');
+const lobbyRef=ref(db,'lobby');
+const lobbyCtrlRef=ref(db,'lobbyCtrl');
+
+const CM={red:{border:'#c0392b',accent:'#e74c3c',glow:'rgba(192,57,43,.4)',cost:'#c0392b',dot:'#e74c3c'},blue:{border:'#2471a3',accent:'#3498db',glow:'rgba(36,113,163,.4)',cost:'#2471a3',dot:'#3498db'},yellow:{border:'#d4ac0d',accent:'#f1c40f',glow:'rgba(212,172,13,.4)',cost:'#d4ac0d',dot:'#f1c40f'},green:{border:'#1e8449',accent:'#2ecc71',glow:'rgba(30,132,73,.4)',cost:'#1e8449',dot:'#2ecc71'}};
+const CN={red:'赤',blue:'青',yellow:'黄',green:'緑'};
+const WEATHERS=[{id:'sun',icon:'☀️',name:'晴れ',eff:'天候効果なし'},{id:'rain',icon:'🌧️',name:'雨',eff:'コスト-1(最低1)'},{id:'storm',icon:'⛈️',name:'嵐',eff:'ATK×1.5'}];
+
+// ── State ──
+let G=null;
+let mySlot=parseInt(localStorage.getItem('mySlot')||'1');
+let numP=parseInt(localStorage.getItem('actualPlayers')||'2');
+let myName=localStorage.getItem('myName')||('P'+mySlot);
+let pNames=JSON.parse(localStorage.getItem('playerNames')||'{}');
+let selCard=-1;
+let pool=[];
+
+// ── Helpers ──
+function wData(id){return WEATHERS.find(w=>w.id===id)||WEATHERS[0];}
+function getColors(c){return Array.isArray(c.colors)?c.colors:[c.color||'red'];}
+function mainC(c){return CM[getColors(c)[0]]||CM.red;}
+function clone(o){return JSON.parse(JSON.stringify(o));}
+function setLoad(p,m){document.getElementById('loadFill').style.width=p+'%';document.getElementById('loadMsg').textContent=m;}
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
+function floatDmg(n,bad){
+  const el=document.createElement('div');el.className='dmg-float '+(bad?'df-r':'df-g');
+  el.textContent=(bad?'-':'+')+n;el.style.cssText=`left:${28+Math.random()*44}vw;top:${35+Math.random()*25}vh`;
+  document.body.appendChild(el);setTimeout(()=>el.remove(),1400);
+}
+function drawCard(){if(!pool.length)return null;return clone(pool[Math.floor(Math.random()*pool.length)]);}
+
+// ── Weather ──
+function wCost(card,S){const c=card.cost||1;return (S||G).weather.current==='rain'?Math.max(1,c-1):c;}
+function wAtk(card,S){
+  const a=card.atk||0;S=S||G;
+  if(S.weather.current==='storm'&&(S.weather.changeCount||0)>=4)return Math.floor(a*1.5);
+  return a;
+}
+function weatherTick(S){
+  S.weather.defendsDone=(S.weather.defendsDone||0)+1;
+  const need=2*S.numP;
+  if(S.weather.defendsDone>=need){
+    S.weather.defendsDone=0;
+    const ids=['sun','rain','storm'];
+    const avail=ids.filter(w=>w!==S.weather.current&&(w!=='storm'||(S.weather.changeCount||0)>=3));
+    const pick=avail.length?avail[Math.floor(Math.random()*avail.length)]:ids.filter(w=>w!==S.weather.current)[0];
+    S.weather.current=pick;S.weather.changeCount=(S.weather.changeCount||0)+1;
+    const wd=wData(pick);S.log.push(`🌤 天候変化 → ${wd.icon}${wd.name}`);
+  }
+}
+function changeWeatherRandom(S){
+  const ids=['sun','rain','storm'];
+  const avail=ids.filter(w=>w!==S.weather.current);
+  const pick=avail[Math.floor(Math.random()*avail.length)]||'sun';
+  S.weather.current=pick;S.weather.changeCount=(S.weather.changeCount||0)+1;
+  const wd=wData(pick);S.log.push(`🌤 天候強制変化 → ${wd.icon}${wd.name}`);
+}
+
+// ── canPlay: FIXED logic ──
+// Allowed if: cost OK AND (no discard card OR color/cost matches discard)
+function canPlay(card,S){
+  if(!S)S=G;
+  const me=S.players[mySlot];if(!me)return false;
+  const cost=wCost(card,S);
+  if(me.cost<cost)return false;
+  const disc=S.discardCard;
+  if(!disc)return true; // First card ever: any card OK
+  const myC=getColors(card);const dC=getColors(disc);
+  return myC.some(c=>dC.includes(c))||card.cost===disc.cost;
+}
+
+// ── Turn helpers ──
+function cur(S){S=S||G;return S.seq[S.seqIdx%S.seq.length];}
+function isMyTurn(S){return cur(S).player===mySlot;}
+function phase(S){return cur(S).phase;}
+
+// ── Skill helpers ──
+const TMAP={onAttack:'攻撃時',onDefend:'防御時',onPlay:'場に出た時',onDamage:'ダメージ時',onTakeDmg:'被ダメ時',onDraw:'ドロー時',onTurnStart:'ターン開始時',ifHpLow:'HP低下時',ifHpHigh:'HP高時',ifChance:'確率',ifWeatherSun:'晴れ時',ifWeatherRain:'雨時',ifWeatherStorm:'嵐時',ifTurnGte:'ターン数判定'};
+const EMAP={draw:v=>`${v}枚ドロー`,buffAtk:v=>`ATK+${v}`,buffDef:v=>`DEF+${v}`,heal:v=>`HP+${v}`,damage:v=>`+${v}ダメ`,costReduce:v=>`次コスト-${v}`,costGain:v=>`コスト+${v}`,oppCostDown:v=>`敵コスト-${v}`,oppAtkDown:v=>`敵次ATK-${v}`,oppDefDown:v=>`敵次DEF-${v}`,weatherChange:()=>'天候変化'};
+function skillLabel(e){
+  const t=TMAP[e.trigger||'']||'';const k=e.eff||e.effType||e.type||'';
+  const ev=e.effVal||e.val||e.value||1;const cv=e.condVal||ev;
+  const ttext=t.replace('n',cv);const etext=EMAP[k]?EMAP[k](ev):'';
+  return (ttext||etext)?`【${ttext||'発動'}】${etext}`:'';
+}
+function cardSkillLines(card){
+  const effs=card.effects&&card.effects.length?card.effects:(card.effect&&(card.effect.trigger||card.effect.type)?[{trigger:card.effect.trigger,eff:card.effect.type,effVal:card.effect.value}]:[]);
+  return effs.map(e=>skillLabel(e)).filter(Boolean);
+}
+
+// ── Apply effects ──
+function applyEff(card,S,slot,trigger){
+  if(!card)return;
+  const effs=card.effects&&card.effects.length?card.effects:(card.effect&&(card.effect.trigger||card.effect.type)?[{trigger:card.effect.trigger,eff:card.effect.type,effVal:card.effect.value,condVal:3}]:[]);
+  const opp=getOpp(slot,S);
+  for(const e of effs){
+    const trig=e.trigger||'';const eff=e.eff||e.effType||e.type||'';
+    const ev=parseInt(e.effVal||e.val||e.value||1);const cv=parseInt(e.condVal||ev);
+    // Condition checks
+    if(trig==='ifHpLow'&&(S.players[slot]?.hp||0)>cv)continue;
+    if(trig==='ifHpHigh'&&(S.players[slot]?.hp||0)<cv)continue;
+    if(trig==='ifChance'&&Math.random()*100>cv)continue;
+    if(trig==='ifWeatherSun'&&S.weather.current!=='sun')continue;
+    if(trig==='ifWeatherRain'&&S.weather.current!=='rain')continue;
+    if(trig==='ifWeatherStorm'&&S.weather.current!=='storm')continue;
+    if(trig==='ifTurnGte'&&(S.turnCount||0)<cv)continue;
+    if(!['ifHpLow','ifHpHigh','ifChance','ifWeatherSun','ifWeatherRain','ifWeatherStorm','ifTurnGte'].includes(trig)&&trig!==trigger)continue;
+    if(!S.players[slot])continue;
+    const p=S.players[slot];const op=opp?S.players[opp]:null;
+    switch(eff){
+      case 'draw':{for(let i=0;i<ev;i++){const d=drawCard();if(d)p.hand.push(d);}S.log.push(`🌟「${card.name}」→${ev}枚ドロー`);break;}
+      case 'buffAtk':{if(p.hand.length){const ri=~~(Math.random()*p.hand.length);p.hand[ri].atk=(p.hand[ri].atk||0)+ev;}S.log.push(`🌟「${card.name}」→ATK+${ev}`);break;}
+      case 'buffDef':{if(p.hand.length){const ri=~~(Math.random()*p.hand.length);p.hand[ri].def=(p.hand[ri].def||0)+ev;}S.log.push(`🌟「${card.name}」→DEF+${ev}`);break;}
+      case 'heal':{p.hp=Math.min(p.maxHp,(p.hp||0)+ev);S.log.push(`🌟「${card.name}」→HP+${ev}`);break;}
+      case 'damage':{if(op)op.hp=Math.max(0,(op.hp||0)-ev);S.log.push(`🌟「${card.name}」→追加${ev}ダメ`);break;}
+      case 'costReduce':{p._cBonus=(p._cBonus||0)+ev;S.log.push(`🌟「${card.name}」→次コスト-${ev}`);break;}
+      case 'costGain':{p.cost=Math.min(p.maxCost,(p.cost||0)+ev);S.log.push(`🌟「${card.name}」→コスト+${ev}`);break;}
+      case 'oppCostDown':{if(op)op.cost=Math.max(0,(op.cost||0)-ev);S.log.push(`🌟「${card.name}」→敵コスト-${ev}`);break;}
+      case 'oppAtkDown':{if(op)op._nextAtkDown=(op._nextAtkDown||0)+ev;S.log.push(`🌟「${card.name}」→敵次ATK-${ev}`);break;}
+      case 'oppDefDown':{if(op)op._nextDefDown=(op._nextDefDown||0)+ev;S.log.push(`🌟「${card.name}」→敵次DEF-${ev}`);break;}
+      case 'weatherChange':{changeWeatherRandom(S);break;}
+    }
+  }
+}
+
+function getOpp(slot,S){
+  if(S.numP===2)return slot===1?2:1;
+  const ni=(S.seqIdx+1)%S.seq.length;return S.seq[ni].player;
+}
+
+// ── BUILD STATE ──
+// Turn sequence: P1atk→P2def→P2atk→P3def→...→Pnatk→P1def→repeat
+function buildState(n,randomOrder){
+  // Randomly shuffle player order for first-move advantage
+  let order=Array.from({length:n},(_,i)=>i+1);
+  if(randomOrder){for(let i=order.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}}
+  const seq=[];
+  for(let oi=0;oi<order.length;oi++){
+    const attacker=order[oi];
+    const defenderOi=(oi+1)%order.length;
+    const defender=order[defenderOi];
+    seq.push({player:attacker,phase:'attack'});
+    seq.push({player:defender,phase:'defend'});
+  }
+  const players={};
+  for(let oi=0;oi<order.length;oi++){
+    const slot=order[oi];
+    const isFirst=oi===0;
+    const hand=Array.from({length:isFirst?7:8},()=>drawCard()).filter(Boolean);
+    players[slot]={hp:20,maxHp:20,cost:isFirst?1:2,maxCost:10,hand,_cBonus:0,_nextAtkDown:0,_nextDefDown:0};
+  }
+  return{
+    status:'playing',numP:n,seqIdx:0,seq,players,
+    discardCard:null,   // THE discard pile - single card slot
+    atkCardPlayed:null, // temp: the attack card waiting for defense
+    playedThisTurn:false,
+    turnCount:0,
+    weather:{current:'sun',changeCount:0,defendsDone:0},
+    log:[`ゲーム開始！先行: P${seq[0].player}`]
+  };
+}
+
+// ── INIT ──
+async function init(){
+  setLoad(15,'カード読み込み中...');
+  const csnap=await get(cardsRef);
+  pool=Object.values(csnap.val()||{});
+  if(!pool.length)pool=JSON.parse(localStorage.getItem('activeCards')||localStorage.getItem('cardrealmDeck')||'[]');
+  if(!pool.length)pool=genDefault();
+
+  setLoad(40,'ゲーム確認...');
+  const snap=await get(gameRef);const ex=snap.val();
+
+  if(ex&&ex.status==='playing'&&ex.numP===numP){
+    G=ex;setLoad(85,'復帰中...');
+  } else {
+    setLoad(60,'初期化中...');
+    G=buildState(numP,true);
+    await save(G);
+  }
+  setLoad(100,'開始！');
+  setTimeout(()=>{document.getElementById('loadScr').style.display='none';document.getElementById('gameApp').style.display='flex';renderAll();},350);
+
+  onValue(gameRef,snap=>{if(!snap.val())return;G=snap.val();renderAll();checkWin();});
+}
+
+async function save(s){
+  G=s;
+  try{await set(gameRef,s);}catch(e){console.warn('save fail',e);}
+  renderAll();checkWin();
+}
+
+// ── ACTIONS ──
+window.selCardFn=function(i){
+  if(!isMyTurn()){showToast('あなたのターンではありません');return;}
+  if(G.playedThisTurn){showToast('今ターンはすでにカードを出しました');return;}
+  const card=G.players[mySlot]?.hand?.[i];if(!card)return;
+  if(selCard===i){selCard=-1;renderMyHand();updateBtns();return;}
+  const cost=wCost(card);
+  if(G.players[mySlot].cost<cost){showToast(`コスト不足 (必要:${cost} 所持:${G.players[mySlot].cost})`);return;}
+  if(!canPlay(card)){
+    const disc=G.discardCard;
+    showToast(disc?`出せません（捨て札「${disc.name}」と同色/同コストのみ）`:'コスト不足');return;
+  }
+  selCard=i;renderMyHand();updateBtns();
+};
+
+window.playCard=async function(){
+  if(selCard<0||!isMyTurn()||G.playedThisTurn)return;
+  const me=G.players[mySlot];
+  const card=me.hand?.[selCard];if(!card)return;
+  const S=clone(G);
+  const p=S.players[mySlot];
+
+  // Apply ATK/DEF debuffs from opponent effects
+  const playCard={...card};
+  if(p._nextAtkDown){playCard.atk=Math.max(0,(playCard.atk||0)-p._nextAtkDown);p._nextAtkDown=0;}
+  if(p._nextDefDown){playCard.def=Math.max(0,(playCard.def||0)-p._nextDefDown);p._nextDefDown=0;}
+
+  const cost=wCost(card,S);const bonus=p._cBonus||0;
+  p.cost-=Math.max(0,cost-bonus);p._cBonus=0;
+  p.hand.splice(selCard,1);
+  S.playedThisTurn=true;
+
+  if(phase(S)==='attack'){
+    // Place on attack field, move to discard after resolve
+    S.atkCardPlayed=playCard;
+    S.lastAtkPlayer=mySlot;
+    const av=wAtk(playCard,S);
+    S.log.push(`P${mySlot}「${pNames[mySlot]||myName}」→攻撃「${playCard.name}」ATK:${av}`);
+    applyEff(playCard,S,mySlot,'onPlay');
+    applyEff(playCard,S,mySlot,'onAttack');
+  } else {
+    // DEFEND: resolve combat
+    const atkCard=S.atkCardPlayed;
+    if(atkCard){
+      const av=wAtk(atkCard,S);
+      const dv=playCard.def||0;
+      const dmg=Math.max(0,av-dv);
+      if(dmg>0){
+        p.hp=Math.max(0,p.hp-dmg);
+        S.log.push(`⚔ 「${atkCard.name}」ATK:${av} vs 「${playCard.name}」DEF:${dv} → ${dmg}ダメ！`);
+        floatDmg(dmg,true);
+        applyEff(atkCard,S,S.lastAtkPlayer,'onDamage');
+        applyEff(playCard,S,mySlot,'onTakeDmg');
+      } else {
+        S.log.push(`🛡 「${atkCard.name}」ATK:${av} vs 「${playCard.name}」DEF:${dv} → ブロック！`);
+      }
+    }
+    applyEff(playCard,S,mySlot,'onPlay');
+    applyEff(playCard,S,mySlot,'onDefend');
+    // Move DEFEND card to discard (most recent)
+    S.discardCard=playCard;
+    // Clear atkCard (it already resolved)
+    S.atkCardPlayed=null;
+    S.log.push(`→ 捨て札:「${playCard.name}」`);
+    weatherTick(S);
+  }
+
+  selCard=-1;await save(S);
+};
+
+window.extraDraw=async function(){
+  if(!isMyTurn()||phase()!=='attack')return;
+  const S=clone(G);const p=S.players[mySlot];
+  if((p.hp||0)<=2){showToast('HP2消費できません');return;}
+  const card=drawCard();if(!card){showToast('カードプールが空です');return;}
+  p.hp-=2;p.hand.push(card);
+  applyEff(card,S,mySlot,'onDraw');
+  S.log.push(`P${mySlot}がHP2消費で追加ドロー`);
+  await save(S);showToast('ドロー！');
+};
+
+window.endTurn=async function(){
+  if(!isMyTurn())return;
+  const S=clone(G);const c=S.seq[S.seqIdx%S.seq.length];
+
+  // Defend skipped → take full attack damage, atk card goes to discard
+  if(c.phase==='defend'&&!S.playedThisTurn){
+    const atkCard=S.atkCardPlayed;
+    if(atkCard){
+      const av=wAtk(atkCard,S);
+      if(av>0){
+        S.players[c.player].hp=Math.max(0,(S.players[c.player].hp||0)-av);
+        S.log.push(`P${c.player}がガードせず ${av}ダメ！`);
+        floatDmg(av,c.player===mySlot);
+        applyEff(atkCard,S,S.lastAtkPlayer,'onDamage');
+      }
+      // Atk card goes to discard when defense phase ends
+      S.discardCard=atkCard;
+      S.atkCardPlayed=null;
+      S.log.push(`→ 捨て札:「${atkCard.name}」`);
+    }
+    weatherTick(S);
+  }
+
+  // Advance turn
+  S.seqIdx=(S.seqIdx+1)%S.seq.length;
+  S.playedThisTurn=false;
+  S.turnCount=(S.turnCount||0)+1;
+  const next=S.seq[S.seqIdx%S.seq.length];
+  const np=S.players[next.player];
+
+  if(next.phase==='attack'){
+    // ★ Cost recovery EVERY attack turn start (+2 for attacker)
+    if(np){
+      const drawn=drawCard();
+      if(drawn){np.hand.push(drawn);applyEff(drawn,S,next.player,'onDraw');}
+      np.cost=Math.min(np.maxCost,(np.cost||0)+2);
+      S.log.push(`P${next.player}「${pNames[next.player]||'P'+next.player}」の攻撃ターン（コスト+2、1枚ドロー）`);
+    }
+  } else {
+    // ★ Cost recovery for DEFENDER too (+2 when defend turn starts)
+    if(np){
+      np.cost=Math.min(np.maxCost,(np.cost||0)+2);
+      S.log.push(`P${next.player}「${pNames[next.player]||'P'+next.player}」の防御ターン（コスト+2）`);
+    }
+  }
+  // Apply turn-start skills for next player
+  if(np)applyEff({effects:[]},S,next.player,'onTurnStart');
+
+  selCard=-1;await save(S);
+};
+
+window.forceEnd=async function(){
+  if(!confirm('試合を強制終了しますか？ロビーもリセットされます。'))return;
+  await remove(gameRef);await remove(lobbyRef);await remove(lobbyCtrlRef);
+  window.location.href='index.html';
+};
+window.rematch=async function(){
+  document.getElementById('resultModal').style.display='none';
+  await remove(lobbyRef);await remove(lobbyCtrlRef);
+  G=buildState(numP,true);await save(G);selCard=-1;
+};
+
+// ── WIN CHECK ──
+function checkWin(){
+  if(!G||G.status!=='playing')return;
+  const dead=[];
+  for(let i=1;i<=G.numP;i++)if(G.players[i]&&(G.players[i].hp||0)<=0)dead.push(i);
+  if(!dead.length)return;
+  G.status='over';
+  const survivors=[];
+  for(let i=1;i<=G.numP;i++)if(!dead.includes(i))survivors.push(i);
+  const iLose=dead.includes(mySlot);
+  document.getElementById('resTitle').textContent=iLose?'💀 敗北...':'🏆 勝利！';
+  document.getElementById('resSub').textContent=iLose?`${survivors.map(i=>pNames[i]||'P'+i).join('・')} の勝利`:'おめでとうございます！';
+  document.getElementById('resultModal').style.display='flex';
+}
+
+// ── RENDER ──
+function renderAll(){
+  if(!G)return;
+  renderMyStatus();
+  renderStatusHint();
+  renderWeather();
+  renderOpponents();
+  renderBattlefield();
+  renderMyHand();
+  renderLog();
+  updateBtns();
+}
+
+function renderMyStatus(){
+  const me=G.players[mySlot];if(!me)return;
+  const hpPct=Math.max(0,Math.min(100,(me.hp/me.maxHp)*100));
+  document.getElementById('myNameDisp').textContent=(pNames[mySlot]||myName)+' 👤';
+  document.getElementById('myHpBar').style.width=hpPct+'%';
+  document.getElementById('myHpLabel').textContent=`${me.hp}/${me.maxHp}`;
+  document.getElementById('myCostDisp').textContent=`💎 ${me.cost}`;
+  const ti=document.getElementById('myTurnIndicator');
+  const c=cur();
+  if(isMyTurn()&&phase()==='attack'){ti.className='mys-turn-indicator mti-attack';ti.textContent='⚔ 攻撃ターン';}
+  else if(isMyTurn()&&phase()==='defend'){ti.className='mys-turn-indicator mti-defend';ti.textContent='🛡 防御ターン';}
+  else{ti.className='mys-turn-indicator mti-wait';ti.textContent='⏳ 待機中';}
+}
+
+function renderStatusHint(){
+  const c=cur();const sh=document.getElementById('statusHint');
+  const tb=document.getElementById('turnBadge');
+  const disc=G.discardCard;
+  const discInfo=disc?` ｜ 捨て札:「${disc.name}」(${getColors(disc).map(x=>CN[x]||x).join('/')} C${disc.cost})`:' ｜ 捨て札なし（最初はどれでもOK）';
+  if(isMyTurn()&&phase()==='attack'){
+    tb.className='tbadge tb-a';tb.textContent='あなたの攻撃';
+    sh.textContent=`カードを選んで「出す」を押す${discInfo}`;
+  } else if(isMyTurn()&&phase()==='defend'){
+    tb.className='tbadge tb-d';tb.textContent='あなたの防御';
+    const atkCard=G.atkCardPlayed;
+    const atkInfo=atkCard?` ｜ 攻撃:「${atkCard.name}」ATK:${wAtk(atkCard)}`:'';
+    sh.textContent=`防御カードを出すか「ターン終了」(ノーガード)${discInfo}${atkInfo}`;
+  } else {
+    const name=pNames[c.player]||`P${c.player}`;
+    tb.className='tbadge tb-w';tb.textContent=`${name}の${phase()==='attack'?'攻撃':'防御'}`;
+    sh.textContent=`${name}のターン待機中${discInfo}`;
+  }
+}
+
+function renderWeather(){
+  const w=wData(G.weather.current);
+  document.getElementById('wIcon').textContent=w.icon;
+  document.getElementById('wName').textContent=w.name;
+  document.getElementById('wEffect').textContent=w.eff+(G.weather.current==='storm'&&(G.weather.changeCount||0)<4?' ※4回変化後':' ✓');
+  const need=2*G.numP,rem=need-(G.weather.defendsDone||0);
+  document.getElementById('wChange').textContent=`変化まで${rem}防御`;
+}
+
+function renderOpponents(){
+  const pp=document.getElementById('oppsPanel');pp.innerHTML='';
+  const c=cur();
+  for(let i=1;i<=G.numP;i++){
+    if(i===mySlot)continue;
+    const p=G.players[i];if(!p)continue;
+    const isAtk=c.player===i&&c.phase==='attack';
+    const isDef=c.player===i&&c.phase==='defend';
+    const hpPct=Math.max(0,Math.min(100,(p.hp/p.maxHp)*100));
+    let cls='opp-area'+(isAtk?' opp-a':isDef?' opp-d':'');
+    let roleCls='rp-w',roleText='待機';
+    if(isAtk){roleCls='rp-a';roleText='攻撃中';}
+    else if(isDef){roleCls='rp-d';roleText='防御中';}
+    const name=pNames[i]||`P${i}`;
+    const d=document.createElement('div');d.className=cls;
+    d.innerHTML=`<div class="opp-info">
+      <div class="opp-name">${name}</div>
+      <div class="rpill ${roleCls}">${roleText}</div>
+      <div class="opp-hp-row">
+        <div style="font-size:.75rem;flex-shrink:0">❤️</div>
+        <div class="opp-hp-bar-outer"><div class="opp-hp-bar" style="width:${hpPct}%"></div></div>
+        <div class="opp-hp-txt">${p.hp}/${p.maxHp}</div>
+      </div>
+      <div class="opp-cost">💎${p.cost}</div>
+      <span style="font-family:'Rajdhani',sans-serif;font-size:.62rem;color:var(--text-dim)">🃏${p.hand?.length||0}</span>
+    </div>
+    ${p.hand?.length?`<div class="hand-scroll">${Array(Math.min(p.hand.length,8)).fill(0).map(()=>`<div class="gc facedown no-hover" style="border-color:rgba(201,168,76,.15)"><div class="gc-art" style="font-size:.95rem;z-index:1;position:relative">🃏</div></div>`).join('')}${p.hand.length>8?`<span style="font-size:.58rem;color:var(--text-dim);align-self:center;flex-shrink:0">+${p.hand.length-8}</span>`:''}</div>`:''}`;
+    pp.appendChild(d);
+  }
+}
+
+function renderBattlefield(){
+  // Attack field: show atkCardPlayed
+  const atkEl=document.getElementById('atkField');
+  if(G.atkCardPlayed){atkEl.innerHTML=buildFieldCard(G.atkCardPlayed,'atk');}
+  else{atkEl.innerHTML='<div class="field-empty-slot">🗡️</div>';}
+
+  // Discard pile: show discardCard
+  const discEl=document.getElementById('discardArea');
+  if(G.discardCard){
+    const mc=mainC(G.discardCard);
+    const ill=G.discardCard.illust&&(G.discardCard.illust.startsWith('http')||G.discardCard.illust.startsWith('data:'))?`<img src="${G.discardCard.illust}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:(G.discardCard.illust||'🃏');
+    const cdots=getColors(G.discardCard).map(c=>`<div class="gc-cdot" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
+    discEl.innerHTML=`<div class="gc no-hover" style="border-color:${mc.border};opacity:.85;cursor:default">
+      <div class="gc-head"><div class="gc-cost" style="background:${mc.cost}">${G.discardCard.cost}</div><div class="gc-name">${G.discardCard.name||'?'}</div></div>
+      <div class="gc-art">${ill}<div class="gc-cdots">${cdots}</div></div>
+      <div class="gc-stats"><span style="color:${mc.accent}">⚔${wAtk(G.discardCard)}</span><span style="color:${mc.accent}">🛡${G.discardCard.def||0}</span></div>
+    </div>`;
+  } else {
+    discEl.innerHTML='<div class="discard-empty">捨て札<br>なし</div>';
+  }
+
+  // Defense field: show current defender's field if defend phase
+  const defEl=document.getElementById('defField');
+  const c=cur();
+  if(c.phase==='defend'){
+    // Show who is defending
+    const defCards=G.players[c.player]?.hand?.[0]; // just show empty with marker
+    defEl.innerHTML='<div class="field-empty-slot" style="border-color:rgba(52,152,219,.3);opacity:.5">🛡️</div>';
+  } else {
+    defEl.innerHTML='<div class="field-empty-slot">🛡️</div>';
+  }
+}
+
+function buildFieldCard(card,type){
+  const mc=mainC(card);const av=wAtk(card);const atkCh=av!==(card.atk||0);
+  const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:(card.illust||'🃏');
+  const cdots=getColors(card).map(c=>`<div class="gc-cdot" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
+  return `<div class="gc no-hover" style="border-color:${mc.border};box-shadow:0 0 12px ${mc.glow};cursor:default">
+    <div class="gc-head"><div class="gc-cost" style="background:${mc.cost}">${card.cost}</div><div class="gc-name">${card.name||'?'}</div></div>
+    <div class="gc-art">${ill}<div class="gc-cdots">${cdots}</div></div>
+    <div class="gc-stats"><span style="color:${atkCh?'#f1c40f':mc.accent}">${av>0?'⚔':''}${av}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div>
+  </div>`;
+}
+
+function renderMyHand(){
+  const me=G?.players?.[mySlot];const hand=me?.hand||[];
+  const el=document.getElementById('myHand');
+  if(!hand.length){el.innerHTML='<div style="color:var(--text-dim);font-size:.76rem;padding:.4rem">手札なし</div>';return;}
+  const myT=isMyTurn();
+  el.innerHTML=hand.map((card,i)=>{
+    const mc=mainC(card);
+    const effAtk=wAtk(card);const atkCh=effAtk!==(card.atk||0);
+    const effCost=wCost(card);const cstCh=effCost!==card.cost;
+    const isSel=selCard===i;
+    let isDim=false;
+    if(myT&&!G.playedThisTurn){
+      const hasCost=(me.cost||0)>=effCost;
+      let ok=true;
+      const disc=G.discardCard;
+      if(disc){const myC=getColors(card);const dC=getColors(disc);ok=myC.some(c=>dC.includes(c))||card.cost===disc.cost;}
+      isDim=!(hasCost&&ok);
+    } else if(myT&&G.playedThisTurn){
+      isDim=true; // already played
+    }
+    const hasSkill=cardSkillLines(card).length>0;
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:(card.illust||'🃏');
+    const cdots=getColors(card).map(c=>`<div class="gc-cdot" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
+    return `<div class="gc${isSel?' sel':''}${isDim?' dim':''}"
+      style="border-color:${mc.border};box-shadow:${isSel?'0 0 14px '+mc.glow:'none'}"
+      onclick="${myT&&!isDim?`selCardFn(${i})`:'void(0)'}"
+      onmouseenter="showTT(event,${i})" onmouseleave="hideTT()"
+      ontouchstart="showTT(event,${i})" ontouchend="hideTT()">
+      ${hasSkill?'<div class="gc-skill-dot"></div>':''}
+      <div class="gc-head">
+        <div class="gc-cost" style="background:${mc.cost};${cstCh?'outline:2px solid #f1c40f;outline-offset:-1px':''}">${effCost}</div>
+        <div class="gc-name">${card.name||'?'}</div>
+      </div>
+      <div class="gc-art">${ill}<div class="gc-cdots">${cdots}</div></div>
+      <div class="gc-stats">
+        <span style="color:${atkCh?'#f1c40f':mc.accent}">${effAtk>0?'⚔':''}${effAtk}</span>
+        <span style="color:${mc.accent}">🛡${card.def||0}</span>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('handCnt').textContent=`(${hand.length}枚)`;
+}
+
+function renderLog(){
+  const el=document.getElementById('glog');
+  const logs=(G.log||[]).slice(-14);
+  el.innerHTML=logs.map(t=>{
+    let cls='le';
+    if(t.includes('ダメ')||t.includes('ガード'))cls+=' dmg';
+    else if(t.includes('回復'))cls+=' heal';
+    else if(t.includes('🌟'))cls+=' eff';
+    else if(t.includes('天候')||t.includes('🌤'))cls+=' wth';
+    else if(t.includes('開始')||t.includes('ゲーム'))cls+=' hl';
+    return `<div class="${cls}">▸ ${t}</div>`;
+  }).join('');el.scrollTop=el.scrollHeight;
+}
+
+function updateBtns(){
+  const myT=isMyTurn();const ph=phase();
+  document.getElementById('btnDraw').disabled=!myT||ph!=='attack';
+  document.getElementById('btnPlay').disabled=!myT||selCard<0||G.playedThisTurn;
+  document.getElementById('btnEnd').disabled=!myT;
+}
+
+// Tooltip
+window.showTT=function(e,i){
+  const me=G?.players?.[mySlot];if(!me)return;
+  const card=me.hand?.[i];if(!card)return;
+  const t=document.getElementById('tooltip');
+  document.getElementById('ttName').textContent=card.name||'?';
+  document.getElementById('ttStat').textContent=`コスト:${wCost(card)} ATK:${wAtk(card)} DEF:${card.def||0} [${getColors(card).map(c=>CN[c]||c).join('/')}]`;
+  document.getElementById('ttSkill').textContent=cardSkillLines(card).join('\n')||'スキルなし';
+  document.getElementById('ttFlavor').textContent=card.flavor||'';
+  t.style.display='block';
+  const cx=e.touches?e.touches[0].clientX:e.clientX;
+  const cy=e.touches?e.touches[0].clientY:e.clientY;
+  t.style.left=Math.min(cx+12,window.innerWidth-195)+'px';
+  t.style.top=Math.max(cy-100,6)+'px';
+};
+window.hideTT=function(){document.getElementById('tooltip').style.display='none';};
+
+function genDefault(){
+  const cols=[['red'],['blue'],['yellow'],['green'],['red','blue'],['yellow','green']];
+  const names=['騎士','魔法使い','竜','妖精','戦士','弓使い','僧侶','忍者','海賊','錬金術師','天使','悪魔','剣士','盗賊','召喚士','聖騎士','魔剣士','竜騎士','幻術師','召喚魔法'];
+  const ills=['⚔️','🔮','🐉','🦋','🛡️','🏹','✨','🌸','🗡️','🧪','👼','😈','⚡','🗺️','📖','🏰','🌙','🦅','🌀','🔥'];
+  return names.map((n,i)=>({id:'def'+i,name:n,colors:cols[i%cols.length],color:cols[i%cols.length][0],cost:1+~~(i/4),atk:2+(i%5),def:1+(i%4),illust:ills[i],flavor:'',effects:[],effect:{trigger:'',type:'',value:1}}));
+}
+
+init();
+</script>
+</body>
+</html>

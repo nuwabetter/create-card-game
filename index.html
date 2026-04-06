@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>CARD REALM — ロビー</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Noto+Sans+JP:wght@300;400;700&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#c9a84c;--gold-light:#f0d080;--gold-dim:#7a6430;--deep:#0a0a14;--panel:#0f1020;--panel2:#141428;--text:#e8e0d0;--text-dim:#8a8070;--border:rgba(201,168,76,0.25);--red:#e74c3c;--blue:#3498db;--green:#2ecc71}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100vh;overflow-x:hidden}
+.bg{position:fixed;inset:0;z-index:0;background:radial-gradient(ellipse at 20% 50%,rgba(30,40,80,.8)0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(60,20,40,.6)0%,transparent 50%)}
+.star{position:absolute;width:2px;height:2px;background:#fff;border-radius:50%;animation:tw var(--d,3s) ease-in-out infinite var(--dl,0s)}
+@keyframes tw{0%,100%{opacity:.1}50%{opacity:.9}}
+.wrap{position:relative;z-index:1;max-width:860px;margin:0 auto;padding:1rem 1rem 4rem}
+header{text-align:center;padding:1.5rem 0 .8rem}
+.logo{font-family:'Cinzel Decorative',serif;font-size:clamp(1.6rem,5vw,3rem);font-weight:900;background:linear-gradient(135deg,var(--gold-dim)0%,var(--gold-light)40%,var(--gold)60%,var(--gold-dim)100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 20px rgba(201,168,76,.4));animation:sh 4s ease-in-out infinite;background-size:200% 100%}
+@keyframes sh{0%,100%{background-position:0%50%}50%{background-position:100%50%}}
+.logo-sub{font-family:'Rajdhani',sans-serif;font-size:.72rem;letter-spacing:.4em;color:var(--gold-dim);margin-top:.2rem}
+.hdiv{display:flex;align-items:center;gap:.75rem;margin:.8rem auto;max-width:200px}
+.hdiv::before,.hdiv::after{content:'';flex:1;height:1px;background:linear-gradient(to right,transparent,var(--gold-dim),transparent)}
+.gem{width:7px;height:7px;background:var(--gold);transform:rotate(45deg)}
+
+.sbar{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:.55rem .9rem;display:flex;align-items:center;gap:.55rem;margin-bottom:.9rem;font-family:'Rajdhani',sans-serif;font-size:.8rem;flex-wrap:wrap}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s ease-in-out infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.shigh{color:var(--gold);font-weight:700}.sdim{color:var(--text-dim)}
+
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:.9rem}
+.ptitle{font-family:'Rajdhani',sans-serif;font-size:.7rem;letter-spacing:.28em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:.8rem;padding-bottom:.38rem;border-bottom:1px solid var(--border)}
+
+.name-row{display:flex;gap:.55rem;align-items:flex-end;margin-bottom:.7rem;flex-wrap:wrap}
+.name-row input{flex:1;min-width:150px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:.58rem .85rem;color:var(--text);font-family:'Noto Sans JP',sans-serif;font-size:.95rem;outline:none;transition:border-color .2s}
+.name-row input:focus{border-color:var(--gold-dim)}
+.name-row input::placeholder{color:var(--text-dim)}
+.name-display{font-family:'Rajdhani',sans-serif;font-size:.9rem;color:var(--gold);padding:.3rem 0}
+
+.cnt-row{display:flex;gap:.45rem;margin-bottom:.9rem}
+.cnt-btn{flex:1;padding:.5rem;border-radius:8px;border:2px solid var(--border);background:var(--panel2);color:var(--text-dim);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer;transition:all .2s;text-align:center;touch-action:manipulation}
+.cnt-btn.on{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.1);box-shadow:0 0 10px rgba(201,168,76,.12)}
+
+.slots-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.65rem;margin-bottom:.8rem}
+.pslot{background:var(--panel2);border:2px dashed var(--border);border-radius:10px;padding:.8rem;text-align:center;transition:all .3s}
+.pslot.filled{border-style:solid;border-color:var(--green);box-shadow:0 0 10px rgba(46,204,113,.12)}
+.pslot.mine{border-color:var(--gold)}
+.pslot-num{font-family:'Cinzel Decorative',serif;font-size:.55rem;letter-spacing:.25em;color:var(--text-dim);margin-bottom:.3rem}
+.pslot-icon{font-size:1.6rem;margin-bottom:.3rem;display:block}
+.pslot-name{font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:700;color:var(--gold);min-height:1.2em;margin-bottom:.15rem}
+.pslot-st{font-family:'Rajdhani',sans-serif;font-size:.7rem;color:var(--text-dim);margin-bottom:.5rem}
+.pslot-st.ok{color:var(--green)}
+
+.mfooter{text-align:center;margin-top:.8rem}
+#matchStatus{font-family:'Rajdhani',sans-serif;font-size:.85rem;color:var(--text-dim);letter-spacing:.06em;margin-bottom:.55rem}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.32rem;padding:.58rem 1.05rem;border:none;border-radius:8px;font-family:'Rajdhani',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:all .18s;text-decoration:none;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.btn:active{transform:scale(.95)}
+.btn-gold{background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:var(--deep);box-shadow:0 3px 12px rgba(201,168,76,.3)}
+.btn-gold:hover{box-shadow:0 5px 20px rgba(201,168,76,.5)}
+.btn-gold:disabled{opacity:.3;cursor:not-allowed}
+.btn-green{background:linear-gradient(135deg,#1a6b35,#27ae60);color:#fff;animation:gg 2s ease-in-out infinite}
+@keyframes gg{0%,100%{box-shadow:0 3px 12px rgba(39,174,96,.3)}50%{box-shadow:0 3px 25px rgba(39,174,96,.6)}}
+.btn-outline{background:transparent;color:var(--gold);border:1px solid var(--gold-dim)}
+.btn-outline:hover{background:rgba(201,168,76,.08)}
+.btn-sm{padding:.35rem .7rem;font-size:.74rem}
+.btn-full{width:100%;margin-top:.4rem}
+.btn-red-outline{background:transparent;color:var(--red);border:1px solid rgba(231,76,60,.4);font-size:.74rem;padding:.35rem .7rem}
+
+.cfilter{display:flex;flex-wrap:wrap;gap:.38rem;margin-bottom:.55rem}
+.fb{padding:.25rem .6rem;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text-dim);font-family:'Rajdhani',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;transition:all .18s;touch-action:manipulation}
+.fb.on{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.1)}
+.csgrid{display:flex;flex-wrap:wrap;gap:.45rem;max-height:210px;overflow-y:auto;padding:.15rem}
+.csi{position:relative;cursor:pointer;flex-shrink:0}
+.thumb{width:66px;height:92px;border-radius:8px;border:2px solid;background:var(--panel2);display:flex;flex-direction:column;overflow:hidden;transition:all .18s}
+.csi.sel .thumb{transform:scale(1.07)}
+.chk{position:absolute;top:-5px;right:-5px;width:17px;height:17px;background:var(--green);border-radius:50%;display:none;align-items:center;justify-content:center;font-size:.6rem;color:#fff;z-index:2;font-weight:700}
+.csi.sel .chk{display:flex}
+.cst-art{flex:1;display:flex;align-items:center;justify-content:center;font-size:1.4rem;background:rgba(0,0,0,.3)}
+.cst-art img{width:100%;height:100%;object-fit:cover}
+.cst-info{padding:2px 3px;background:rgba(0,0,0,.75)}
+.cst-name{font-size:.52rem;font-family:'Rajdhani',sans-serif;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700}
+.cst-stats{display:flex;justify-content:space-around;font-size:.5rem;font-family:'Rajdhani',sans-serif;margin-top:1px}
+.sact{display:flex;gap:.45rem;margin-top:.55rem;flex-wrap:wrap;align-items:center}
+
+.allcards-grid{display:flex;flex-wrap:wrap;gap:.5rem;max-height:240px;overflow-y:auto}
+.card-author{font-size:.48rem;color:var(--text-dim);text-align:center;margin-top:2px;font-family:'Rajdhani',sans-serif}
+
+.nav-grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.9rem}
+.nc{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:1rem;text-decoration:none;color:inherit;display:block;transition:all .25s}
+.nc:hover{border-color:var(--acc,var(--gold));transform:translateY(-2px)}
+.ni{font-size:1.7rem;margin-bottom:.45rem}
+.nt{font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:700;letter-spacing:.1em;color:var(--acc,var(--gold));text-transform:uppercase;margin-bottom:.22rem}
+.nd{font-size:.73rem;color:var(--text-dim);line-height:1.5}
+
+.rgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.5rem}
+.ri{background:var(--panel2);border:1px solid var(--border);border-radius:7px;padding:.55rem}
+.rl{font-family:'Rajdhani',sans-serif;font-size:.58rem;letter-spacing:.18em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:.18rem}
+.rv{font-size:.76rem;line-height:1.5}
+.wrow{display:flex;gap:.38rem;flex-wrap:wrap;margin-top:.45rem}
+.wr{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:.35rem .55rem;font-size:.7rem}
+
+/* Waiting overlay */
+.wait-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;backdrop-filter:blur(4px)}
+.wait-logo{font-family:'Cinzel Decorative',serif;font-size:1.5rem;color:var(--gold)}
+.wait-msg{font-family:'Rajdhani',sans-serif;font-size:1rem;letter-spacing:.2em;color:var(--text-dim)}
+.wait-spin{width:40px;height:40px;border:3px solid rgba(201,168,76,.2);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.toast{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(130px);background:var(--panel);border:1px solid var(--gold);border-radius:8px;padding:.62rem 1.2rem;font-family:'Rajdhani',sans-serif;font-size:.82rem;letter-spacing:.08em;color:var(--gold);z-index:1000;transition:transform .4s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+@media(max-width:500px){.nav-grid{grid-template-columns:1fr}.slots-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="bg" id="bgStars"></div>
+<div class="wrap">
+  <header>
+    <h1 class="logo">CARD REALM</h1>
+    <div class="logo-sub">カードで世界を制せ</div>
+  </header>
+  <div class="hdiv"><div class="gem"></div></div>
+
+  <div class="sbar">
+    <div class="sdot"></div><span class="sdim">Firebase —</span>
+    <span class="shigh" id="fbStatus">接続中...</span>
+    <span class="sdim" style="margin-left:auto">ロビー:</span>
+    <span class="shigh" id="lobbyCount">—</span>
+  </div>
+
+  <!-- Name -->
+  <div class="panel">
+    <div class="ptitle">① プレイヤー名を入力</div>
+    <div id="nameSetArea">
+      <div class="name-row">
+        <input type="text" id="nameInput" placeholder="あなたの名前（例：たろう）" maxlength="12">
+        <button class="btn btn-gold" onclick="confirmName()">決定</button>
+      </div>
+      <div style="font-size:.73rem;color:var(--text-dim)">名前はほかのプレイヤーに表示されます</div>
+    </div>
+    <div id="nameDoneArea" style="display:none">
+      <div class="name-display" id="nameDoneLabel"></div>
+      <button class="btn btn-outline btn-sm" onclick="changeName()" style="margin-top:.35rem">名前を変更</button>
+    </div>
+  </div>
+
+  <!-- Lobby -->
+  <div class="panel" id="entryPanel" style="display:none">
+    <div class="ptitle">② 参加人数とスロットを選択</div>
+    <div class="cnt-row">
+      <button class="cnt-btn on" onclick="setPC(2)" id="cnt2">👥 2人</button>
+      <button class="cnt-btn"    onclick="setPC(3)" id="cnt3">👥 3人</button>
+      <button class="cnt-btn"    onclick="setPC(4)" id="cnt4">👥 4人</button>
+    </div>
+    <div class="slots-grid" id="slotsGrid"></div>
+    <div class="mfooter">
+      <div id="matchStatus">スロットを選んでエントリーしてください</div>
+      <div style="display:flex;gap:.6rem;justify-content:center;flex-wrap:wrap;margin-top:.45rem">
+        <button class="btn btn-green" id="startBtn" style="display:none" onclick="startGame()">⚔️ 試合開始！</button>
+        <button class="btn btn-red-outline" id="resetLobbyBtn" style="display:none" onclick="resetLobby()">🔄 ロビーリセット</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card select -->
+  <div class="panel" id="cardSelectPanel" style="display:none">
+    <div class="ptitle">③ 使用カードを選択（未選択の場合は全カード使用）</div>
+    <div class="cfilter" id="cfFilter"></div>
+    <div class="csgrid" id="cardSelectGrid"></div>
+    <div class="sact">
+      <button class="btn btn-outline btn-sm" onclick="selectAll()">全選択</button>
+      <button class="btn btn-outline btn-sm" onclick="deselectAll()">全解除</button>
+      <span style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold)" id="selCount">0枚</span>
+    </div>
+  </div>
+
+  <!-- All cards -->
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.65rem">
+      <div class="ptitle" style="margin-bottom:0">🃏 みんなのカード一覧</div>
+      <button class="btn btn-outline btn-sm" onclick="refreshAllCards()">🔄 更新</button>
+    </div>
+    <div class="allcards-grid" id="allCardsGrid"><div style="color:var(--text-dim);font-size:.78rem">読み込み中...</div></div>
+  </div>
+
+  <!-- Nav -->
+  <div class="nav-grid">
+    <a href="card.html" class="nc" style="--acc:#e74c3c"><div class="ni">🎨</div><div class="nt">カードを作る</div><div class="nd">作ったカードはFirebaseに保存され全員が使えます</div></a>
+    <a href="game.html" class="nc" style="--acc:#27ae60"><div class="ni">🎮</div><div class="nt">ゲームへ直接</div><div class="nd">試合ページへ移動</div></a>
+  </div>
+
+  <!-- Rules -->
+  <div class="panel">
+    <div class="ptitle">📜 ゲームルール</div>
+    <div class="rgrid">
+      <div class="ri"><div class="rl">人数</div><div class="rv">2〜4人</div></div>
+      <div class="ri"><div class="rl">初期HP</div><div class="rv">各20</div></div>
+      <div class="ri"><div class="rl">初期手札</div><div class="rv">先行7/後攻8枚</div></div>
+      <div class="ri"><div class="rl">コスト回復</div><div class="rv">毎ターン+2</div></div>
+      <div class="ri"><div class="rl">追加ドロー</div><div class="rv">HP2消費で1枚</div></div>
+      <div class="ri"><div class="rl">カード制限</div><div class="rv">捨て札と同色/同コスト</div></div>
+      <div class="ri"><div class="rl">捨て札</div><div class="rv">直近の発動カード1枚</div></div>
+      <div class="ri"><div class="rl">勝利条件</div><div class="rv">相手HP0</div></div>
+    </div>
+    <div style="margin-top:.8rem">
+      <div class="rl" style="margin-bottom:.38rem">🌤 天候システム</div>
+      <div class="wrow">
+        <div class="wr">☀️ 晴れ — 通常</div>
+        <div class="wr">🌧️ 雨 — コスト-1</div>
+        <div class="wr">⛈️ 嵐 — ATK×1.5</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Waiting overlay (shown when game is starting) -->
+<div class="wait-overlay" id="waitOverlay" style="display:none">
+  <div class="wait-logo">CARD REALM</div>
+  <div class="wait-spin"></div>
+  <div class="wait-msg" id="waitMsg">試合を準備中...</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, onValue, get, remove, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const FB={apiKey:"AIzaSyCXyreqDjZXIWnZqWZShw1yjwubHduqCoc",authDomain:"createcardgame-8edbf.firebaseapp.com",databaseURL:"https://createcardgame-8edbf-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"createcardgame-8edbf",storageBucket:"createcardgame-8edbf.firebasestorage.app",messagingSenderId:"173024784980",appId:"1:173024784980:web:606d80ee258239d656f3c1"};
+const db=getDatabase(initializeApp(FB));
+const lobbyRef=ref(db,'lobby');
+const cardsRef=ref(db,'sharedCards');
+const lobbyCtrlRef=ref(db,'lobbyCtrl'); // controls: {startGame: bool, startedAt: ts}
+
+const ICONS=['🛡️','⚔️','🔮','🐉'];
+const CM={red:{border:'#c0392b',accent:'#e74c3c',dot:'#e74c3c'},blue:{border:'#2471a3',accent:'#3498db',dot:'#3498db'},yellow:{border:'#d4ac0d',accent:'#f1c40f',dot:'#f1c40f'},green:{border:'#1e8449',accent:'#2ecc71',dot:'#2ecc71'}};
+
+let myName=localStorage.getItem('myName')||'';
+let mySlot=null;
+let maxPlayers=2;
+let lobbyData={};
+let allSharedCards=[];
+let selectedCards=new Set();
+let curFilter='all';
+let sessionId=sessionStorage.getItem('sid');
+if(!sessionId){sessionId='s'+Date.now()+Math.random().toString(36).slice(2,7);sessionStorage.setItem('sid',sessionId);}
+
+// ── Firebase listeners ──
+onValue(ref(db,'.info/connected'),s=>document.getElementById('fbStatus').textContent=s.val()?'接続済み ✓':'オフライン');
+
+onValue(lobbyRef,snap=>{
+  lobbyData=snap.val()||{};
+  if(!mySlot){for(let i=1;i<=4;i++){if(lobbyData[`p${i}`]?.sessionId===sessionId){mySlot=i;break;}}}
+  if(mySlot&&!lobbyData[`p${mySlot}`]){mySlot=null;localStorage.removeItem('mySlot');document.getElementById('cardSelectPanel').style.display='none';}
+  updateLobbyUI();
+});
+
+// ★ KEY: Watch lobbyCtrl for startGame signal → redirect ALL players
+onValue(lobbyCtrlRef,snap=>{
+  const ctrl=snap.val();
+  if(!ctrl||!ctrl.startGame)return;
+  if(!mySlot)return; // not entered
+  // Save game params from ctrl
+  const pool=ctrl.cardPool||allSharedCards;
+  localStorage.setItem('activeCards',JSON.stringify(pool));
+  localStorage.setItem('mySlot',mySlot);
+  localStorage.setItem('myName',myName);
+  localStorage.setItem('maxPlayers',ctrl.maxPlayers||maxPlayers);
+  localStorage.setItem('actualPlayers',ctrl.actualPlayers||2);
+  localStorage.setItem('playerNames',JSON.stringify(ctrl.playerNames||{}));
+  // Show waiting then redirect
+  document.getElementById('waitOverlay').style.display='flex';
+  document.getElementById('waitMsg').textContent='試合ページに移動します...';
+  setTimeout(()=>window.location.href='game.html',800);
+});
+
+onValue(cardsRef,snap=>{
+  allSharedCards=Object.values(snap.val()||{});
+  renderAllCards();
+  if(mySlot)renderCardSelect();
+  allSharedCards.forEach(c=>selectedCards.add(c.id));
+});
+
+// ── Name ──
+if(myName)showNameDone();
+window.confirmName=function(){
+  const n=document.getElementById('nameInput').value.trim();
+  if(!n){showToast('名前を入力してください');return;}
+  myName=n;localStorage.setItem('myName',n);showNameDone();showToast(`「${n}」に設定しました`);
+};
+window.changeName=function(){
+  document.getElementById('nameDoneArea').style.display='none';
+  document.getElementById('nameSetArea').style.display='block';
+  document.getElementById('nameInput').value=myName;
+};
+function showNameDone(){
+  document.getElementById('nameSetArea').style.display='none';
+  document.getElementById('nameDoneArea').style.display='block';
+  document.getElementById('nameDoneLabel').textContent=`👤 ${myName} としてプレイ`;
+  document.getElementById('entryPanel').style.display='block';
+}
+
+// ── Player count ──
+window.setPC=function(n){
+  if(mySlot){showToast('エントリー中は変更できません');return;}
+  maxPlayers=n;[2,3,4].forEach(i=>document.getElementById('cnt'+i).classList.toggle('on',i===n));
+  localStorage.setItem('maxPlayers',n);buildSlots();
+};
+
+// ── Slots ──
+function buildSlots(){
+  const g=document.getElementById('slotsGrid');g.innerHTML='';
+  for(let i=1;i<=maxPlayers;i++){
+    const p=lobbyData[`p${i}`],isMe=mySlot===i;
+    const d=document.createElement('div');d.className='pslot'+(p?' filled':'')+(isMe?' mine':'');
+    d.innerHTML=`<div class="pslot-num">PLAYER ${i}</div>
+      <span class="pslot-icon">${ICONS[i-1]||'🃏'}</span>
+      <div class="pslot-name">${p?p.name:''}</div>
+      <div class="pslot-st ${p?'ok':''}">${p?'参加済み ✓':'待機中...'}</div>
+      ${(!p&&myName&&!mySlot)?`<button class="btn btn-gold btn-sm btn-full" onclick="enterMatch(${i})">エントリー</button>`:''}
+      ${isMe?`<button class="btn btn-red-outline btn-full" style="margin-top:.35rem" onclick="leaveMatch()">← 離脱</button>`:''}`;
+    g.appendChild(d);
+  }
+}
+function updateLobbyUI(){
+  buildSlots();
+  let filled=0;for(let i=1;i<=maxPlayers;i++)if(lobbyData[`p${i}`])filled++;
+  document.getElementById('lobbyCount').textContent=`${filled}/${maxPlayers}人`;
+  const ready=filled>=2&&!!mySlot;
+  document.getElementById('startBtn').style.display=ready?'inline-flex':'none';
+  document.getElementById('resetLobbyBtn').style.display=mySlot?'inline-flex':'none';
+  document.getElementById('cardSelectPanel').style.display=mySlot?'block':'none';
+  if(ready){document.getElementById('matchStatus').textContent=`${filled}人参加中！試合を開始できます`;document.getElementById('matchStatus').style.color='#2ecc71';}
+  else if(mySlot){document.getElementById('matchStatus').textContent='他のプレイヤーを待っています...';document.getElementById('matchStatus').style.color='';}
+  else{document.getElementById('matchStatus').textContent='スロットを選んでエントリーしてください';document.getElementById('matchStatus').style.color='';}
+  if(mySlot)renderCardSelect();
+}
+
+window.enterMatch=async function(n){
+  if(!myName){showToast('先に名前を入力してください');return;}
+  if(mySlot){showToast('すでにエントリー済みです');return;}
+  const snap=await get(lobbyRef);const data=snap.val()||{};
+  if(data[`p${n}`]){showToast(`P${n}は既に参加済みです`);return;}
+  await set(ref(db,`lobby/p${n}`),{name:myName,sessionId,joined:true,ts:serverTimestamp()});
+  mySlot=n;localStorage.setItem('mySlot',n);localStorage.setItem('maxPlayers',maxPlayers);
+  showToast(`P${n}「${myName}」としてエントリー！`);
+};
+window.leaveMatch=async function(){
+  if(!mySlot)return;
+  await remove(ref(db,`lobby/p${mySlot}`));
+  mySlot=null;localStorage.removeItem('mySlot');showToast('離脱しました');
+};
+window.resetLobby=async function(){
+  if(!confirm('ロビーを全リセットしますか？'))return;
+  await remove(lobbyRef);await remove(lobbyCtrlRef);
+  mySlot=null;localStorage.removeItem('mySlot');showToast('ロビーをリセットしました');
+};
+
+// ★ startGame: write signal to Firebase → all players see it and redirect
+window.startGame=async function(){
+  if(!mySlot){showToast('エントリーしてください');return;}
+  const active=allSharedCards.filter(c=>selectedCards.has(c.id));
+  const pool=active.length>0?active:allSharedCards;
+  if(!pool.length){showToast('カードがありません。先にカードを作ってください');return;}
+  let cnt=0;for(let i=1;i<=maxPlayers;i++)if(lobbyData[`p${i}`])cnt++;
+  const names={};for(let i=1;i<=maxPlayers;i++)if(lobbyData[`p${i}`])names[i]=lobbyData[`p${i}`].name;
+  document.getElementById('waitOverlay').style.display='flex';
+  document.getElementById('waitMsg').textContent='全員に試合開始を通知中...';
+  // Write start signal — all watchers will pick this up
+  await set(lobbyCtrlRef,{startGame:true,maxPlayers,actualPlayers:Math.max(cnt,2),playerNames:names,cardPool:pool,startedAt:Date.now()});
+};
+
+// ── Card select ──
+function getColors(card){return Array.isArray(card.colors)?card.colors:[card.color||'red'];}
+function buildFilterBar(){
+  const el=document.getElementById('cfFilter');
+  const colors=['all','red','blue','yellow','green'];
+  const labels=['全て','🔥赤','💧青','⚡黄','🌿緑'];
+  const accs=['var(--gold)','#e74c3c','#3498db','#f1c40f','#2ecc71'];
+  el.innerHTML=colors.map((c,i)=>`<button class="fb${c==='all'?' on':''}" onclick="filterCards('${c}',this)" style="${c!=='all'?'color:'+accs[i]:''}">${labels[i]}</button>`).join('');
+}
+buildFilterBar();
+window.filterCards=function(col,btn){curFilter=col;document.querySelectorAll('#cfFilter .fb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderCardSelect();};
+function renderCardSelect(){
+  if(!mySlot)return;
+  const cards=curFilter==='all'?allSharedCards:allSharedCards.filter(c=>getColors(c).includes(curFilter));
+  const g=document.getElementById('cardSelectGrid');
+  if(!cards.length){g.innerHTML='<div style="color:var(--text-dim);font-size:.76rem;padding:.5rem">カードがありません</div>';return;}
+  g.innerHTML=cards.map(card=>{
+    const sel=selectedCards.has(card.id);const c=CM[getColors(card)[0]]||CM.red;
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:(card.illust||'🃏');
+    return `<div class="csi${sel?' sel':''}" onclick="toggleCard('${card.id}')" title="${card.name}">
+      <div class="chk">✓</div>
+      <div class="thumb" style="border-color:${c.border};box-shadow:${sel?'0 0 8px '+c.border:'none'}">
+        <div class="cst-art">${ill}</div>
+        <div class="cst-info"><div class="cst-stats"><span style="color:${c.accent}">C${card.cost}</span><span>A${card.atk}</span><span>D${card.def}</span></div><div class="cst-name">${card.name}</div></div>
+      </div></div>`;
+  }).join('');
+  document.getElementById('selCount').textContent=selectedCards.size+'枚選択';
+}
+window.toggleCard=function(id){selectedCards.has(id)?selectedCards.delete(id):selectedCards.add(id);renderCardSelect();};
+window.selectAll=function(){allSharedCards.forEach(c=>selectedCards.add(c.id));renderCardSelect();};
+window.deselectAll=function(){selectedCards.clear();renderCardSelect();};
+
+function renderAllCards(){
+  const g=document.getElementById('allCardsGrid');
+  if(!allSharedCards.length){g.innerHTML='<div style="color:var(--text-dim);font-size:.78rem;padding:.5rem">まだカードがありません</div>';return;}
+  g.innerHTML=allSharedCards.map(card=>{
+    const c=CM[getColors(card)[0]]||CM.red;
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:(card.illust||'🃏');
+    return `<div style="text-align:center;flex-shrink:0"><div class="thumb" style="border-color:${c.border}"><div class="cst-art">${ill}</div><div class="cst-info"><div class="cst-stats"><span style="color:${c.accent}">C${card.cost}</span><span>A${card.atk}</span><span>D${card.def}</span></div><div class="cst-name">${card.name}</div></div></div><div class="card-author">${card.author||''}</div></div>`;
+  }).join('');
+}
+window.refreshAllCards=async function(){allSharedCards=Object.values((await get(cardsRef)).val()||{});renderAllCards();showToast('更新しました');};
+
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+
+const bg=document.getElementById('bgStars');
+for(let i=0;i<100;i++){const s=document.createElement('div');s.className='star';s.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*100}%;--d:${2+Math.random()*4}s;--dl:${-Math.random()*4}s`;bg.appendChild(s);}
+</script>
+</body>
+</html>
