@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>CARD REALM — カード作成</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Noto+Sans+JP:wght@300;400;700&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#c9a84c;--gold-light:#f0d080;--gold-dim:#7a6430;--deep:#0a0a14;--panel:#0f1020;--panel2:#141428;--text:#e8e0d0;--text-dim:#8a8070;--border:rgba(201,168,76,0.25)}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100vh}
+.bg{position:fixed;inset:0;z-index:0}
+.star{position:absolute;width:2px;height:2px;background:#fff;border-radius:50%;animation:tw var(--d,3s) ease-in-out infinite var(--dl,0s)}
+@keyframes tw{0%,100%{opacity:.1}50%{opacity:.8}}
+.wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:1rem 1rem 4rem}
+.ph{display:flex;align-items:center;gap:1rem;margin-bottom:1.1rem;flex-wrap:wrap}
+.back{color:var(--gold-dim);text-decoration:none;font-family:'Rajdhani',sans-serif;font-size:.85rem;letter-spacing:.15em;text-transform:uppercase}
+.back:hover{color:var(--gold)}
+.ptitle-main{font-family:'Cinzel Decorative',serif;font-size:1.5rem;background:linear-gradient(135deg,var(--gold-dim),var(--gold-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.layout{display:grid;grid-template-columns:240px 1fr;gap:1.4rem;align-items:start}
+@media(max-width:760px){.layout{grid-template-columns:1fr}.pv{order:-1}}
+.pv{position:sticky;top:1rem}
+.prev-label{font-family:'Rajdhani',sans-serif;font-size:.7rem;letter-spacing:.3em;color:var(--gold-dim);text-transform:uppercase;text-align:center;margin-bottom:.7rem}
+.card-tmpl{width:220px;height:340px;margin:0 auto .9rem;border-radius:14px;border:2px solid var(--cb,#7a6430);background:#05050e;position:relative;overflow:hidden;box-shadow:0 14px 45px rgba(0,0,0,.85),0 0 22px var(--cglow,rgba(201,168,76,.1));transition:all .3s;display:flex;flex-direction:column}
+.card-tmpl:hover{transform:rotateY(-4deg) rotateX(2deg) scale(1.04)}
+.c-colbar{position:absolute;top:0;left:0;right:0;height:6px;z-index:10}
+.c-colbar-left{position:absolute;top:0;left:0;bottom:0;width:6px;z-index:10}
+.c-head{padding:.5rem .65rem .4rem;display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.94);border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0;z-index:2;position:relative}
+.c-name{font-family:'Cinzel Decorative',serif;font-size:.78rem;color:var(--cacc,var(--gold-light));text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:118px}
+.c-cost{width:30px;height:30px;border-radius:50%;background:var(--cacc,var(--gold));color:#000;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1rem;flex-shrink:0;box-shadow:0 0 10px var(--cglow)}
+.c-art{height:128px;position:relative;overflow:hidden;background:rgba(255,255,255,.02);display:flex;align-items:center;justify-content:center;font-size:4.5rem;flex-shrink:0}
+.c-art::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,transparent 55%,rgba(0,0,0,.95) 100%);pointer-events:none}
+.c-art img{width:100%;height:100%;object-fit:cover}
+.c-colstrip{display:flex;height:5px;flex-shrink:0}
+.c-colseg{flex:1}
+.c-stats{display:flex;justify-content:space-around;padding:.44rem .38rem;background:rgba(0,0,0,.96);flex-shrink:0}
+.c-stat-box{text-align:center}
+.c-stat-lbl{font-family:'Rajdhani',sans-serif;font-size:.58rem;letter-spacing:.15em;color:var(--cacc,var(--gold-dim));text-transform:uppercase;display:block}
+.c-stat-val{font-family:'Rajdhani',sans-serif;font-size:1.4rem;font-weight:700;color:var(--cacc,var(--gold-light))}
+.c-stat-div{width:1px;background:rgba(255,255,255,.08)}
+.c-flavor{flex:1;padding:.4rem .65rem .5rem;background:rgba(0,0,0,.93);border-top:1px solid rgba(255,255,255,.05);overflow:hidden;display:flex;flex-direction:column;gap:2px}
+.c-flavor-txt{font-size:.62rem;color:rgba(255,255,255,.42);font-style:italic;line-height:1.55;display:block}
+.c-skill-txt{font-size:.6rem;line-height:1.5;display:block}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:.9rem}
+.sec-title{font-family:'Rajdhani',sans-serif;font-size:.7rem;letter-spacing:.28em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:.8rem;padding-bottom:.38rem;border-bottom:1px solid var(--border)}
+.frow{margin-bottom:.82rem}
+label{display:block;font-size:.78rem;color:var(--text-dim);margin-bottom:.3rem;font-family:'Rajdhani',sans-serif;letter-spacing:.08em;text-transform:uppercase}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:7px;padding:.58rem .82rem;color:var(--text);font-family:'Noto Sans JP',sans-serif;font-size:.9rem;outline:none;transition:border-color .2s;-webkit-appearance:none}
+input:focus,textarea:focus,select:focus{border-color:var(--gold-dim)}
+textarea{resize:vertical;min-height:65px;line-height:1.55}
+select option{background:var(--panel2)}
+.color-multi{display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem}
+.cm{padding:.52rem .18rem;border-radius:8px;border:2px solid transparent;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.88rem;text-align:center;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:.2rem;touch-action:manipulation}
+.cm .ci{font-size:1.2rem}
+.cm.red{background:rgba(192,57,43,.14);color:#e74c3c;border-color:rgba(192,57,43,.24)}
+.cm.blue{background:rgba(36,113,163,.14);color:#3498db;border-color:rgba(36,113,163,.24)}
+.cm.yellow{background:rgba(212,172,13,.14);color:#f1c40f;border-color:rgba(212,172,13,.24)}
+.cm.green{background:rgba(30,132,73,.14);color:#2ecc71;border-color:rgba(30,132,73,.24)}
+.cm.red.on{border-color:#e74c3c;box-shadow:0 0 12px rgba(231,76,60,.38);background:rgba(231,76,60,.2)}
+.cm.blue.on{border-color:#3498db;box-shadow:0 0 12px rgba(52,152,219,.38);background:rgba(52,152,219,.2)}
+.cm.yellow.on{border-color:#f1c40f;box-shadow:0 0 12px rgba(241,196,15,.38);background:rgba(241,196,15,.2)}
+.cm.green.on{border-color:#2ecc71;box-shadow:0 0 12px rgba(46,204,113,.38);background:rgba(46,204,113,.2)}
+.color-hint{font-size:.7rem;color:var(--text-dim);margin-top:.38rem}
+.stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.7rem}
+.illust-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:.38rem;margin-bottom:.6rem}
+.ib{aspect-ratio:1;background:var(--panel2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:1.35rem;display:flex;align-items:center;justify-content:center;transition:all .18s;touch-action:manipulation}
+.ib:hover{border-color:var(--gold-dim);transform:scale(1.1)}
+.ib.on{border-color:var(--gold);background:rgba(201,168,76,.12)}
+.img-upload-area{border:2px dashed var(--border);border-radius:8px;padding:.9rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:.6rem;position:relative;min-height:75px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.img-upload-area:hover{border-color:var(--gold-dim);background:rgba(201,168,76,.03)}
+.img-upload-area.has-img{border-color:var(--gold);border-style:solid}
+.img-preview{width:100%;max-height:100px;object-fit:contain;border-radius:5px;display:none}
+.img-upload-area.has-img .img-preview{display:block}
+.img-hint{font-family:'Rajdhani',sans-serif;font-size:.76rem;color:var(--text-dim);margin-top:.35rem}
+input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2}
+.effect-entry{background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:9px;padding:.9rem;position:relative;margin-bottom:.65rem}
+.eff-num{font-family:'Rajdhani',sans-serif;font-size:.66rem;letter-spacing:.15em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:.55rem}
+.eff-r2{display:grid;grid-template-columns:1fr 1fr;gap:.58rem;margin-bottom:.58rem}
+.eff-preview{background:rgba(201,168,76,.05);border:1px solid var(--border);border-radius:6px;padding:.55rem .65rem;font-size:.8rem;color:var(--gold);font-style:italic;line-height:1.5;min-height:2rem;margin-top:.45rem;white-space:pre-wrap}
+.del-eff{position:absolute;top:.58rem;right:.58rem;background:rgba(192,57,43,.82);color:#fff;border:none;border-radius:5px;padding:.2rem .5rem;font-family:'Rajdhani',sans-serif;font-size:.68rem;cursor:pointer;touch-action:manipulation}
+.add-eff{display:flex;align-items:center;justify-content:center;gap:.38rem;padding:.52rem;border-radius:8px;border:1px dashed var(--gold-dim);background:transparent;color:var(--gold-dim);font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s;width:100%;touch-action:manipulation}
+.add-eff:hover{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.05)}
+.vfx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.5rem;margin-bottom:.5rem}
+.vfx-btn{background:var(--panel2);border:2px solid var(--border);border-radius:8px;padding:.55rem .4rem;cursor:pointer;text-align:center;transition:all .2s;font-family:'Rajdhani',sans-serif;touch-action:manipulation}
+.vfx-btn:hover{border-color:var(--gold-dim)}
+.vfx-btn.on{border-color:var(--gold);background:rgba(201,168,76,.12);box-shadow:0 0 10px rgba(201,168,76,.2)}
+.vfx-icon{font-size:1.4rem;display:block;margin-bottom:.22rem}
+.vfx-name{font-size:.68rem;color:var(--text-dim);letter-spacing:.05em}
+.vfx-btn.on .vfx-name{color:var(--gold)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.32rem;padding:.58rem 1.1rem;border:none;border-radius:8px;font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:all .18s;touch-action:manipulation}
+.btn:active{transform:scale(.95)}
+.btn-gold{background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:var(--deep);box-shadow:0 3px 12px rgba(201,168,76,.3)}
+.btn-gold:hover{box-shadow:0 5px 20px rgba(201,168,76,.5)}
+.btn-outline{background:transparent;color:var(--gold);border:1px solid var(--gold-dim)}
+.btn-outline:hover{background:rgba(201,168,76,.08)}
+.form-actions{display:flex;gap:.7rem;flex-wrap:wrap;margin-top:.7rem}
+.edit-banner{background:rgba(36,113,163,.14);border:1px solid rgba(52,152,219,.38);border-radius:8px;padding:.58rem .95rem;margin-bottom:.9rem;display:flex;align-items:center;gap:.7rem;font-family:'Rajdhani',sans-serif;font-size:.82rem;color:#3498db;flex-wrap:wrap}
+.cancel-edit-btn{margin-left:auto;padding:.25rem .65rem;font-size:.7rem;border-radius:6px;background:transparent;color:var(--gold);border:1px solid var(--gold-dim);cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700}
+.deck-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.82rem;flex-wrap:wrap;gap:.45rem}
+.deck-title{font-family:'Rajdhani',sans-serif;font-size:.95rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase}
+.deck-cards{display:flex;flex-wrap:wrap;gap:.65rem;min-height:55px}
+.mini{width:80px;height:114px;border-radius:8px;border:1.5px solid;background:var(--panel2);display:flex;flex-direction:column;cursor:default;transition:all .18s;position:relative;overflow:hidden;flex-shrink:0}
+.mini:hover{transform:translateY(-5px)}
+.mini-colstrip{height:4px;display:flex;flex-shrink:0}
+.mini-colseg{flex:1}
+.mini-art{flex:1;display:flex;align-items:center;justify-content:center;font-size:1.7rem;background:rgba(0,0,0,.3)}
+.mini-art img{width:100%;height:100%;object-fit:cover}
+.mini-bot{padding:3px 4px;background:rgba(0,0,0,.75)}
+.mini-name{font-size:.54rem;font-family:'Rajdhani',sans-serif;color:rgba(255,255,255,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;margin-bottom:1px}
+.mini-stats{display:flex;justify-content:space-around;font-size:.52rem;font-family:'Rajdhani',sans-serif}
+.mini-actions{position:absolute;top:2px;right:2px;display:flex;gap:2px;opacity:0;transition:opacity .18s}
+.mini:hover .mini-actions{opacity:1}
+.mini-abtn{width:20px;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#fff;cursor:pointer;border:none;touch-action:manipulation}
+.mini-edit-btn{background:rgba(36,113,163,.88)}.mini-del-btn{background:rgba(192,57,43,.88)}
+.mini-author{font-size:.46rem;color:var(--text-dim);text-align:center;margin-top:2px;font-family:'Rajdhani',sans-serif}
+.empty-deck{color:var(--text-dim);font-size:.82rem;font-style:italic;padding:.9rem 0}
+.toast{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(130px);background:var(--panel);border:1px solid var(--gold);border-radius:8px;padding:.62rem 1.2rem;font-family:'Rajdhani',sans-serif;font-size:.85rem;letter-spacing:.08em;color:var(--gold);z-index:1000;transition:transform .4s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="bg" id="bgStars"></div>
+<div class="wrap">
+  <div class="ph">
+    <a href="index.html" class="back">← ホーム</a>
+    <h1 class="ptitle-main">カード作成</h1>
+    <div style="margin-left:auto;font-family:'Rajdhani',sans-serif;font-size:.82rem;color:var(--text-dim)" id="authorLabel"></div>
+  </div>
+  <div class="edit-banner" id="editBanner" style="display:none">
+    ✏️ 編集中: <span id="editCardName" style="font-weight:700;color:#3498db"></span>
+    <button class="cancel-edit-btn" onclick="cancelEdit()">✕ キャンセル</button>
+  </div>
+  <div class="layout">
+    <div class="pv">
+      <div class="prev-label">✦ プレビュー ✦</div>
+      <div class="card-tmpl" id="cardTmpl">
+        <div class="c-colbar" id="pColBar"></div><div class="c-colbar-left" id="pColBarL"></div>
+        <div class="c-head"><div class="c-name" id="pName">カード名</div><div class="c-cost" id="pCost">1</div></div>
+        <div class="c-art" id="pArt">🗡️</div>
+        <div class="c-colstrip" id="pColStrip"></div>
+        <div class="c-stats">
+          <div class="c-stat-box"><span class="c-stat-lbl">ATK</span><span class="c-stat-val" id="pAtk">0</span></div>
+          <div class="c-stat-div"></div>
+          <div class="c-stat-box"><span class="c-stat-lbl">DEF</span><span class="c-stat-val" id="pDef">0</span></div>
+        </div>
+        <div class="c-flavor"><span class="c-flavor-txt" id="pFlavor">フレーバーテキスト</span><span class="c-skill-txt" id="pSkill"></span></div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:.7rem;flex-wrap:wrap">
+        <button class="btn btn-gold" onclick="saveCard()" id="saveBtn">＋ 保存</button>
+        <button class="btn btn-outline" onclick="resetForm()">リセット</button>
+      </div>
+    </div>
+    <div>
+      <div class="panel">
+        <div class="sec-title">カラー（複数選択可）</div>
+        <div class="color-multi">
+          <button class="cm red on" onclick="toggleColor('red',this)"><span class="ci">🔥</span>赤</button>
+          <button class="cm blue" onclick="toggleColor('blue',this)"><span class="ci">💧</span>青</button>
+          <button class="cm yellow" onclick="toggleColor('yellow',this)"><span class="ci">⚡</span>黄</button>
+          <button class="cm green" onclick="toggleColor('green',this)"><span class="ci">🌿</span>緑</button>
+        </div>
+        <div class="color-hint">複数選択で多色カード。試合中は色帯で視覚的に表示。</div>
+      </div>
+      <div class="panel">
+        <div class="sec-title">基本情報</div>
+        <div class="frow"><label>カード名</label><input type="text" id="cardName" placeholder="例：炎の剣士" maxlength="20" oninput="updatePrev()"></div>
+        <div class="stats-row">
+          <div class="frow"><label>コスト</label><input type="number" id="cardCost" value="1" min="1" max="99" oninput="updatePrev()"></div>
+          <div class="frow"><label>攻撃力</label><input type="number" id="cardAtk" value="2" min="0" max="99" oninput="updatePrev()"></div>
+          <div class="frow"><label>防御力</label><input type="number" id="cardDef" value="2" min="0" max="99" oninput="updatePrev()"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="sec-title">イラスト</div>
+        <div style="margin-bottom:.7rem">
+          <label>📁 ファイルから読み込み</label>
+          <div class="img-upload-area" id="uploadArea">
+            <input type="file" id="fileInput" accept="image/*" onchange="onFileSelect(event)">
+            <img id="imgPreview" class="img-preview" alt="">
+            <div class="img-hint" id="uploadHint">クリックまたはドロップで画像選択<br><small style="opacity:.6">JPG/PNG/GIF/WebP 2MB以内</small></div>
+          </div>
+          <button class="btn btn-outline" style="padding:.3rem .62rem;font-size:.7rem;margin-top:.35rem;display:none" id="clearUploadBtn" onclick="clearUpload()">🗑 画像を削除</button>
+        </div>
+        <label>絵文字イラスト</label>
+        <div class="illust-grid" id="illustGrid"></div>
+        <div style="font-size:.74rem;color:var(--text-dim);margin-bottom:.32rem">または画像URL:</div>
+        <input type="text" id="customUrl" placeholder="https://..." oninput="setCustomUrl(this.value)">
+      </div>
+      <div class="panel">
+        <div class="sec-title">フレーバーテキスト</div>
+        <textarea id="cardFlavor" placeholder="カードの雰囲気を表す文章..." oninput="updatePrev()"></textarea>
+      </div>
+      <div class="panel">
+        <div class="sec-title">スキル設定</div>
+        <div style="font-size:.74rem;color:var(--text-dim);margin-bottom:.75rem;line-height:1.65;padding:.5rem;background:rgba(201,168,76,.05);border-radius:6px;border:1px solid var(--border)">
+          ⚠️ <strong style="color:var(--gold)">ポイント</strong>：①発動条件＝いつ？ ②効果＝何をする？ ③効果量を必ず設定。<br>
+          「条件付き発動（HP・天候・確率）」はカードをプレイした時のみ評価されます（手札にある間は発動しません）。
+        </div>
+        <div id="effectsList"></div>
+        <button class="add-eff" onclick="addEffect()">＋ スキルを追加する</button>
+      </div>
+      <div class="panel">
+        <div class="sec-title">プレイ時ビジュアルエフェクト（複数選択可）</div>
+        <div class="vfx-grid" id="vfxGrid"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-gold" onclick="saveCard()" id="saveBtn2">＋ カードを保存</button>
+        <button class="btn btn-outline" onclick="resetForm()">リセット</button>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="deck-head">
+      <div class="deck-title">🃏 カード一覧（全員共有）<span style="font-size:.78rem;color:var(--text-dim);font-family:'Rajdhani',sans-serif;margin-left:.45rem" id="deckCount">0枚</span></div>
+      <div style="display:flex;gap:.38rem;flex-wrap:wrap">
+        <button class="btn btn-outline" style="padding:.3rem .6rem;font-size:.7rem" onclick="exportDeck()">📤</button>
+        <button class="btn btn-outline" style="padding:.3rem .6rem;font-size:.7rem" onclick="importDeck()">📥</button>
+        <button style="padding:.3rem .6rem;font-size:.7rem;border-radius:6px;background:transparent;color:#e74c3c;border:1px solid rgba(231,76,60,.3);cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700" onclick="clearAll()">🗑 全削除</button>
+      </div>
+    </div>
+    <div class="deck-cards" id="deckCards"><div class="empty-deck">Firebase から読み込み中...</div></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+const FB={apiKey:"AIzaSyCXyreqDjZXIWnZqWZShw1yjwubHduqCoc",authDomain:"createcardgame-8edbf.firebaseapp.com",databaseURL:"https://createcardgame-8edbf-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"createcardgame-8edbf",storageBucket:"createcardgame-8edbf.firebasestorage.app",messagingSenderId:"173024784980",appId:"1:173024784980:web:606d80ee258239d656f3c1"};
+const db=getDatabase(initializeApp(FB));
+const cardsRef=ref(db,'sharedCards');
+const ILLS=['🗡️','🛡️','🔥','💧','⚡','🌿','⚔️','🏹','🪄','🐉','🦋','💀','🌙','☀️','⭐','🌊','🍀','🌸','💎','🔮','🦅','🐺','🦁','🐍','🏔️','🌋','🌪️','❄️','🎯','💥','🌺','🦄'];
+const CM={red:{border:'#c0392b',accent:'#e74c3c',glow:'rgba(192,57,43,.35)',dot:'#e74c3c'},blue:{border:'#2471a3',accent:'#3498db',glow:'rgba(36,113,163,.35)',dot:'#3498db'},yellow:{border:'#d4ac0d',accent:'#f1c40f',glow:'rgba(212,172,13,.35)',dot:'#f1c40f'},green:{border:'#1e8449',accent:'#2ecc71',glow:'rgba(30,132,73,.35)',dot:'#2ecc71'}};
+const CN={red:'赤',blue:'青',yellow:'黄',green:'緑'};
+
+// ===== TRIGGER DEFINITIONS =====
+const TRIGS=[
+  {v:'',           l:'（条件なし・常時）',                 n:false},
+  {v:'onAttack',   l:'このカードで攻撃した時',             n:false},
+  {v:'onDefend',   l:'このカードで防御した時',             n:false},
+  {v:'onPlay',     l:'このカードを場に出した時',           n:false},
+  {v:'onDamage',   l:'自分が相手にダメージを与えた時',     n:false},
+  {v:'onTakeDmg',  l:'自分がダメージを受けた時',          n:false},
+  {v:'onDraw',     l:'このカードをドローした時',           n:false},
+  {v:'onTurnStart',l:'自分のターン開始時',                 n:false},
+  {v:'ifHpLow',    l:'自分のHPがn以下の時（プレイ時評価）',n:true},
+  {v:'ifHpHigh',   l:'自分のHPがn以上の時（プレイ時評価）',n:true},
+  {v:'ifChance',   l:'n%の確率で（ランダム・プレイ時）',   n:true},
+  {v:'ifWeatherSun', l:'天候が晴れの時のみ（プレイ時）',   n:false},
+  {v:'ifWeatherRain',l:'天候が雨の時のみ（プレイ時）',     n:false},
+  {v:'ifWeatherStorm',l:'天候が嵐の時のみ（プレイ時）',    n:false},
+  {v:'ifTurnGte',  l:'ターン数がn以上の時（プレイ時）',    n:true},
+  {v:'playCondition',l:'★出し条件：この条件を満たす時のみ出せる（n%以下のHP等と組み合わせ）',n:false},
+];
+
+// ===== EFFECT DEFINITIONS =====
+const EFFS=[
+  {v:'',              l:'（効果なし）'},
+  {v:'draw',          l:'自分がカードをn枚ドローする'},
+  {v:'selfHeal',      l:'自分のHPをn回復する'},
+  {v:'selfAtkUp',     l:'自分の手札から1枚選んでATKをn上げる'},
+  {v:'selfDefUp',     l:'自分の手札から1枚選んでDEFをn上げる'},
+  {v:'selfCardAtkUp', l:'このカード自身のATKをn上げる（プレイ時限定）'},
+  {v:'selfCardDefUp', l:'このカード自身のDEFをn上げる（プレイ時限定）'},
+  {v:'oppDamage',     l:'相手にnの追加ダメージを与える'},
+  {v:'selfCostDown',  l:'自分の次のカードのコストをn下げる'},
+  {v:'selfCostUp',    l:'自分の所持コストをn増やす'},
+  {v:'oppCostDown',   l:'相手の所持コストをn下げる'},
+  {v:'oppAtkDown',    l:'相手の次のカードのATKをn下げる'},
+  {v:'oppDefDown',    l:'相手の次のカードのDEFをn下げる'},
+  {v:'weatherSun',    l:'天候を晴れに変える（天候変化カウントリセット）'},
+  {v:'weatherRain',   l:'天候を雨に変える（天候変化カウントリセット）'},
+  {v:'weatherStorm',  l:'天候を嵐に変える（天候変化カウントリセット）'},
+  {v:'weatherChange', l:'天候をランダムに変化させる（カウントリセット）'},
+];
+
+const EFF_DESC={
+  draw:          n=>`自分${n}枚ドロー`,
+  selfHeal:      n=>`自分HP+${n}回復`,
+  selfAtkUp:     n=>`手札から1枚選びATK+${n}`,
+  selfDefUp:     n=>`手札から1枚選びDEF+${n}`,
+  selfCardAtkUp: n=>`このカードATK+${n}`,
+  selfCardDefUp: n=>`このカードDEF+${n}`,
+  oppDamage:     n=>`相手に+${n}ダメージ`,
+  selfCostDown:  n=>`次コスト-${n}`,
+  selfCostUp:    n=>`自コスト+${n}`,
+  oppCostDown:   n=>`相コスト-${n}`,
+  oppAtkDown:    n=>`相手次ATK-${n}`,
+  oppDefDown:    n=>`相手次DEF-${n}`,
+  weatherSun:    ()=>'天候→☀️晴れ',
+  weatherRain:   ()=>'天候→🌧️雨',
+  weatherStorm:  ()=>'天候→⛈️嵐',
+  weatherChange: ()=>'天候ランダム変化',
+  // Legacy compatibility
+  buffAtk:       n=>`手札から1枚選びATK+${n}`,
+  buffDef:       n=>`手札から1枚選びDEF+${n}`,
+  heal:          n=>`自分HP+${n}回復`,
+  damage:        n=>`相手に+${n}ダメージ`,
+  costReduce:    n=>`次コスト-${n}`,
+  costGain:      n=>`自コスト+${n}`,
+};
+const TRIG_SHORT={
+  onAttack:'攻撃時',onDefend:'防御時',onPlay:'出した時',onDamage:'ダメ与',onTakeDmg:'被ダメ時',
+  onDraw:'ドロー時',onTurnStart:'ターン開始',ifHpLow:'HP低n以下',ifHpHigh:'HP高n以上',
+  ifChance:'n%で',ifWeatherSun:'晴れ時',ifWeatherRain:'雨時',ifWeatherStorm:'嵐時',
+  ifTurnGte:'Tn以上',playCondition:'★出し条件',
+};
+
+const VFX_LIST=[
+  {id:'bigIllust',icon:'🖼️',name:'イラスト表示'},
+  {id:'fire',     icon:'🔥',name:'炎エフェクト'},
+  {id:'ice',      icon:'❄️',name:'氷エフェクト'},
+  {id:'lightning',icon:'⚡',name:'雷エフェクト'},
+  {id:'leaf',     icon:'🌿',name:'葉エフェクト'},
+  {id:'shockwave',icon:'💥',name:'衝撃波'},
+  {id:'darkness', icon:'💀',name:'暗黒'},
+  {id:'rainbow',  icon:'🌈',name:'虹色'},
+  {id:'coins',    icon:'✨',name:'きらめき'},
+];
+
+const myName=localStorage.getItem('myName')||'名無し';
+document.getElementById('authorLabel').textContent='作成者: '+myName;
+let selColors=['red'],curIll='🗡️',imgSrc='',allCards=[],effects=[],selVfx=new Set(),editingId=null,eid=0;
+
+onValue(cardsRef,snap=>{
+  allCards=Object.values(snap.val()||{}).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  renderDeck();localStorage.setItem('cardrealmDeck',JSON.stringify(allCards));
+});
+
+// Image handling
+window.onFileSelect=function(e){const f=e.target.files[0];if(!f)return;if(f.size>2*1024*1024){showToast('2MB以内の画像にしてください');return;}const r=new FileReader();r.onload=ev=>{imgSrc=ev.target.result;setImgPreview(imgSrc);document.querySelectorAll('.ib').forEach(b=>b.classList.remove('on'));document.getElementById('customUrl').value='';updatePrev();};r.readAsDataURL(f);};
+function setImgPreview(src){document.getElementById('uploadArea').classList.add('has-img');document.getElementById('imgPreview').src=src;document.getElementById('uploadHint').textContent='クリックで別の画像を選択';document.getElementById('clearUploadBtn').style.display='inline-flex';}
+window.clearUpload=function(){imgSrc='';document.getElementById('uploadArea').classList.remove('has-img');document.getElementById('imgPreview').src='';document.getElementById('fileInput').value='';document.getElementById('clearUploadBtn').style.display='none';document.getElementById('uploadHint').innerHTML='クリックまたはドロップで画像選択<br><small style="opacity:.6">JPG/PNG/GIF/WebP 2MB以内</small>';curIll='🗡️';document.querySelectorAll('.ib').forEach((b,i)=>b.classList.toggle('on',i===0));updatePrev();};
+window.setCustomUrl=function(url){if(!url)return;imgSrc=url;setImgPreview(url);document.querySelectorAll('.ib').forEach(b=>b.classList.remove('on'));updatePrev();};
+const ua=document.getElementById('uploadArea');ua.addEventListener('dragover',e=>{e.preventDefault();ua.style.borderColor='var(--gold)';});ua.addEventListener('dragleave',()=>ua.style.borderColor='');ua.addEventListener('drop',e=>{e.preventDefault();ua.style.borderColor='';const f=e.dataTransfer.files[0];if(!f||!f.type.startsWith('image/'))return;const dt=new DataTransfer();dt.items.add(f);document.getElementById('fileInput').files=dt.files;window.onFileSelect({target:{files:dt.files}});});
+const ig=document.getElementById('illustGrid');ILLS.forEach((e,i)=>{const b=document.createElement('button');b.className='ib'+(i===0?' on':'');b.textContent=e;b.onclick=()=>{document.querySelectorAll('.ib').forEach(x=>x.classList.remove('on'));b.classList.add('on');curIll=e;imgSrc='';document.getElementById('uploadArea').classList.remove('has-img');document.getElementById('imgPreview').src='';document.getElementById('clearUploadBtn').style.display='none';document.getElementById('uploadHint').innerHTML='クリックまたはドロップで画像選択<br><small style="opacity:.6">JPG/PNG/GIF/WebP 2MB以内</small>';document.getElementById('customUrl').value='';document.getElementById('fileInput').value='';updatePrev();};ig.appendChild(b);});
+window.toggleColor=function(col,btn){if(selColors.includes(col)){if(selColors.length<=1){showToast('最低1色必要');return;}selColors=selColors.filter(c=>c!==col);btn.classList.remove('on');}else{selColors.push(col);btn.classList.add('on');}updatePrev();};
+const vg=document.getElementById('vfxGrid');VFX_LIST.forEach(vfx=>{const b=document.createElement('div');b.className='vfx-btn';b.innerHTML=`<span class="vfx-icon">${vfx.icon}</span><div class="vfx-name">${vfx.name}</div>`;b.onclick=()=>{if(selVfx.has(vfx.id)){selVfx.delete(vfx.id);b.classList.remove('on');}else{selVfx.add(vfx.id);b.classList.add('on');}};vg.appendChild(b);});
+
+// Effects
+function buildSkillText(e){
+  const td=TRIGS.find(t=>t.v===e.trigger)||{l:'',n:false};
+  const trigText=td.l.includes('n')?td.l.replace(/n/g,e.condVal||'?'):td.l;
+  const effKey=e.eff||'';const ev=e.effVal||1;
+  const effText=EFF_DESC[effKey]?EFF_DESC[effKey](ev):'';
+  if(!trigText&&!effText)return '（スキルなし）';
+  if(e.trigger==='playCondition')return `★出し条件: ${effText||'設定してください'}`;
+  return `【${trigText||'常時'}】${effText}`;
+}
+function renderEffects(){
+  document.getElementById('effectsList').innerHTML=effects.map((e,idx)=>{
+    const hasN=TRIGS.find(t=>t.v===e.trigger)?.n||false;
+    const trigOpts=TRIGS.map(t=>`<option value="${t.v}"${e.trigger===t.v?' selected':''}>${t.l}</option>`).join('');
+    const effOpts=EFFS.map(t=>`<option value="${t.v}"${e.eff===t.v?' selected':''}>${t.l}</option>`).join('');
+    return `<div class="effect-entry" id="ee_${e.id}">
+      <div class="eff-num">スキル ${idx+1}</div>
+      <button class="del-eff" onclick="removeEff('${e.id}')">✕ 削除</button>
+      <div class="eff-r2">
+        <div><label>① 発動条件</label><select onchange="effChg('${e.id}','trigger',this.value)">${trigOpts}</select></div>
+        <div><label>② 効果</label><select onchange="effChg('${e.id}','eff',this.value)">${effOpts}</select></div>
+      </div>
+      ${hasN?`<div class="frow"><label>条件のn値</label><input type="number" value="${e.condVal||3}" min="1" max="100" onchange="effChg('${e.id}','condVal',this.value)" oninput="effChg('${e.id}','condVal',this.value)"></div>`:''}
+      <div class="frow"><label>効果量（枚数・ダメージ・回復量など）</label><input type="number" value="${e.effVal||1}" min="1" max="99" onchange="effChg('${e.id}','effVal',this.value)" oninput="effChg('${e.id}','effVal',this.value)"></div>
+      <div class="eff-preview" id="ep_${e.id}">${buildSkillText(e)}</div>
+    </div>`;
+  }).join('');
+}
+window.addEffect=function(){effects.push({id:'e'+(eid++),trigger:'',eff:'',condVal:3,effVal:1});renderEffects();updatePrev();};
+window.removeEff=function(id){effects=effects.filter(e=>e.id!==id);renderEffects();updatePrev();};
+window.effChg=function(id,field,val){const e=effects.find(x=>x.id===id);if(!e)return;e[field]=(field==='condVal'||field==='effVal')?parseInt(val)||1:val;if(field==='trigger')renderEffects();else{const ep=document.getElementById('ep_'+id);if(ep)ep.textContent=buildSkillText(e);}updatePrev();};
+
+window.updatePrev=function(){
+  const name=document.getElementById('cardName').value||'カード名';const cost=document.getElementById('cardCost').value||'1';const atk=document.getElementById('cardAtk').value||'0';const def=document.getElementById('cardDef').value||'0';const flavor=document.getElementById('cardFlavor').value||'フレーバーテキスト';
+  const mc=CM[selColors[0]]||CM.red;const tmpl=document.getElementById('cardTmpl');
+  tmpl.style.setProperty('--cb',mc.border);tmpl.style.setProperty('--cacc',mc.accent);tmpl.style.setProperty('--cglow',mc.glow);
+  const grad=selColors.map(c=>CM[c]?.accent||'#888').join(',');const barStyle=selColors.length>1?`linear-gradient(90deg,${grad})`:mc.accent;
+  document.getElementById('pColBar').style.background=barStyle;document.getElementById('pColBarL').style.background=selColors.length>1?`linear-gradient(180deg,${grad})`:mc.accent;
+  document.getElementById('pColStrip').innerHTML=selColors.map(c=>`<div class="c-colseg" style="background:${CM[c]?.accent||'#888'}"></div>`).join('');
+  document.getElementById('pName').textContent=name;document.getElementById('pCost').textContent=cost;document.getElementById('pAtk').textContent=atk;document.getElementById('pDef').textContent=def;document.getElementById('pFlavor').textContent=flavor;
+  const art=document.getElementById('pArt');if(imgSrc)art.innerHTML=`<img src="${imgSrc}" onerror="this.outerHTML='🖼️'">`;else art.textContent=curIll;
+  const ECOLS={draw:'#3498db',selfHeal:'#2ecc71',selfAtkUp:'#e74c3c',selfDefUp:'#3498db',selfCardAtkUp:'#e74c3c',selfCardDefUp:'#3498db',oppDamage:'#e74c3c',selfCostDown:'#f1c40f',selfCostUp:'#f1c40f',oppCostDown:'#e67e22',oppAtkDown:'#e67e22',oppDefDown:'#e67e22',weatherSun:'#f39c12',weatherRain:'#3498db',weatherStorm:'#9b59b6',weatherChange:'#87ceeb'};
+  const sk=effects.filter(e=>e.eff||e.trigger);
+  document.getElementById('pSkill').innerHTML=sk.map(e=>`<span style="color:${ECOLS[e.eff]||'#f1c40f'};display:block">${buildSkillText(e)}</span>`).join('');
+};
+
+window.saveCard=async function(){
+  const name=document.getElementById('cardName').value.trim();if(!name){showToast('カード名を入力してください');return;}
+  const id=editingId||('card_'+Date.now()+'_'+Math.random().toString(36).slice(2,6));
+  const card={id,name,colors:selColors,color:selColors[0],cost:parseInt(document.getElementById('cardCost').value)||1,atk:parseInt(document.getElementById('cardAtk').value)||0,def:parseInt(document.getElementById('cardDef').value)||0,flavor:document.getElementById('cardFlavor').value||'',illust:imgSrc||curIll,effects:effects.filter(e=>e.eff||e.trigger),effect:effects[0]?{trigger:effects[0].trigger,type:effects[0].eff,value:effects[0].effVal||1}:{trigger:'',type:'',value:1},vfx:[...selVfx],author:myName,createdAt:editingId?allCards.find(c=>c.id===editingId)?.createdAt||Date.now():Date.now()};
+  try{await set(ref(db,`sharedCards/${id}`),card);showToast(editingId?`「${card.name}」を更新！`:`「${card.name}」を保存！`);if(editingId)cancelEdit();else resetForm();}
+  catch(err){showToast('保存失敗（画像が大きすぎる可能性）');console.error(err);}
+};
+window.editCard=function(id){
+  const card=allCards.find(c=>c.id===id);if(!card){showToast('見つかりません');return;}
+  editingId=id;document.getElementById('cardName').value=card.name||'';document.getElementById('cardCost').value=card.cost||1;document.getElementById('cardAtk').value=card.atk||0;document.getElementById('cardDef').value=card.def||0;document.getElementById('cardFlavor').value=card.flavor||'';
+  selColors=Array.isArray(card.colors)?[...card.colors]:[card.color||'red'];['red','blue','yellow','green'].forEach(c=>document.querySelector('.cm.'+c)?.classList.toggle('on',selColors.includes(c)));
+  imgSrc='';document.getElementById('customUrl').value='';
+  if(card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))){imgSrc=card.illust;setImgPreview(imgSrc);document.querySelectorAll('.ib').forEach(b=>b.classList.remove('on'));}
+  else{curIll=card.illust||'🗡️';clearUpload();imgSrc='';document.querySelectorAll('.ib').forEach(b=>b.classList.toggle('on',b.textContent===curIll));}
+  if(card.effects?.length){effects=card.effects.map(e=>({id:'e'+(eid++),trigger:e.trigger||'',eff:e.eff||e.effType||e.type||'',condVal:e.condVal||3,effVal:e.effVal||e.val||e.value||1}));}
+  else if(card.effect&&(card.effect.trigger||card.effect.type)){effects=[{id:'e'+(eid++),trigger:card.effect.trigger||'',eff:card.effect.type||'',condVal:3,effVal:card.effect.value||1}];}
+  else effects=[];
+  selVfx=new Set(card.vfx||[]);document.querySelectorAll('.vfx-btn').forEach((b,i)=>{b.classList.toggle('on',selVfx.has(VFX_LIST[i]?.id));});
+  renderEffects();document.getElementById('editBanner').style.display='flex';document.getElementById('editCardName').textContent='「'+card.name+'」';document.getElementById('saveBtn').textContent='✓ 更新';document.getElementById('saveBtn2').textContent='✓ 更新';updatePrev();window.scrollTo({top:0,behavior:'smooth'});showToast('編集モード: '+card.name);
+};
+window.cancelEdit=function(){editingId=null;document.getElementById('editBanner').style.display='none';document.getElementById('saveBtn').textContent='＋ 保存';document.getElementById('saveBtn2').textContent='＋ カードを保存';resetForm();};
+window.deleteCard=async function(id){const card=allCards.find(c=>c.id===id);if(!card)return;if(!confirm(`「${card.name}」を削除しますか？`))return;await remove(ref(db,`sharedCards/${id}`));showToast('削除しました');};
+function renderDeck(){
+  const el=document.getElementById('deckCards');document.getElementById('deckCount').textContent=allCards.length+'枚';
+  if(!allCards.length){el.innerHTML='<div class="empty-deck">まだカードがありません</div>';return;}
+  el.innerHTML=allCards.map(card=>{const cols=Array.isArray(card.colors)?card.colors:[card.color||'red'];const c=CM[cols[0]]||CM.red;const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:cover" onerror="this.outerHTML='🃏'">`:(card.illust||'🃏');const colStrip=cols.map(col=>`<div class="mini-colseg" style="background:${CM[col]?.accent||'#888'}"></div>`).join('');
+    return `<div style="flex-shrink:0"><div class="mini" style="border-color:${c.border};box-shadow:0 0 7px ${c.glow}" title="${card.name} (${card.author||'?'})"><div class="mini-colstrip">${colStrip}</div><div class="mini-actions"><button class="mini-abtn mini-edit-btn" onclick="editCard('${card.id}')">✏</button><button class="mini-abtn mini-del-btn" onclick="deleteCard('${card.id}')">✕</button></div><div class="mini-art">${ill}</div><div class="mini-bot"><div class="mini-stats"><span style="color:${c.accent}">C${card.cost}</span><span>A${card.atk}</span><span>D${card.def}</span></div><div class="mini-name">${card.name}</div></div></div><div class="mini-author">${card.author||''}</div></div>`;
+  }).join('');
+}
+window.resetForm=function(){document.getElementById('cardName').value='';document.getElementById('cardCost').value=1;document.getElementById('cardAtk').value=2;document.getElementById('cardDef').value=2;document.getElementById('cardFlavor').value='';document.getElementById('customUrl').value='';selColors=['red'];curIll='🗡️';imgSrc='';['red','blue','yellow','green'].forEach(c=>document.querySelector('.cm.'+c)?.classList.toggle('on',c==='red'));document.querySelectorAll('.ib').forEach((b,i)=>b.classList.toggle('on',i===0));clearUpload();imgSrc='';effects=[];selVfx=new Set();document.querySelectorAll('.vfx-btn').forEach(b=>b.classList.remove('on'));renderEffects();updatePrev();};
+window.clearAll=async function(){if(!confirm('全カードを削除しますか？'))return;for(const c of allCards)await remove(ref(db,`sharedCards/${c.id}`));showToast('全削除しました');};
+window.exportDeck=function(){const b=new Blob([JSON.stringify(allCards,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='cardrealm.json';a.click();URL.revokeObjectURL(u);showToast('エクスポートしました');};
+window.importDeck=function(){const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=async e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw 0;for(const card of d){const id=card.id||('card_'+Date.now()+'_'+Math.random().toString(36).slice(2,5));card.id=id;card.author=card.author||myName;await set(ref(db,`sharedCards/${id}`),card);}showToast(`${d.length}枚インポートしました`);}catch{showToast('インポート失敗');}};r.readAsText(f);};i.click();};
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+const bg=document.getElementById('bgStars');for(let i=0;i<80;i++){const s=document.createElement('div');s.className='star';s.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*100}%;--d:${2+Math.random()*4}s;--dl:${-Math.random()*4}s`;bg.appendChild(s);}
+updatePrev();
+</script>
+</body>
+</html>
