@@ -184,7 +184,7 @@ body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-se
 <div id="loadScr"><div class="load-logo">🃏 しんウノ</div><div class="load-msg" id="loadMsg">対戦を準備中...</div><div class="load-bar"><div class="load-fill" id="loadFill"></div></div></div>
 <div id="gameApp" style="display:none">
   <div class="hud">
-    <a href="index.html" class="hud-back">← ホーム</a>
+    <a href="javascript:void(0)" class="hud-back" onclick="leaveToLobby()">← ロビー</a>
     <div class="hud-title">🃏 しんウノ</div>
     <div class="hud-turn" id="hudTurn">T1</div>
     <div class="tbadge tb-w" id="turnBadge">準備中</div>
@@ -238,21 +238,23 @@ body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-se
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, set, onValue, get, remove }
+import { getDatabase, ref, set, onValue, get, remove, update }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const FB={apiKey:"AIzaSyBsASKwkmpRx_vi7JBqC-fvBl3LOgoOtbo",authDomain:"newcard-8fd59.firebaseapp.com",databaseURL:"https://newcard-8fd59-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"newcard-8fd59",storageBucket:"newcard-8fd59.firebasestorage.app",messagingSenderId:"822236707244",appId:"1:822236707244:web:f2a82f612226d7ac3f6209"};
 const db=getDatabase(initializeApp(FB));
-const gameRef=ref(db,'gameState');const cardsRef=ref(db,'sharedCards');
-const lobbyRef=ref(db,'lobby');const lobbyCtrlRef=ref(db,'lobbyCtrl');
-const gameCtrlRef=ref(db,'gameCtrl');
+// ★ 部屋ベースのFirebaseパス
+const roomCode=localStorage.getItem('roomCode')||'default';
+const gameRef=ref(db,`rooms/${roomCode}/gameState`);
+const cardsRef=ref(db,'sharedCards');
+const roomRef=ref(db,`rooms/${roomCode}`);
 
 
 const CM={red:{border:'#c0392b',accent:'#e74c3c',glow:'rgba(192,57,43,.4)',cost:'#c0392b',dot:'#e74c3c',fx:'rgba(231,76,60,.85)'},blue:{border:'#2471a3',accent:'#3498db',glow:'rgba(36,113,163,.4)',cost:'#2471a3',dot:'#3498db',fx:'rgba(52,152,219,.85)'},yellow:{border:'#d4ac0d',accent:'#f1c40f',glow:'rgba(212,172,13,.4)',cost:'#d4ac0d',dot:'#f1c40f',fx:'rgba(241,196,15,.85)'},green:{border:'#1e8449',accent:'#2ecc71',glow:'rgba(30,132,73,.4)',cost:'#1e8449',dot:'#2ecc71',fx:'rgba(46,204,113,.85)'}};
 const CN={red:'赤',blue:'青',yellow:'黄',green:'緑'};
 const WEATHERS=[{id:'sun',icon:'☀️',name:'晴れ',eff:'天候効果なし'},{id:'rain',icon:'🌧️',name:'雨',eff:'コスト-1(最低1)'},{id:'storm',icon:'⛈️',name:'嵐',eff:'全ATK+2'}];
 
-let G=null,mySlot=parseInt(localStorage.getItem('mySlot')||'1'),numP=parseInt(localStorage.getItem('actualPlayers')||'2');
+let G=null,mySlot=parseInt(localStorage.getItem('mySlot')||'1'),numP=parseInt(localStorage.getItem('actualPlayers')||localStorage.getItem('numPlayers')||'2');
 let myName=localStorage.getItem('myName')||('P'+mySlot),pNames=JSON.parse(localStorage.getItem('playerNames')||'{}');
 let selCard=-1,pool=[],processing=false,gameOverShown=false;
 
@@ -561,11 +563,18 @@ async function init(){
     if(G&&ng.turnCount===G.turnCount&&ng.seqIdx===G.seqIdx&&ng.playedThisTurn===G.playedThisTurn&&ng.status===G.status)return;
     G=ng;renderAll();checkWin();
   });
-  // gameCtrl監視
-  onValue(gameCtrlRef,snap=>{
-    const ctrl=snap.val();if(!ctrl)return;
-    if(ctrl.action==='home'){gameOverShown=false;setTimeout(()=>{window.location.href='index.html';},200);}
-    else if(ctrl.action==='rematch'){gameOverShown=false;document.getElementById('gop').classList.remove('show');setTimeout(async()=>{G=buildState(numP);await save(G);renderAll();},300);}
+  // 部屋ステータス監視（解散・リマッチ）
+  onValue(roomRef,snap=>{
+    if(!snap.exists()){// 部屋が解散された
+      gameOverShown=false;setTimeout(()=>{window.location.href='index.html';},200);return;
+    }
+    const room=snap.val();
+    if(room.action==='home'){gameOverShown=false;setTimeout(()=>{window.location.href='index.html';},200);}
+    else if(room.action==='rematch'){
+      gameOverShown=false;
+      document.getElementById('gop').classList.remove('show');
+      setTimeout(async()=>{G=buildState(numP);await save(G);renderAll();},300);
+    }
   });
 }
 
@@ -691,18 +700,19 @@ async function endTurnInternal(){
   selCard=-1;G=S;renderAll();checkWin();await save(S);
 }
 
-window.forceEnd=async function(){if(!confirm('試合を強制終了しますか？'))return;await remove(gameRef);await remove(lobbyRef);await remove(lobbyCtrlRef);await remove(gameCtrlRef);window.location.href='index.html';};
-
-// ★ Game over buttons → write to gameCtrl so all players redirect
+window.leaveToLobby=function(){if(confirm("ロビーに戻りますか？（試合は中断されます）"))window.location.href="lobby.html?room="+roomCode;};
+window.forceEnd=async function(){
+  if(!confirm('試合を強制終了しますか？'))return;
+  try{await remove(gameRef);}catch(e){}
+  window.location.href='lobby.html?room='+roomCode;
+};
 window.onGoHome=async function(){
-  await remove(gameRef);await remove(lobbyRef);await remove(lobbyCtrlRef);
-  await set(gameCtrlRef,{action:'home',ts:Date.now()});
-  setTimeout(()=>{window.location.href='index.html';},300);
+  try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}
+  setTimeout(()=>{window.location.href='index.html';},200);
 };
 window.onRematch=async function(){
   document.getElementById('gop').classList.remove('show');gameOverShown=false;
-  await remove(lobbyRef);await remove(lobbyCtrlRef);
-  await set(gameCtrlRef,{action:'rematch',ts:Date.now()});
+  try{await update(roomRef,{action:'rematch',status:'playing'});await remove(gameRef);}catch(e){}
   G=buildState(numP);await save(G);renderAll();
 };
 

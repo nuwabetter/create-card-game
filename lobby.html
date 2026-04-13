@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>しんウノ — ロビー</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='14' fill='%230e0e1d'/><rect x='20' y='10' width='60' height='80' rx='8' fill='%23c9a84c' opacity='.9'/><text y='62' x='50' text-anchor='middle' font-size='48' font-family='serif'>🃏</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#c9a84c;--gold-light:#f0d080;--gold-dim:#7a6430;--deep:#0a0a14;--panel:#0f1020;--panel2:#141428;--text:#e8e0d0;--text-dim:#8a8070;--border:rgba(201,168,76,.25);--red:#e74c3c;--green:#2ecc71;--blue:#3498db}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100vh;overflow-x:hidden}
+.wrap{max-width:680px;margin:0 auto;padding:1rem 1rem 5rem}
+.hdr{display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap}
+.back{color:var(--gold-dim);text-decoration:none;font-family:'Rajdhani',sans-serif;font-size:.82rem;flex-shrink:0}
+.hdr-title{font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--gold);flex:1}
+.room-code-badge{background:rgba(201,168,76,.12);border:1px solid var(--gold-dim);border-radius:8px;padding:.3rem .8rem;font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--gold);letter-spacing:.2em}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:.9rem}
+.ptitle{font-family:'Rajdhani',sans-serif;font-size:.68rem;letter-spacing:.22em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:.75rem;padding-bottom:.35rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s ease-in-out infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+/* Player slots */
+.slots{display:grid;grid-template-columns:repeat(2,1fr);gap:.65rem}
+@media(max-width:400px){.slots{grid-template-columns:1fr}}
+.slot{background:var(--panel2);border:2px dashed rgba(201,168,76,.2);border-radius:10px;padding:.8rem;text-align:center;min-height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25rem;transition:all .3s}
+.slot.filled{border-style:solid;border-color:var(--green)}
+.slot.me{border-color:var(--gold)}
+.slot.host-slot{border-color:var(--gold)}
+.slot-num{font-family:'Rajdhani',sans-serif;font-size:.58rem;letter-spacing:.18em;color:var(--text-dim)}
+.slot-icon{font-size:1.4rem}
+.slot-name{font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:700;color:var(--gold)}
+.slot-badge{font-family:'Rajdhani',sans-serif;font-size:.58rem;padding:.1rem .4rem;border-radius:3px;background:rgba(201,168,76,.18);color:var(--gold);border:1px solid rgba(201,168,76,.3)}
+.slot-empty{color:var(--text-dim);font-size:.75rem}
+/* Card select */
+.csgrid{display:flex;flex-wrap:wrap;gap:.4rem;max-height:180px;overflow-y:auto;padding:.1rem}
+.csi{position:relative;cursor:pointer;flex-shrink:0;touch-action:manipulation}
+.chk{position:absolute;top:-4px;right:-4px;width:16px;height:16px;background:var(--green);border-radius:50%;display:none;align-items:center;justify-content:center;font-size:.6rem;color:#fff;z-index:2;font-weight:700}
+.csi.sel .chk{display:flex}
+.cst-thumb{width:58px;height:80px;border-radius:7px;border:2px solid;background:var(--panel2);display:flex;flex-direction:column;overflow:hidden;transition:transform .15s}
+.csi.sel .cst-thumb{transform:scale(1.07)}
+.cst-art{flex:1;display:flex;align-items:center;justify-content:center;font-size:1.2rem;background:rgba(0,0,0,.3);overflow:hidden}
+.cst-art img{width:100%;height:100%;object-fit:cover}
+.cst-info{padding:2px 3px;background:rgba(0,0,0,.75)}
+.cst-name{font-size:.48rem;font-family:'Rajdhani',sans-serif;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700}
+.cst-stats{display:flex;justify-content:space-around;font-size:.46rem;font-family:'Rajdhani',sans-serif}
+/* Buttons */
+.btn{display:flex;align-items:center;justify-content:center;gap:.3rem;padding:.6rem 1rem;border:none;border-radius:8px;font-family:'Rajdhani',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .18s;touch-action:manipulation;-webkit-user-select:none;user-select:none;white-space:nowrap}
+.btn:active{transform:scale(.95)}
+.btn-gold{background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:#05050e;box-shadow:0 3px 12px rgba(201,168,76,.3)}
+.btn-gold:disabled{opacity:.25;cursor:not-allowed}
+.btn-red{background:linear-gradient(135deg,#7b241c,#c0392b);color:#fff}
+.btn-gray{background:rgba(80,80,100,.22);color:var(--text-dim);border:1px solid rgba(80,80,100,.28);font-size:.78rem}
+.btn-sm{padding:.35rem .7rem;font-size:.75rem}
+.btn-outline{background:transparent;color:var(--gold);border:1px solid var(--gold-dim);font-size:.75rem;padding:.38rem .7rem}
+.btns-row{display:flex;gap:.55rem;flex-wrap:wrap;margin-top:.55rem}
+/* Status */
+.status-msg{font-family:'Rajdhani',sans-serif;font-size:.88rem;text-align:center;padding:.6rem;border-radius:7px;background:rgba(201,168,76,.07);border:1px solid var(--border);margin-bottom:.7rem}
+.green-msg{color:var(--green);background:rgba(46,204,113,.08);border-color:rgba(46,204,113,.25)}
+/* Copy room code */
+.room-copy{display:flex;align-items:center;gap:.6rem;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.3);border-radius:9px;padding:.65rem .9rem;margin-bottom:.8rem;cursor:pointer;transition:background .2s}
+.room-copy:hover{background:rgba(201,168,76,.14)}
+.rc-code{font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:700;color:var(--gold);letter-spacing:.35em;flex:1;text-align:center}
+.rc-hint{font-size:.68rem;color:var(--text-dim);text-align:center;margin-top:.2rem}
+/* Spin overlay */
+.spin-ov{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:500;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;backdrop-filter:blur(5px)}
+.spin-ov.show{display:flex}
+.spin{width:38px;height:38px;border:3px solid rgba(201,168,76,.2);border-top-color:var(--gold);border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.spin-msg{font-family:'Rajdhani',sans-serif;font-size:.95rem;letter-spacing:.15em;color:var(--text-dim);text-align:center;padding:0 1.5rem}
+.toast{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(130px);background:var(--panel);border:1px solid var(--gold);border-radius:8px;padding:.6rem 1.1rem;font-family:'Rajdhani',sans-serif;font-size:.82rem;color:var(--gold);z-index:600;transition:transform .4s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <a href="index.html" class="back" id="backBtn">← トップ</a>
+    <div class="hdr-title">🃏 しんウノ ロビー</div>
+    <div class="room-code-badge" id="roomCodeDisp">----</div>
+  </div>
+
+  <!-- 部屋コードコピー -->
+  <div class="room-copy" onclick="copyCode()" title="タップでコピー">
+    <div>
+      <div class="rc-code" id="rcCode">----</div>
+      <div class="rc-hint">📋 部屋番号 — タップでコピー</div>
+    </div>
+  </div>
+
+  <!-- ステータスメッセージ -->
+  <div class="status-msg" id="statusMsg">プレイヤーを待っています...</div>
+
+  <!-- プレイヤー一覧 -->
+  <div class="panel">
+    <div class="ptitle"><div class="status-dot"></div>参加プレイヤー</div>
+    <div class="slots" id="slotsEl"></div>
+  </div>
+
+  <!-- カード選択（全員が見られる） -->
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+      <div class="ptitle" style="margin:0;border:none;padding:0">使用カードを選択</div>
+      <div style="display:flex;gap:.35rem;align-items:center">
+        <button class="btn btn-outline btn-sm" onclick="selAll()">全選択</button>
+        <button class="btn btn-outline btn-sm" onclick="deselAll()">全解除</button>
+        <span style="font-family:'Rajdhani',sans-serif;font-size:.75rem;color:var(--gold)" id="selCount">0枚</span>
+      </div>
+    </div>
+    <div style="font-size:.7rem;color:var(--text-dim);margin-bottom:.55rem">未選択=全カード使用。ホストの選択が試合に反映されます。</div>
+    <div class="csgrid" id="cardGrid"></div>
+  </div>
+
+  <!-- ホスト操作 -->
+  <div class="btns-row">
+    <button class="btn btn-gold" id="startBtn" onclick="startGame()" disabled style="flex:1">⚔️ 試合開始</button>
+    <button class="btn btn-red btn-sm" id="dissolveBtn" onclick="dissolveRoom()" style="display:none">🚪 部屋解散</button>
+    <button class="btn btn-gray btn-sm" onclick="leaveRoom()">← 退出</button>
+  </div>
+</div>
+
+<div class="spin-ov" id="spinOv">
+  <div class="spin"></div>
+  <div class="spin-msg" id="spinMsg">試合を開始中...</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, get, onValue, remove, update, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const FB={apiKey:"AIzaSyBsASKwkmpRx_vi7JBqC-fvBl3LOgoOtbo",authDomain:"newcard-8fd59.firebaseapp.com",databaseURL:"https://newcard-8fd59-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"newcard-8fd59",storageBucket:"newcard-8fd59.firebasestorage.app",messagingSenderId:"822236707244",appId:"1:822236707244:web:f2a82f612226d7ac3f6209"};
+const db=getDatabase(initializeApp(FB));
+
+// パラメータ取得
+const params=new URLSearchParams(location.search);
+const roomCode=params.get('room')||localStorage.getItem('roomCode')||'';
+const myId=localStorage.getItem('myPlayerId')||'';
+const myName=localStorage.getItem('myName')||'Player';
+
+if(!roomCode||!myId){alert('ロビー情報が見つかりません。トップに戻ります。');window.location.href='index.html';}
+
+const CM={red:{border:'#c0392b',accent:'#e74c3c'},blue:{border:'#2471a3',accent:'#3498db'},yellow:{border:'#d4ac0d',accent:'#f1c40f'},green:{border:'#1e8449',accent:'#2ecc71'}};
+const ICONS=['👑','⚔️','🔮','🐉'];
+
+// 部屋表示
+document.getElementById('roomCodeDisp').textContent=roomCode;
+document.getElementById('rcCode').textContent=roomCode;
+
+let roomData=null;
+let allCards=[];
+let selectedCards=new Set();
+let navigating=false;
+
+// ══ Firebase: 部屋のリアルタイム監視 ══
+onValue(ref(db,`rooms/${roomCode}`),snap=>{
+  if(!snap.exists()){
+    if(!navigating){alert('部屋が解散されました');window.location.href='index.html';}
+    return;
+  }
+  roomData=snap.val();
+  renderRoom();
+  // 試合開始シグナルを受信
+  if(roomData.status==='playing'&&!navigating){
+    goToGame();
+  }
+});
+
+// ══ カードデータ読み込み ══
+onValue(ref(db,'sharedCards'),snap=>{
+  allCards=Object.values(snap.val()||{});
+  // localStorageの選択状態を復元
+  const saved=localStorage.getItem('activeCardIds');
+  if(!saved||saved==='all'){allCards.forEach(c=>selectedCards.add(c.id));}
+  else{try{selectedCards=new Set(JSON.parse(saved));}catch{allCards.forEach(c=>selectedCards.add(c.id));}}
+  renderCards();
+});
+
+function isHost(){return roomData&&roomData.hostId===myId;}
+
+function renderRoom(){
+  if(!roomData)return;
+  const players=Object.values(roomData.players||{}).sort((a,b)=>a.slot-b.slot);
+  const cnt=players.length;
+
+  // プレイヤースロット
+  const sl=document.getElementById('slotsEl');sl.innerHTML='';
+  for(let i=1;i<=4;i++){
+    const p=players.find(x=>x.slot===i);
+    const isMe=p?.id===myId;
+    const isH=p?.id===roomData.hostId;
+    const d=document.createElement('div');
+    d.className='slot'+(p?' filled':'')+(isMe?' me':'');
+    if(p){
+      d.innerHTML=`<div class="slot-num">PLAYER ${i}</div><div class="slot-icon">${ICONS[i-1]||'🃏'}</div><div class="slot-name">${p.name}</div>${isH?'<div class="slot-badge">👑 ホスト</div>':''}${isMe?'<div style="font-size:.62rem;color:var(--text-dim);font-family:\'Rajdhani\',sans-serif">あなた</div>':''}`;
+    } else {
+      d.innerHTML=`<div class="slot-num">PLAYER ${i}</div><div class="slot-icon" style="opacity:.25">🎴</div><div class="slot-empty">待機中...</div>`;
+    }
+    sl.appendChild(d);
+  }
+
+  // ステータスメッセージ
+  const sm=document.getElementById('statusMsg');
+  if(cnt>=2){sm.textContent=`${cnt}人参加中 — 試合を開始できます！`;sm.className='status-msg green-msg';}
+  else{sm.textContent=`${cnt}人参加中 — あと${2-cnt}人で試合開始できます`;sm.className='status-msg';}
+
+  // 試合開始ボタン（ホストのみ・2人以上で有効）
+  const sb=document.getElementById('startBtn');
+  const isH=isHost();
+  sb.disabled=!isH||cnt<2;
+  sb.style.opacity=(isH&&cnt>=2)?'1':'';
+  if(!isH)sb.textContent='ホストの試合開始を待っています';
+  else sb.textContent='⚔️ 試合開始！';
+
+  // ホスト専用ボタン
+  document.getElementById('dissolveBtn').style.display=isH?'inline-flex':'none';
+}
+
+function getColors(card){return Array.isArray(card.colors)?card.colors:[card.color||'red'];}
+function renderCards(){
+  const g=document.getElementById('cardGrid');
+  if(!allCards.length){g.innerHTML='<div style="color:var(--text-dim);font-size:.75rem;padding:.5rem">カードがありません。カード作成ページで作成してください。</div>';document.getElementById('selCount').textContent='0枚';return;}
+  g.innerHTML=allCards.map(card=>{
+    const sel=selectedCards.has(card.id);
+    const c=CM[getColors(card)[0]]||CM.red;
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:(card.illust||'🃏');
+    return `<div class="csi${sel?' sel':''}" onclick="toggle('${card.id}')"><div class="chk">✓</div><div class="cst-thumb" style="border-color:${c.border};box-shadow:${sel?'0 0 7px '+c.border:'none'}"><div class="cst-art">${ill}</div><div class="cst-info"><div class="cst-stats"><span style="color:${c.accent}">C${card.cost}</span><span>A${card.atk}</span><span>D${card.def}</span></div><div class="cst-name">${card.name}</div></div></div></div>`;
+  }).join('');
+  const cnt=selectedCards.size;
+  document.getElementById('selCount').textContent=cnt===allCards.length?`全${cnt}枚`:`${cnt}/${allCards.length}枚`;
+  localStorage.setItem('activeCardIds',cnt===0||cnt===allCards.length?'all':JSON.stringify([...selectedCards]));
+}
+window.toggle=function(id){selectedCards.has(id)?selectedCards.delete(id):selectedCards.add(id);renderCards();};
+window.selAll=function(){allCards.forEach(c=>selectedCards.add(c.id));renderCards();};
+window.deselAll=function(){selectedCards.clear();renderCards();};
+
+// ══ 試合開始 ══
+window.startGame=async function(){
+  if(!isHost()){showToast('ホストのみ試合を開始できます');return;}
+  if(navigating)return;
+  const players=Object.values(roomData?.players||{});
+  if(players.length<2){showToast('2人以上必要です');return;}
+
+  document.getElementById('spinOv').classList.add('show');
+  document.getElementById('spinMsg').textContent='試合を開始中...';
+
+  const ids=[...selectedCards];
+  const activeIds=(ids.length===0||ids.length===allCards.length)?null:ids;
+  const names={};
+  players.forEach(p=>{names[p.slot]=p.name;});
+
+  try{
+    // 部屋のstatusをplayingにして試合情報を書き込む
+    await update(ref(db,`rooms/${roomCode}`),{
+      status:'playing',
+      gameInfo:{
+        activeCardIds:activeIds,
+        numPlayers:players.length,
+        playerNames:names,
+        playerSlots:Object.fromEntries(players.map(p=>[p.id,p.slot])),
+        startedAt:Date.now()
+      }
+    });
+    // goToGame はonValueで呼ばれる
+  }catch(e){
+    document.getElementById('spinOv').classList.remove('show');
+    showToast('エラー: '+e.message);
+  }
+};
+
+function goToGame(){
+  if(navigating)return;
+  navigating=true;
+  const gi=roomData.gameInfo||{};
+  const mySlot=(gi.playerSlots||{})[myId]||1;
+  localStorage.setItem('roomCode',roomCode);
+  localStorage.setItem('myPlayerId',myId);
+  localStorage.setItem('mySlot',String(mySlot));
+  localStorage.setItem('myName',myName);
+  localStorage.setItem('numPlayers',String(gi.numPlayers||2));
+  localStorage.setItem('actualPlayers',String(gi.numPlayers||2));
+  localStorage.setItem('playerNames',JSON.stringify(gi.playerNames||{}));
+  localStorage.setItem('activeCardIds',gi.activeCardIds?JSON.stringify(gi.activeCardIds):'all');
+  document.getElementById('spinOv').classList.add('show');
+  document.getElementById('spinMsg').textContent='試合ページに移動します...';
+  setTimeout(()=>window.location.href='game.html',400);
+}
+
+// ══ 退出・解散 ══
+window.leaveRoom=async function(){
+  if(!confirm('部屋から退出しますか？'))return;
+  navigating=true;
+  try{await remove(ref(db,`rooms/${roomCode}/players/${myId}`));}catch(e){}
+  localStorage.removeItem('roomCode');localStorage.removeItem('myPlayerId');
+  window.location.href='index.html';
+};
+window.dissolveRoom=async function(){
+  if(!isHost()){showToast('ホストのみ解散できます');return;}
+  if(!confirm('部屋を解散しますか？全員がトップに戻ります。'))return;
+  navigating=true;
+  try{await remove(ref(db,`rooms/${roomCode}`));}catch(e){}
+  localStorage.removeItem('roomCode');localStorage.removeItem('myPlayerId');
+  window.location.href='index.html';
+};
+window.copyCode=function(){
+  navigator.clipboard?.writeText(roomCode).then(()=>showToast('部屋番号 '+roomCode+' をコピーしました！')).catch(()=>showToast('部屋番号: '+roomCode));
+};
+
+// ページを離れるとき自動退出（ブラウザバック等）
+window.addEventListener('beforeunload',()=>{
+  if(!navigating){
+    // beacon APIで非同期削除
+    navigator.sendBeacon&&navigator.sendBeacon('/delete'); // Firebase は直接削除できないので以下
+    // ページ離脱時にplayerを削除（ベストエフォート）
+    const key=`rooms/${roomCode}/players/${myId}`;
+    try{remove(ref(db,key));}catch(e){}
+  }
+});
+
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3500);}
+</script>
+</body>
+</html>
