@@ -25,7 +25,7 @@ body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-se
 .c-cost{width:28px;height:28px;border-radius:50%;background:var(--cacc,var(--gold));color:#000;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.95rem;flex-shrink:0}
 .c-art{height:118px;position:relative;overflow:hidden;background:rgba(255,255,255,.02);display:flex;align-items:center;justify-content:center;font-size:4rem;flex-shrink:0}
 .c-art::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,transparent 55%,rgba(0,0,0,.95) 100%);pointer-events:none}
-.c-art img{width:100%;height:100%;object-fit:cover}
+.c-art img{width:100%;height:100%;object-fit:contain;background:#12121e}
 .c-colstrip{display:flex;height:5px;flex-shrink:0}
 .c-colseg{flex:1}
 .c-stats{display:flex;justify-content:space-around;padding:.4rem .38rem;background:rgba(0,0,0,.96);flex-shrink:0}
@@ -82,7 +82,7 @@ input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;h
 .cst-thumb{width:66px;height:92px;border-radius:8px;border:2px solid;background:var(--panel2);display:flex;flex-direction:column;overflow:hidden;transition:all .18s}
 .csi.sel .cst-thumb{transform:scale(1.06)}
 .cst-art{flex:1;display:flex;align-items:center;justify-content:center;font-size:1.4rem;background:rgba(0,0,0,.3)}
-.cst-art img{width:100%;height:100%;object-fit:cover}
+.cst-art img{width:100%;height:100%;object-fit:contain;background:#12121e}
 .cst-info{padding:2px 3px;background:rgba(0,0,0,.75)}
 .cst-name{font-size:.52rem;font-family:'Rajdhani',sans-serif;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700}
 .cst-stats{display:flex;justify-content:space-around;font-size:.5rem;font-family:'Rajdhani',sans-serif}
@@ -100,7 +100,7 @@ input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;h
 .mini-colstrip{height:4px;display:flex;flex-shrink:0}
 .mini-colseg{flex:1}
 .mini-art{flex:1;display:flex;align-items:center;justify-content:center;font-size:1.7rem;background:rgba(0,0,0,.3)}
-.mini-art img{width:100%;height:100%;object-fit:cover}
+.mini-art img{width:100%;height:100%;object-fit:contain;background:#12121e}
 .mini-bot{padding:3px 4px;background:rgba(0,0,0,.75)}
 .mini-name{font-size:.54rem;font-family:'Rajdhani',sans-serif;color:rgba(255,255,255,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;margin-bottom:1px}
 .mini-stats{display:flex;justify-content:space-around;font-size:.52rem;font-family:'Rajdhani',sans-serif}
@@ -335,7 +335,7 @@ function renderCardSelect(){
   allCards.forEach(c=>{if(selectedCards.size===0||!allCards.find(x=>!selectedCards.has(x.id)))selectedCards.add(c.id);});
   g.innerHTML=allCards.map(card=>{
     const sel=selectedCards.has(card.id);const cols=Array.isArray(card.colors)?card.colors:[card.color||'red'];const c=CM[cols[0]]||CM.red;
-    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:(card.illust||'🃏');
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#12121e" onerror="this.style.display='none'">`:(card.illust||'🃏');
     return `<div class="csi${sel?' sel':''}" onclick="toggleCard('${card.id}')">
       <div class="chk">✓</div>
       <div class="cst-thumb" style="border-color:${c.border};box-shadow:${sel?'0 0 8px '+c.border:'none'}">
@@ -518,7 +518,7 @@ window.deleteCard=async function(id){const card=allCards.find(c=>c.id===id);if(!
 function renderDeck(){
   const el=document.getElementById('deckCards');document.getElementById('deckCount').textContent=allCards.length+'枚';
   if(!allCards.length){el.innerHTML='<div class="empty-deck">まだカードがありません</div>';return;}
-  el.innerHTML=allCards.map(card=>{const cols=Array.isArray(card.colors)?card.colors:[card.color||'red'];const c=CM[cols[0]]||CM.red;const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:cover" onerror="this.outerHTML='🃏'">`:(card.illust||'🃏');const colStrip=cols.map(col=>`<div class="mini-colseg" style="background:${CM[col]?.accent||'#888'}"></div>`).join('');
+  el.innerHTML=allCards.map(card=>{const cols=Array.isArray(card.colors)?card.colors:[card.color||'red'];const c=CM[cols[0]]||CM.red;const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#12121e" onerror="this.outerHTML='🃏'">`:(card.illust||'🃏');const colStrip=cols.map(col=>`<div class="mini-colseg" style="background:${CM[col]?.accent||'#888'}"></div>`).join('');
     return `<div style="flex-shrink:0"><div class="mini" style="border-color:${c.border};box-shadow:0 0 7px ${c.glow}" title="${card.name}"><div class="mini-colstrip">${colStrip}</div><div class="mini-actions"><button class="mini-abtn mini-edit-btn" onclick="editCard('${card.id}')">✏</button><button class="mini-abtn mini-del-btn" onclick="deleteCard('${card.id}')">✕</button></div><div class="mini-art">${ill}</div><div class="mini-bot"><div class="mini-stats"><span style="color:${c.accent}">C${card.cost}</span><span>A${card.atk}</span><span>D${card.def}</span></div><div class="mini-name">${card.name}</div></div></div><div class="mini-author">${card.author||''}</div></div>`;
   }).join('');
 }
