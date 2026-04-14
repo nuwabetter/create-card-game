@@ -489,106 +489,93 @@ function buildState(n){
 }
 
 // ═══ INIT ═══
-async function init(){
-  // ★ タイムアウト付きget — Firebaseが応答しなくてもデフォルトで続行
-  async function getWithTimeout(dbRef, ms=8000){
-    return Promise.race([
-      get(dbRef),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))
-    ]);
-  }
-
+// 設計方針: Firebaseへの接続を一切awaitしない
+// ① まずlocalStorageのカードとデフォルトで即座にゲームを起動（0秒）
+// ② FirebaseはonValueで非同期に受信し、データが来たら反映する
+function init(){
+  // --- Step1: カードをlocalStorageキャッシュから即座に読み込む ---
+  setLoad(30,'カードを準備中...');
+  const activeIdStr=localStorage.getItem('activeCardIds')||'all';
+  let cachedCards=[];
   try{
-    setLoad(15,'カード読み込み中...');
-    const activeIdStr=localStorage.getItem('activeCardIds')||'all';
-    let allCards=[];
-    try{
-      const csnap=await getWithTimeout(cardsRef,8000);
-      allCards=Object.values(csnap.val()||{});
-    }catch(e){
-      console.warn('Cards fetch failed, using default:',e.message);
-      setLoad(20,'カード読み込み失敗 → デフォルトカードで開始');
-    }
-    // activeCardIds フィルタ適用
+    const cached=localStorage.getItem('cardrealmDeck');
+    if(cached)cachedCards=JSON.parse(cached);
+  }catch(e){}
+
+  function applyCards(allCards){
     if(activeIdStr==='all'||!activeIdStr){pool=allCards;}
     else{
-      try{pool=allCards.filter(c=>new Set(JSON.parse(activeIdStr)).has(c.id));}
+      try{const ids=new Set(JSON.parse(activeIdStr));pool=allCards.filter(c=>ids.has(c.id));}
       catch(e){pool=allCards;}
     }
     if(!pool.length)pool=allCards;
     if(!pool.length)pool=genDefault();
-
-    setLoad(45,'ゲーム状態確認...');
-    let ex=null;
-    try{
-      const snap=await getWithTimeout(gameRef,8000);
-      ex=snap.val();
-    }catch(e){
-      console.warn('GameState fetch failed, starting fresh:',e.message);
-      setLoad(50,'状態確認失敗 → 新規で開始');
-    }
-
-    if(ex&&ex.status==='playing'&&ex.numP===numP){
-      G=ex;setLoad(85,'前回の試合を復元中...');
-    } else {
-      setLoad(60,'ゲームを初期化中...');
-      G=buildState(numP);
-      try{await save(G);}catch(e){console.warn('Initial save failed:',e.message);}
-    }
-
-    setLoad(100,'開始！');
-    setTimeout(()=>{
-      document.getElementById('loadScr').style.display='none';
-      document.getElementById('gameApp').style.display='flex';
-      renderAll();
-    },300);
-
-  }catch(e){
-    // 最終フォールバック — 何があっても画面を表示する
-    console.error('Init error (fallback):', e);
-    pool=genDefault();
-    G=buildState(numP);
-    setLoad(100,'開始（オフラインモード）');
-    setTimeout(()=>{
-      document.getElementById('loadScr').style.display='none';
-      document.getElementById('gameApp').style.display='flex';
-      renderAll();
-    },300);
   }
 
-  // onValue — ゲーム状態監視（軽量比較）
-  onValue(gameRef,snap=>{
-    if(!snap.val()||processing)return;
-    const ng=snap.val();
-    if(G&&ng.turnCount===G.turnCount&&ng.seqIdx===G.seqIdx&&ng.playedThisTurn===G.playedThisTurn&&ng.status===G.status)return;
-    G=ng;renderAll();checkWin();
-  });
-  // 部屋ステータス監視（解散・リマッチ）— roomCodeが有効な場合のみ
-  if(roomCode&&roomCode!=='default'){
-    onValue(roomRef,snap=>{
-      if(!snap.exists())return; // 部屋がなくてもゲームは続行
-      const room=snap.val();
-      if(room.action==='home'){gameOverShown=false;setTimeout(()=>{window.location.href='index.html';},300);}
-      else if(room.action==='rematch'){
-        gameOverShown=false;
-        document.getElementById('gop').classList.remove('show');
-        setTimeout(async()=>{G=buildState(numP);await save(G);renderAll();},300);
+  // まずキャッシュで起動
+  applyCards(cachedCards);
+
+  // --- Step2: ゲーム状態もlocalStorageから復元を試みる ---
+  setLoad(60,'ゲームを初期化中...');
+  G=buildState(numP);
+
+  // --- Step3: 即座に画面を表示（Firebaseを待たない）---
+  setLoad(100,'開始！');
+  setTimeout(()=>{
+    document.getElementById('loadScr').style.display='none';
+    document.getElementById('gameApp').style.display='flex';
+    renderAll();
+  },200);
+
+  // --- Step4: Firebaseからカードを非同期で取得（バックグラウンド）---
+  // 成功したらpool更新、失敗してもゲームには影響しない
+  onValue(cardsRef, snap=>{
+    try{
+      const allCards=Object.values(snap.val()||{});
+      if(allCards.length){
+        localStorage.setItem('cardrealmDeck',JSON.stringify(allCards));
+        applyCards(allCards);
       }
+    }catch(e){console.warn('cards onValue error:',e);}
+  },{onlyOnce:false});
+
+  // --- Step5: ゲーム状態をFirebaseと同期（バックグラウンド）---
+  onValue(gameRef, snap=>{
+    try{
+      if(!snap.val()||processing)return;
+      const ng=snap.val();
+      if(!G){G=ng;renderAll();checkWin();return;}
+      if(ng.turnCount===G.turnCount&&ng.seqIdx===G.seqIdx&&ng.playedThisTurn===G.playedThisTurn&&ng.status===G.status)return;
+      G=ng;renderAll();checkWin();
+    }catch(e){console.warn('gameRef onValue error:',e);}
+  });
+
+  // --- Step6: 部屋監視（roomCodeが有効な場合のみ）---
+  if(roomCode&&roomCode!=='default'){
+    onValue(roomRef, snap=>{
+      try{
+        if(!snap.exists())return;
+        const room=snap.val();
+        if(room.action==='home'){gameOverShown=false;setTimeout(()=>{window.location.href='index.html';},300);}
+        else if(room.action==='rematch'){
+          gameOverShown=false;
+          document.getElementById('gop').classList.remove('show');
+          setTimeout(()=>{G=buildState(numP);save(G);renderAll();},300);
+        }
+      }catch(e){console.warn('roomRef onValue error:',e);}
     });
   }
 }
 
+// Firebase保存（非同期・失敗してもゲームに影響しない）
 async function save(s){
-  // ★ CRITICAL: Strip base64 image data from card illust before writing to Firebase
-  // Card images (data:URLs) are the main cause of 19GB bandwidth — never store them in gameState
-  // Only store card ID/name/stats/effects; images are re-fetched from sharedCards by each client
   try{
     const slim=JSON.parse(JSON.stringify(s));
     const stripIll=c=>{if(c&&c.illust&&c.illust.startsWith('data:'))c.illust='[img]';};
     for(const p of Object.values(slim.players||{})){(p.hand||[]).forEach(stripIll);}
     stripIll(slim.atkCardPlayed);stripIll(slim.defCardPlayed);stripIll(slim.discardCard);
     await set(gameRef,slim);
-  }catch(e){console.warn('save fail',e);}
+  }catch(e){console.warn('save fail (non-critical):',e);}
 }
 
 // ═══ ACTIONS ═══

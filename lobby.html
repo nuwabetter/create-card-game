@@ -169,6 +169,8 @@ onValue(ref(db,`rooms/${roomCode}`),snap=>{
 // ══ カードデータ読み込み ══
 onValue(ref(db,'sharedCards'),snap=>{
   allCards=Object.values(snap.val()||{});
+  // game.htmlが即座に起動できるようカードをキャッシュ保存
+  try{localStorage.setItem('cardrealmDeck',JSON.stringify(allCards));}catch(e){}
   // localStorageの選択状態を復元
   const saved=localStorage.getItem('activeCardIds');
   if(!saved||saved==='all'){allCards.forEach(c=>selectedCards.add(c.id));}
