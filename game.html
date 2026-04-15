@@ -244,73 +244,85 @@ body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-se
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, set, onValue, get, remove, update }
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import{getDatabase,ref,set,onValue,remove,update}from"https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const FB={apiKey:"AIzaSyBsASKwkmpRx_vi7JBqC-fvBl3LOgoOtbo",authDomain:"newcard-8fd59.firebaseapp.com",databaseURL:"https://newcard-8fd59-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"newcard-8fd59",storageBucket:"newcard-8fd59.firebasestorage.app",messagingSenderId:"822236707244",appId:"1:822236707244:web:f2a82f612226d7ac3f6209"};
 const db=getDatabase(initializeApp(FB));
-// ★ 部屋ベースのFirebaseパス
-const roomCode=localStorage.getItem('roomCode')||'default';
-const gameRef=ref(db,`rooms/${roomCode}/gameState`);
+
+// ── Params from localStorage (set by lobby.html) ──
+const roomCode=localStorage.getItem('roomCode')||'';
+const mySlot=parseInt(localStorage.getItem('mySlot')||'1');
+const numP=parseInt(localStorage.getItem('actualPlayers')||localStorage.getItem('numPlayers')||'2');
+const myName=localStorage.getItem('myName')||'P'+mySlot;
+const pNames=JSON.parse(localStorage.getItem('playerNames')||'{}');
+const activeIdStr=localStorage.getItem('activeCardIds')||'all';
+
+// ── Firebase refs ──
+const gameRef=roomCode?ref(db,`rooms/${roomCode}/gameState`):ref(db,'gameState_solo');
 const cardsRef=ref(db,'sharedCards');
-const roomRef=ref(db,`rooms/${roomCode}`);
+const roomRef=roomCode?ref(db,`rooms/${roomCode}`):null;
 
-
-const CM={red:{border:'#c0392b',accent:'#e74c3c',glow:'rgba(192,57,43,.4)',cost:'#c0392b',dot:'#e74c3c',fx:'rgba(231,76,60,.85)'},blue:{border:'#2471a3',accent:'#3498db',glow:'rgba(36,113,163,.4)',cost:'#2471a3',dot:'#3498db',fx:'rgba(52,152,219,.85)'},yellow:{border:'#d4ac0d',accent:'#f1c40f',glow:'rgba(212,172,13,.4)',cost:'#d4ac0d',dot:'#f1c40f',fx:'rgba(241,196,15,.85)'},green:{border:'#1e8449',accent:'#2ecc71',glow:'rgba(30,132,73,.4)',cost:'#1e8449',dot:'#2ecc71',fx:'rgba(46,204,113,.85)'}};
+// ── Constants ──
+const CM={
+  red:{border:'#c0392b',accent:'#e74c3c',glow:'rgba(192,57,43,.4)',cost:'#c0392b',dot:'#e74c3c',fx:'rgba(231,76,60,.85)'},
+  blue:{border:'#2471a3',accent:'#3498db',glow:'rgba(36,113,163,.4)',cost:'#2471a3',dot:'#3498db',fx:'rgba(52,152,219,.85)'},
+  yellow:{border:'#d4ac0d',accent:'#f1c40f',glow:'rgba(212,172,13,.4)',cost:'#d4ac0d',dot:'#f1c40f',fx:'rgba(241,196,15,.85)'},
+  green:{border:'#1e8449',accent:'#2ecc71',glow:'rgba(30,132,73,.4)',cost:'#1e8449',dot:'#2ecc71',fx:'rgba(46,204,113,.85)'}
+};
 const CN={red:'赤',blue:'青',yellow:'黄',green:'緑'};
 const WEATHERS=[{id:'sun',icon:'☀️',name:'晴れ',eff:'天候効果なし'},{id:'rain',icon:'🌧️',name:'雨',eff:'コスト-1(最低1)'},{id:'storm',icon:'⛈️',name:'嵐',eff:'全ATK+2'}];
 
-let G=null,mySlot=parseInt(localStorage.getItem('mySlot')||'1'),numP=parseInt(localStorage.getItem('actualPlayers')||localStorage.getItem('numPlayers')||'2');
-let myName=localStorage.getItem('myName')||('P'+mySlot),pNames=JSON.parse(localStorage.getItem('playerNames')||'{}');
-let selCard=-1,pool=[],processing=false,gameOverShown=false,navigating=false;
-const newCardSet=new Set(); // indices of hand cards that need deal animation
+// ── Mutable state ──
+let G=null,pool=[],processing=false,gameOverShown=false,navigating=false,gameInited=false;
+let selCard=-1;
+const newCards=new Set();// card indices needing deal animation
 
-// ═══ HELPERS ═══
+// ── Helpers ──
 const wData=id=>WEATHERS.find(w=>w.id===id)||WEATHERS[0];
 const getColors=c=>Array.isArray(c.colors)?c.colors:[c.color||'red'];
 const mainC=c=>CM[getColors(c)[0]]||CM.red;
 const clone=o=>JSON.parse(JSON.stringify(o));
-const setLoad=(p,m)=>{document.getElementById('loadFill').style.width=p+'%';document.getElementById('loadMsg').textContent=m;console.log('[LOAD]',p+'%',m);};
+const setLoad=(p,m)=>{document.getElementById('loadFill').style.width=p+'%';document.getElementById('loadMsg').textContent=m;};
 function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
+function showGame(){document.getElementById('loadScr').style.display='none';document.getElementById('gameApp').style.display='flex';}
 function drawCard(){if(!pool.length)return null;return clone(pool[Math.floor(Math.random()*pool.length)]);}
-// ★ Weighted draw for extraDraw: cards with colors the player DOESN'T have get 3x weight
-function drawCardWeighted(playerHand){
+function drawCardWeighted(hand){
   if(!pool.length)return null;
-  // Find colors player currently has
-  const myColors=new Set();
-  (playerHand||[]).forEach(c=>getColors(c).forEach(col=>myColors.add(col)));
-  // Build weighted pool: cards with new colors get weight 3, own colors weight 1
-  const weighted=[];
-  for(const card of pool){
-    const cols=getColors(card);
-    const hasNew=cols.some(c=>!myColors.has(c));
-    const w=hasNew?3:1;
-    for(let i=0;i<w;i++)weighted.push(card);
-  }
-  return clone(weighted[Math.floor(Math.random()*weighted.length)]);
+  const myC=new Set();(hand||[]).forEach(c=>getColors(c).forEach(col=>myC.add(col)));
+  const w=[];for(const c of pool){const n=getColors(c).some(col=>!myC.has(col));for(let i=0;i<(n?3:1);i++)w.push(c);}
+  return clone(w[~~(Math.random()*w.length)]);
 }
 const cur=S=>(S||G).seq[(S||G).seqIdx%(S||G).seq.length];
 const isMyTurn=S=>cur(S).player===mySlot;
+const isMine=S=>phase(S)==='attack'&&isMyTurn(S)||phase(S)==='defend'&&isMyTurn(S);
 const phase=S=>cur(S).phase;
 function lockUI(){processing=true;if(!document.getElementById('procOv')){const o=document.createElement('div');o.className='proc-ov';o.id='procOv';document.body.appendChild(o);}}
 function unlockUI(){processing=false;const o=document.getElementById('procOv');if(o)o.remove();}
 
-// ═══ WEATHER ═══
-function wCost(card,S){const c=card.cost||1;return (S||G).weather.current==='rain'?Math.max(1,c-1):c;}
-function wAtk(card,S){const a=card.atk||0;S=S||G;return S.weather.current==='storm'?a+2:a;}
-function setWeather(S,id){S.weather.current=id;S.weather.defendsDone=0;S.weather.changeCount=(S.weather.changeCount||0)+1;S.log.push(`🌤 天候→${wData(id).icon}${wData(id).name}（カウントリセット）`);}
-function weatherTick(S){S.weather.defendsDone=(S.weather.defendsDone||0)+1;if(S.weather.defendsDone>=2*S.numP){S.weather.defendsDone=0;const ids=['sun','rain','storm'];const avail=ids.filter(w=>w!==S.weather.current);const pick=avail[~~(Math.random()*avail.length)]||'sun';S.weather.current=pick;S.weather.changeCount=(S.weather.changeCount||0)+1;S.log.push(`🌤 天候変化→${wData(pick).icon}${wData(pick).name}`);}}
+// ── Weather ──
+function wCost(card,S){return(S||G).weather.current==='rain'?Math.max(1,(card.cost||1)-1):(card.cost||1);}
+function wAtk(card,S){S=S||G;return(card.atk||0)+(S.weather.current==='storm'?2:0);}
+function setWeather(S,id){S.weather.current=id;S.weather.defendsDone=0;S.log.push(`🌤 天候→${wData(id).icon}${wData(id).name}`);}
+function weatherTick(S){
+  S.weather.defendsDone=(S.weather.defendsDone||0)+1;
+  if(S.weather.defendsDone>=2*S.numP){
+    S.weather.defendsDone=0;
+    const ids=['sun','rain','storm'].filter(w=>w!==S.weather.current);
+    const pick=ids[~~(Math.random()*ids.length)]||'sun';
+    S.weather.current=pick;S.log.push(`🌤 天候変化→${wData(pick).icon}${wData(pick).name}`);
+  }
+}
 
-// ═══ canPlay — checks cost, discard match, and playCondition ═══
+// ── canPlay ──
 function canPlay(card,S){
-  if(!S)S=G;const me=S.players[mySlot];if(!me)return false;
+  S=S||G;const me=S.players[mySlot];if(!me)return false;
   if((me.cost||0)<wCost(card,S))return false;
   const disc=S.discardCard;
-  if(disc){const myC=getColors(card);const dC=getColors(disc);if(!myC.some(c=>dC.includes(c))&&card.cost!==disc.cost)return false;}
-  for(const e of (card.effects||[])){
+  if(disc){const mc=getColors(card),dc=getColors(disc);if(!mc.some(c=>dc.includes(c))&&(card.cost||1)!==(disc.cost||1))return false;}
+  for(const e of(card.effects||[])){
     if(e.trigger!=='playCondition')continue;
-    const pc=e.playCond||'';const cv=parseInt(e.condVal||3);
+    const pc=e.playCond||'',cv=parseInt(e.condVal||3);
     if(pc==='ifHpLow'&&(me.hp||0)>cv)return false;
     if(pc==='ifHpHigh'&&(me.hp||0)<cv)return false;
     if(pc==='ifChance'&&Math.random()*100>cv)return false;
@@ -321,68 +333,64 @@ function canPlay(card,S){
   return true;
 }
 
-// ═══ SKILL TEXT ═══
+// ── Skill text ──
 const EFF_DESC={
-  draw:n=>`自分${n}枚ドロー`,selfHeal:n=>`自HP+${n}`,selfDamage:n=>`自分${n}ダメ`,
-  selfAtkUp:n=>`手札1枚ATK+${n}`,selfDefUp:n=>`手札1枚DEF+${n}`,
-  selfCardAtkUp:n=>`このカードATK+${n}`,selfCardDefUp:n=>`このカードDEF+${n}`,
+  draw:n=>`${n}枚ドロー`,selfHeal:n=>`自HP+${n}`,selfDamage:n=>`自-${n}ダメ`,
+  selfAtkUp:n=>`手札ATK+${n}`,selfDefUp:n=>`手札DEF+${n}`,
+  selfCardAtkUp:n=>`カードATK+${n}`,selfCardDefUp:n=>`カードDEF+${n}`,
   oppDamage:n=>`相手+${n}ダメ`,selfCostDown:n=>`次コスト-${n}`,
   selfCostUp:n=>`自コスト+${n}`,oppCostDown:n=>`相コスト-${n}`,
-  oppAtkDown:n=>`次相ATK-${n}`,oppDefDown:n=>`次相DEF-${n}`,
-  weatherSun:()=>'天候→☀️',weatherRain:()=>'天候→🌧️',weatherStorm:()=>'天候→⛈️',weatherChange:()=>'天候変化',
-  buffAtk:n=>`手札1枚ATK+${n}`,buffDef:n=>`手札1枚DEF+${n}`,heal:n=>`自HP+${n}`,
-  damage:n=>`相手+${n}ダメ`,costReduce:n=>`次コスト-${n}`,costGain:n=>`自コスト+${n}`,
+  oppAtkDown:n=>`相ATK-${n}`,oppDefDown:n=>`相DEF-${n}`,
+  weatherSun:()=>'→☀️',weatherRain:()=>'→🌧️',weatherStorm:()=>'→⛈️',weatherChange:()=>'天候変化',
+  buffAtk:n=>`手札ATK+${n}`,buffDef:n=>`手札DEF+${n}`,heal:n=>`自HP+${n}`,damage:n=>`相手+${n}ダメ`,costReduce:n=>`次コスト-${n}`,costGain:n=>`自コスト+${n}`,
 };
 const TRIG_S={onAttack:'攻撃時',onDefend:'防御時',onPlay:'出した時',onDamage:'ダメ与',onTakeDmg:'被ダメ',ifHpLow:'HP≤n',ifHpHigh:'HP≥n',ifChance:'n%で',ifWeatherSun:'晴れ時',ifWeatherRain:'雨時',ifWeatherStorm:'嵐時',ifTurnGte:'T≥n',playCondition:'★出し条件'};
-const PLAYCOND_DESC={ifHpLow:'HP≤n',ifHpHigh:'HP≥n',ifChance:'n%',ifWeatherSun:'晴れ時',ifWeatherRain:'雨時',ifWeatherStorm:'嵐時'};
-function buildSkillLine(e){
-  if(e.trigger==='playCondition'){const cv=e.condVal||3;const pc=PLAYCOND_DESC[e.playCond]||e.playCond||'?';return `★出し条件[${pc.replace(/n/g,cv)}]`;}
-  const trig=e.trigger||'';const effKey=e.eff||e.effType||e.type||'';
-  const ev=e.effVal||e.val||e.value||1;const cv=e.condVal||ev;
+const PCOND_S={ifHpLow:'HP≤n',ifHpHigh:'HP≥n',ifChance:'n%',ifWeatherSun:'晴れ時',ifWeatherRain:'雨時',ifWeatherStorm:'嵐時'};
+function skillLine(e){
+  if(e.trigger==='playCondition'){return`★出し条件[${(PCOND_S[e.playCond]||e.playCond||'?').replace(/n/g,e.condVal||'?')}]`;}
+  const trig=e.trigger||'';const effKey=e.eff||e.type||'';const ev=e.effVal||e.value||1;const cv=e.condVal||ev;
   const t=(TRIG_S[trig]||trig).replace(/n/g,cv);const ef=EFF_DESC[effKey]?EFF_DESC[effKey](ev):'';
-  if(!t&&!ef)return '';return `【${t||'常時'}】${ef}`;
+  if(!t&&!ef)return '';return`【${t||'常時'}】${ef}`;
 }
-function cardSkillLines(card){const effs=card.effects?.length?card.effects:(card.effect&&(card.effect.trigger||card.effect.type)?[{trigger:card.effect.trigger,eff:card.effect.type||'',effVal:card.effect.value}]:[]);return effs.map(e=>buildSkillLine(e)).filter(Boolean);}
+function cardSkills(card){
+  const effs=card.effects?.length?card.effects:(card.effect&&(card.effect.trigger||card.effect.type)?[{trigger:card.effect.trigger,eff:card.effect.type||'',effVal:card.effect.value}]:[]);
+  return effs.map(e=>skillLine(e)).filter(Boolean);
+}
 
-// ═══ CARD PICK MODAL ═══
+// ── Card pick modal ──
 function pickHandCard(hand,title){
-  return new Promise(resolve=>{
-    if(!hand?.length){resolve(-1);return;}
+  return new Promise(res=>{
+    if(!hand?.length){res(-1);return;}
     document.getElementById('cpovT').textContent=title||'手札から1枚選んでください';
     const s=document.getElementById('cpovS');s.innerHTML='';
     hand.forEach((card,i)=>{
       const mc=mainC(card);const div=document.createElement('div');div.className='cpov-item';
-      const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#12121e" onerror="this.style.display='none'">`:(card.illust||'🃏');
-      const cs=getColors(card).map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
+      const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.style.display='none'">`:(card.illust||'🃏');
+      const cs=getColors(card).map(c=>`<div style="flex:1;background:${CM[c]?.dot||'#888'}"></div>`).join('');
       div.innerHTML=`<div class="gc static-card" style="border-color:${mc.border};width:90px;height:138px">
-        <div class="gc-cs" style="height:5px">${cs}</div>
+        <div style="height:5px;display:flex">${cs}</div>
         <div class="gc-head" style="padding:3px 4px"><div class="gc-cost" style="background:${mc.cost};width:18px;height:18px;font-size:.65rem">${card.cost}</div><div class="gc-name" style="font-size:.5rem;word-break:break-all;max-height:2em">${card.name||'?'}</div></div>
         <div class="gc-art" style="height:55px;font-size:2rem">${ill}</div>
         <div class="gc-stats" style="font-size:.62rem;padding:2px 4px"><span style="color:${mc.accent}">⚔${wAtk(card)}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div>
-        <div class="gc-flavor" style="padding:2px 4px"><div class="gc-sl" style="font-size:.46rem">${cardSkillLines(card).join(' ')}</div></div>
+        <div class="gc-flavor" style="padding:2px 4px"><div class="gc-sl" style="font-size:.46rem">${cardSkills(card).join(' ')}</div></div>
       </div>`;
-      div.onclick=()=>{document.getElementById('cpov').style.display='none';resolve(i);};
+      div.onclick=()=>{document.getElementById('cpov').style.display='none';res(i);};
       s.appendChild(div);
     });
     document.getElementById('cpov').style.display='flex';
   });
 }
 
-// ═══ APPLY EFFECTS — fully synchronous, all bugs fixed ═══
-// KEY FIXES:
-// 1. _cB (cost bonus) applied next turn, not immediately consumed
-// 2. _nAtkD/_nDefD applied to opponent's PLAYED card, stored on attacker state
-// 3. HP0 players cannot heal
-// 4. conditional triggers only fire on card play
-function applyEffSync(card,S,slot,trigger,pickIdx){
+// ── Apply effects (sync) ──
+function applyEff(card,S,slot,trigger,pickIdx){
   if(!card)return;
   const effs=card.effects?.length?card.effects:(card.effect&&(card.effect.trigger||card.effect.type)?[{trigger:card.effect.trigger,eff:card.effect.type||'',effVal:card.effect.value,condVal:3}]:[]);
   const COND=['ifHpLow','ifHpHigh','ifChance','ifWeatherSun','ifWeatherRain','ifWeatherStorm','ifTurnGte'];
   const PLAY=['onPlay','onAttack','onDefend'];
+  const getOpp=sl=>{if(S.numP===2)return sl===1?2:1;const ni=(S.seqIdx+1)%S.seq.length;return S.seq[ni].player;};
   for(const e of effs){
     const trig=e.trigger||'';if(trig==='playCondition')continue;
-    const effKey=e.eff||e.effType||e.type||'';
-    const ev=parseInt(e.effVal||e.val||e.value||1);const cv=parseInt(e.condVal||ev);
+    const effKey=e.eff||e.type||'';const ev=parseInt(e.effVal||e.value||1);const cv=parseInt(e.condVal||ev);
     if(COND.includes(trig)){
       if(!PLAY.includes(trigger))continue;
       if(trig==='ifHpLow'&&(S.players[slot]?.hp||0)>cv)continue;
@@ -392,94 +400,62 @@ function applyEffSync(card,S,slot,trigger,pickIdx){
       if(trig==='ifWeatherRain'&&S.weather.current!=='rain')continue;
       if(trig==='ifWeatherStorm'&&S.weather.current!=='storm')continue;
       if(trig==='ifTurnGte'&&(S.turnCount||0)<cv)continue;
-    } else {if(trig!==trigger)continue;}
-    if(!S.players[slot])continue;
-    const p=S.players[slot];
-    // ★ Get opponent fresh each time
-    const oppSlot=getOpp(slot,S);const op=oppSlot?S.players[oppSlot]:null;
+    } else{if(trig!==trigger)continue;}
+    const p=S.players[slot];if(!p)continue;
+    const oppSlot=getOpp(slot);const op=oppSlot?S.players[oppSlot]:null;
     switch(effKey){
-      case 'draw':{for(let i=0;i<ev;i++){const d=drawCard();if(d)p.hand.push(d);}S.log.push(`🌟「${card.name}」→${ev}枚ドロー`);break;}
-      case 'selfHeal':case 'heal':{
-        if((p.hp||0)<=0){S.log.push(`🌟「${card.name}」→回復無効（HP0）`);break;}
-        p.hp=Math.min(p.maxHp,(p.hp||0)+ev);S.log.push(`🌟「${card.name}」→自HP+${ev}`);
-        const pos=getCenter();setTimeout(()=>healFx(pos.x,pos.y,ev),0);break;}
-      case 'selfDamage':{p.hp=Math.max(0,(p.hp||0)-ev);S.log.push(`🌟「${card.name}」→自分に${ev}ダメージ`);break;}
-      case 'selfAtkUp':case 'buffAtk':{const idx=pickIdx??0;if(p.hand.length&&idx>=0&&idx<p.hand.length){p.hand[idx].atk=(p.hand[idx].atk||0)+ev;S.log.push(`🌟「${card.name}」→「${p.hand[idx].name}」ATK+${ev}`);}break;}
-      case 'selfDefUp':case 'buffDef':{const idx=pickIdx??0;if(p.hand.length&&idx>=0&&idx<p.hand.length){p.hand[idx].def=(p.hand[idx].def||0)+ev;S.log.push(`🌟「${card.name}」→「${p.hand[idx].name}」DEF+${ev}`);}break;}
-      case 'oppDamage':case 'damage':{if(op){op.hp=Math.max(0,(op.hp||0)-ev);S.log.push(`🌟「${card.name}」→相手に${ev}ダメージ`);}break;}
-      case 'selfCostDown':case 'costReduce':{
-        // ★ FIX: store as _cB, applied as cost reduction on next card play
-        p._cB=(p._cB||0)+ev;S.log.push(`🌟「${card.name}」→次カードコスト-${ev}`);break;}
-      case 'selfCostUp':case 'costGain':{p.cost=(p.cost||0)+ev;S.log.push(`🌟「${card.name}」→自コスト+${ev}`);break;}
-      case 'oppCostDown':{if(op){op.cost=Math.max(0,(op.cost||0)-ev);S.log.push(`🌟「${card.name}」→相コスト-${ev}`);}break;}
-      case 'oppAtkDown':{
-        // ★ FIX: stored as _nAtkD on opponent, applied when they play their next card
-        if(op){op._nAtkD=(op._nAtkD||0)+ev;S.log.push(`🌟「${card.name}」→相手次ATK-${ev}`);}break;}
-      case 'oppDefDown':{
-        if(op){op._nDefD=(op._nDefD||0)+ev;S.log.push(`🌟「${card.name}」→相手次DEF-${ev}`);}break;}
-      case 'selfCardAtkUp':{break;} // handled at play time
-      case 'selfCardDefUp':{break;}
-      case 'weatherSun':{setWeather(S,'sun');break;}
-      case 'weatherRain':{setWeather(S,'rain');break;}
-      case 'weatherStorm':{setWeather(S,'storm');break;}
-      case 'weatherChange':{const ids=['sun','rain','storm'];const av=ids.filter(w=>w!==S.weather.current);setWeather(S,av[~~(Math.random()*av.length)]||'sun');break;}
+      case'draw':for(let i=0;i<ev;i++){const d=drawCard();if(d){p.hand.push(d);newCards.add('new_'+(p.hand.length-1));}}S.log.push(`🌟${card.name}→${ev}枚ドロー`);break;
+      case'selfHeal':case'heal':if((p.hp||0)>0){p.hp=Math.min(p.maxHp,(p.hp||0)+ev);S.log.push(`🌟${card.name}→自HP+${ev}`);}break;
+      case'selfDamage':p.hp=Math.max(0,(p.hp||0)-ev);S.log.push(`🌟${card.name}→自-${ev}ダメ`);break;
+      case'selfAtkUp':case'buffAtk':{const idx=pickIdx??0;if(p.hand[idx]){p.hand[idx].atk=(p.hand[idx].atk||0)+ev;S.log.push(`🌟${card.name}→${p.hand[idx].name}ATK+${ev}`);}}break;
+      case'selfDefUp':case'buffDef':{const idx=pickIdx??0;if(p.hand[idx]){p.hand[idx].def=(p.hand[idx].def||0)+ev;S.log.push(`🌟${card.name}→${p.hand[idx].name}DEF+${ev}`);}}break;
+      case'oppDamage':case'damage':if(op){op.hp=Math.max(0,(op.hp||0)-ev);S.log.push(`🌟${card.name}→相手-${ev}ダメ`);}break;
+      case'selfCostDown':case'costReduce':p._cB=(p._cB||0)+ev;S.log.push(`🌟${card.name}→次コスト-${ev}`);break;
+      case'selfCostUp':case'costGain':p.cost=(p.cost||0)+ev;S.log.push(`🌟${card.name}→自コスト+${ev}`);break;
+      case'oppCostDown':if(op){op.cost=Math.max(0,(op.cost||0)-ev);S.log.push(`🌟${card.name}→相コスト-${ev}`);}break;
+      case'oppAtkDown':if(op){op._nAtkD=(op._nAtkD||0)+ev;S.log.push(`🌟${card.name}→相ATK-${ev}`);}break;
+      case'oppDefDown':if(op){op._nDefD=(op._nDefD||0)+ev;S.log.push(`🌟${card.name}→相DEF-${ev}`);}break;
+      case'weatherSun':setWeather(S,'sun');break;case'weatherRain':setWeather(S,'rain');break;
+      case'weatherStorm':setWeather(S,'storm');break;
+      case'weatherChange':{const ids=['sun','rain','storm'].filter(w=>w!==S.weather.current);setWeather(S,ids[~~(Math.random()*ids.length)]||'sun');}break;
     }
   }
 }
-function getOpp(slot,S){if(S.numP===2)return slot===1?2:1;const ni=(S.seqIdx+1)%S.seq.length;return S.seq[ni].player;}
 
-// ═══ VFX — lightweight, min DOM writes ═══
+// ── VFX (lightweight) ──
 function getCenter(){const bf=document.querySelector('.battlefield');if(!bf)return{x:innerWidth/2,y:innerHeight/2};const r=bf.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};}
+function spawnPt(cx,cy,d,sz,col,dur){const e=document.createElement('div');e.className='pt';const a=Math.random()*360;const rad=a*Math.PI/180;e.style.cssText=`position:fixed;left:${cx-sz/2}px;top:${cy-sz/2}px;width:${sz}px;height:${sz}px;background:${col};border-radius:50%;pointer-events:none;z-index:585;animation:ptA ${dur}s ease-out forwards;--tx:${Math.cos(rad)*d}px;--ty:${Math.sin(rad)*d}px`;document.body.appendChild(e);setTimeout(()=>e.remove(),(dur*1000)+50);}
+function flashScreen(col){const f=document.createElement('div');f.style.cssText=`position:fixed;inset:0;background:${col};opacity:.2;pointer-events:none;z-index:560;animation:sfA .5s ease-out forwards`;document.body.appendChild(f);setTimeout(()=>f.remove(),600);}
+function floatNum(txt,col,cx,cy){const e=document.createElement('div');e.style.cssText=`position:fixed;left:${cx-25}px;top:${cy-15}px;font-family:'Rajdhani',sans-serif;font-size:clamp(1.6rem,6vw,2.4rem);font-weight:900;color:${col};text-shadow:0 0 12px ${col};pointer-events:none;z-index:600;animation:fup 1.6s ease-out forwards`;e.textContent=txt;document.body.appendChild(e);setTimeout(()=>e.remove(),1800);}
 let biTimer=null;
 function showBigIllust(card,mc){
-  if(!mc)mc=mainC(card);if(biTimer)clearTimeout(biTimer);
-  document.querySelectorAll('.bi').forEach(e=>e.remove());
-  const ov=document.createElement('div');ov.className='bi';
-  ov.style.setProperty('--bi-g',mc.glow);ov.style.setProperty('--bi-b',mc.border);
-  const art=document.createElement('div');art.className='bi-art';
-  if(card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))){const img=document.createElement('img');img.src=card.illust;img.style.cssText='width:100%;height:100%;object-fit:contain;background:#12121e';art.appendChild(img);}
-  else{art.textContent=card.illust||'🃏';}
-  const nm=document.createElement('div');nm.className='bi-nm';nm.textContent=card.name||'';
+  if(biTimer)clearTimeout(biTimer);document.querySelectorAll('.bi').forEach(e=>e.remove());
+  const ov=document.createElement('div');ov.className='bi';ov.style.cssText=`position:fixed;bottom:calc(54px + 3.5rem);right:.65rem;z-index:690;pointer-events:none;width:84px;height:120px;border-radius:8px;overflow:hidden;border:2px solid ${mc.border};box-shadow:0 0 18px rgba(0,0,0,.7),0 0 12px ${mc.glow};animation:biIn .28s ease-out forwards`;
+  const art=document.createElement('div');art.style.cssText='width:100%;height:calc(100% - 20px);display:flex;align-items:center;justify-content:center;font-size:3rem;background:rgba(0,0,0,.3);overflow:hidden';
+  if(card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))){const img=document.createElement('img');img.src=card.illust;img.style.cssText='width:100%;height:100%;object-fit:contain;background:#111';art.appendChild(img);}
+  else art.textContent=card.illust||'🃏';
+  const nm=document.createElement('div');nm.style.cssText='height:20px;display:flex;align-items:center;justify-content:center;font-family:\'Rajdhani\',sans-serif;font-size:.6rem;font-weight:700;color:#fff;background:rgba(0,0,0,.85);padding:0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';nm.textContent=card.name||'';
   ov.appendChild(art);ov.appendChild(nm);document.body.appendChild(ov);
-  biTimer=setTimeout(()=>{ov.classList.add('out');setTimeout(()=>ov.remove(),250);},1700);
+  biTimer=setTimeout(()=>{ov.style.animation='biOut .22s ease-in forwards';setTimeout(()=>ov.remove(),250);},1700);
 }
-function spawnSW(cx,cy,sz,bw,col,delay){setTimeout(()=>{const e=document.createElement('div');e.className='sw';e.style.cssText=`left:${cx-sz/2}px;top:${cy-sz/2}px;width:${sz}px;height:${sz}px;border:${bw}px solid ${col};box-shadow:0 0 20px ${col}`;document.body.appendChild(e);setTimeout(()=>e.remove(),700);},delay);}
-function spawnPt(cx,cy,d,sz,col,dur){const e=document.createElement('div');e.className='pt';const a=Math.random()*360;const rad=a*Math.PI/180;e.style.cssText=`left:${cx-sz/2}px;top:${cy-sz/2}px;width:${sz}px;height:${sz}px;background:${col};--tx:${Math.cos(rad)*d}px;--ty:${Math.sin(rad)*d}px;--dur:${dur}s`;document.body.appendChild(e);setTimeout(()=>e.remove(),(dur*1000)+50);}
-function floatNum(txt,cls,cx,cy){const e=document.createElement('div');e.className='dmg-float '+cls;e.textContent=txt;e.style.cssText=`left:${cx-25}px;top:${cy-15}px`;document.body.appendChild(e);setTimeout(()=>e.remove(),1800);}
-function showHpPop(delta){const bars=document.querySelectorAll('.opp-hb-out');if(!bars.length)return;const r=bars[0].getBoundingClientRect();const e=document.createElement('div');e.className='hp-pop';e.style.cssText=`left:${r.right+4}px;top:${r.top-6}px;color:${delta<0?'var(--red)':'var(--green)'}`;e.textContent=(delta>0?'+':'')+delta+'HP';document.body.appendChild(e);setTimeout(()=>e.remove(),1350);}
-function healFx(cx,cy,n){floatNum('+'+n+'HP','df-g',cx,cy-12);for(let i=0;i<10;i++)spawnPt(cx,cy,35+Math.random()*50,7,'#2ecc71',.45+Math.random()*.55);}
-
-// Minimal VFX — only fire what's selected, limit particle count for performance
 function triggerVfx(card){
-  const vfxSet=new Set(card.vfx||[]);const cols=getColors(card);const mc=mainC(card);
-  const pos=getCenter();const cx=pos.x,cy=pos.y;
-  if(vfxSet.has('bigIllust')||vfxSet.size===0) showBigIllust(card,mc);
-  const fl=document.createElement('div');fl.className='sf';fl.style.background=mc.fx.replace('.85','.16');document.body.appendChild(fl);setTimeout(()=>fl.remove(),600);
-  if(vfxSet.has('shockwave')||vfxSet.size===0){spawnSW(cx,cy,110,4,mc.fx,0);spawnSW(cx,cy,85,2,mc.fx.replace('.85','.4'),100);}
-  // Limit to 18 particles max
-  const pCols=cols.map(c=>CM[c]?.fx||'#fff');
-  for(let i=0;i<18;i++)spawnPt(cx,cy,50+Math.random()*110,5+Math.random()*8,pCols[i%pCols.length],.45+Math.random()*.7);
-  if(vfxSet.has('fire')||cols.includes('red')&&vfxSet.size===0)for(let i=0;i<8;i++)setTimeout(()=>spawnPt(cx,cy,30+Math.random()*60,8,i%2?'#e74c3c':'#f39c12',.6),i*20);
-  if(vfxSet.has('ice')||cols.includes('blue')&&vfxSet.size===0)for(let i=0;i<7;i++){const e=document.createElement('div');e.className='pt';const a=i/7*360;const dd=45+Math.random()*40;const rad=a*Math.PI/180;const dur=.55+Math.random()*.45;e.style.cssText=`left:${cx-2}px;top:${cy-6}px;background:#74b9ff;width:3px;height:12px;border-radius:2px;transform:rotate(${a}deg);--tx:${Math.cos(rad)*dd}px;--ty:${Math.sin(rad)*dd}px;--dur:${dur}s`;document.body.appendChild(e);setTimeout(()=>e.remove(),(dur*1000)+50);}
-  if(vfxSet.has('lightning')||cols.includes('yellow')&&vfxSet.size===0){const lz=document.createElement('div');lz.style.cssText=`position:fixed;left:${cx-1}px;top:${cy-60}px;width:2px;height:120px;background:linear-gradient(to bottom,transparent,#f1c40f,#fff,#f1c40f,transparent);z-index:575;pointer-events:none;animation:sfA .4s ease-out forwards;box-shadow:0 0 10px #f1c40f`;document.body.appendChild(lz);setTimeout(()=>lz.remove(),500);}
-  if(vfxSet.has('leaf')||cols.includes('green')&&vfxSet.size===0){const ll=['🍃','🍀','🌿'];for(let i=0;i<5;i++){const id='lf'+Date.now()+i;const e=document.createElement('div');e.style.cssText=`position:fixed;left:${cx}px;top:${cy}px;font-size:1rem;z-index:585;pointer-events:none`;e.textContent=ll[i%ll.length];const tx=(Math.random()-.5)*90;const ty=-25-Math.random()*80;document.head.insertAdjacentHTML('beforeend',`<style>@keyframes lf${id}{0%{opacity:1;transform:translate(0,0)}100%{opacity:0;transform:translate(${tx}px,${ty}px)}}</style>`);e.style.animation=`lf${id} .85s ease-out forwards`;document.body.appendChild(e);setTimeout(()=>e.remove(),950);}}
-  if(vfxSet.has('darkness')){const d=document.createElement('div');d.className='sf';d.style.background='rgba(0,0,0,.7)';document.body.appendChild(d);setTimeout(()=>d.remove(),700);}
-  if(vfxSet.has('rainbow')){const rb=document.createElement('div');rb.className='sf';rb.style.background='linear-gradient(135deg,rgba(255,0,0,.12),rgba(255,165,0,.12),rgba(255,255,0,.12),rgba(0,255,0,.12),rgba(0,0,255,.12),rgba(238,130,238,.12))';document.body.appendChild(rb);setTimeout(()=>rb.remove(),700);}
-  if(vfxSet.has('coins'))for(let i=0;i<12;i++)spawnPt(cx,cy,45+Math.random()*65,7,i%3===0?'#f1c40f':i%3===1?'#fff':'#e67e22',.45+Math.random()*.65);
+  const vfxSet=new Set(card.vfx||[]);const mc=mainC(card);const{x:cx,y:cy}=getCenter();
+  if(vfxSet.size===0||vfxSet.has('bigIllust'))showBigIllust(card,mc);
+  flashScreen(mc.fx);
+  for(let i=0;i<16;i++)spawnPt(cx,cy,50+Math.random()*100,5+Math.random()*7,mc.fx,.45+Math.random()*.7);
+  if(vfxSet.has('fire')||(!vfxSet.size&&getColors(card).includes('red')))for(let i=0;i<6;i++)setTimeout(()=>spawnPt(cx,cy,30+Math.random()*55,8,i%2?'#e74c3c':'#f39c12',.6),i*20);
+  if(vfxSet.has('lightning')||(!vfxSet.size&&getColors(card).includes('yellow'))){const l=document.createElement('div');l.style.cssText=`position:fixed;left:${cx-1}px;top:${cy-55}px;width:2px;height:110px;background:linear-gradient(to bottom,transparent,#f1c40f,#fff,#f1c40f,transparent);z-index:575;pointer-events:none;animation:sfA .4s ease-out forwards;box-shadow:0 0 8px #f1c40f`;document.body.appendChild(l);setTimeout(()=>l.remove(),450);}
+  if(vfxSet.has('shockwave')){const sw=document.createElement('div');sw.style.cssText=`position:fixed;left:${cx-55}px;top:${cy-55}px;width:110px;height:110px;border-radius:50%;border:4px solid ${mc.fx};pointer-events:none;z-index:580;animation:swA .6s ease-out forwards`;document.body.appendChild(sw);setTimeout(()=>sw.remove(),700);}
+  if(vfxSet.has('darkness')){flashScreen('rgba(0,0,0,.7)');}
+  if(vfxSet.has('rainbow'))flashScreen('linear-gradient(135deg,rgba(255,0,0,.1),rgba(0,255,0,.1),rgba(0,0,255,.1))');
 }
 function attackEffect(atkCard,dmg,blocked){
-  const cols=getColors(atkCard);const mc=mainC(atkCard);const pos=getCenter();const cx=pos.x,cy=pos.y;
-  const fl=document.createElement('div');fl.className='sf';fl.style.background=mc.fx.replace('.85','.25');document.body.appendChild(fl);setTimeout(()=>fl.remove(),580);
-  spawnSW(cx,cy,130,4,mc.fx,0);spawnSW(cx,cy,95,2,mc.fx.replace('.85','.35'),85);
-  for(let i=0;i<20;i++)spawnPt(cx,cy,60+Math.random()*120,6+Math.random()*8,cols.map(c=>CM[c]?.fx||'#fff')[i%cols.length],.45+Math.random()*.75);
-  setTimeout(()=>{if(blocked){floatNum('🛡BLOCK','df-g',cx,cy-25);}else{floatNum('-'+dmg,'df-r',cx,cy-25);showHpPop(-dmg);}},190);
-  if(cols.includes('red'))for(let i=0;i<8;i++)setTimeout(()=>spawnPt(cx,cy,30+Math.random()*55,8,i%2?'#e74c3c':'#f39c12',.6),i*18);
-  if(cols.includes('blue'))for(let i=0;i<6;i++){const e=document.createElement('div');e.className='pt';const a=i/6*360;const dd=45+Math.random()*35;const rad=a*Math.PI/180;const dur=.55+Math.random()*.4;e.style.cssText=`left:${cx-2}px;top:${cy-6}px;background:#74b9ff;width:3px;height:11px;border-radius:2px;transform:rotate(${a}deg);--tx:${Math.cos(rad)*dd}px;--ty:${Math.sin(rad)*dd}px;--dur:${dur}s`;document.body.appendChild(e);setTimeout(()=>e.remove(),(dur*1000)+50);}
-  if(cols.includes('yellow')){const lz=document.createElement('div');lz.style.cssText=`position:fixed;left:${cx-1}px;top:${cy-60}px;width:2px;height:120px;background:linear-gradient(to bottom,transparent,#f1c40f,#fff,#f1c40f,transparent);z-index:575;pointer-events:none;animation:sfA .4s ease-out forwards;box-shadow:0 0 10px #f1c40f`;document.body.appendChild(lz);setTimeout(()=>lz.remove(),500);}
-  if(cols.includes('green'))for(let i=0;i<5;i++){const id='lf'+Date.now()+i;const e=document.createElement('div');e.style.cssText=`position:fixed;left:${cx}px;top:${cy}px;font-size:1rem;z-index:585;pointer-events:none`;e.textContent=['🍃','🍀','🌿'][i%3];const tx=(Math.random()-.5)*85;const ty=-20-Math.random()*75;document.head.insertAdjacentHTML('beforeend',`<style>@keyframes lf${id}{0%{opacity:1;transform:translate(0,0)}100%{opacity:0;transform:translate(${tx}px,${ty}px)}}</style>`);e.style.animation=`lf${id} .85s ease-out forwards`;document.body.appendChild(e);setTimeout(()=>e.remove(),950);}
+  const mc=mainC(atkCard);const{x:cx,y:cy}=getCenter();
+  flashScreen(mc.fx);for(let i=0;i<18;i++)spawnPt(cx,cy,60+Math.random()*110,6+Math.random()*8,mc.fx,.45+Math.random()*.75);
+  setTimeout(()=>{if(blocked){floatNum('🛡BLOCK','#2ecc71',cx,cy-20);}else{floatNum('-'+dmg,'#e74c3c',cx,cy-20);}},180);
 }
 
-// ═══ BUILD STATE ═══
+// ── Build game state ──
 function buildState(n){
   let order=Array.from({length:n},(_,i)=>i+1);
   for(let i=order.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
@@ -487,149 +463,116 @@ function buildState(n){
   const players={};
   for(let oi=0;oi<order.length;oi++){
     const slot=order[oi];
-    // ★ All players start with cost 1
     const hand=Array.from({length:oi===0?7:8},()=>drawCard()).filter(Boolean);
-    if(slot===mySlot)hand.forEach((_,i)=>newCardSet.add('init_'+i));
+    if(slot===mySlot)hand.forEach((_,i)=>newCards.add('init_'+i));
     players[slot]={hp:20,maxHp:20,cost:1,_cB:0,_nAtkD:0,_nDefD:0,hand,alive:true};
   }
   return{status:'playing',numP:n,seqIdx:0,seq,players,discardCard:null,atkCardPlayed:null,defCardPlayed:null,playedThisTurn:false,turnCount:0,weather:{current:'sun',changeCount:0,defendsDone:0},log:[`ゲーム開始！先行: P${seq[0].player}「${pNames[seq[0].player]||'P'+seq[0].player}」`]};
 }
+function genDefault(){const cols=[['red'],['blue'],['yellow'],['green'],['red','blue'],['yellow','green']];const names=['騎士','魔法使い','竜','妖精','戦士','弓使い','僧侶','忍者','海賊','錬金術師','天使','悪魔','剣士','盗賊','召喚士','聖騎士','魔剣士','竜騎士','幻術師','召喚魔法'];const ills=['⚔️','🔮','🐉','🦋','🛡️','🏹','✨','🌸','🗡️','🧪','👼','😈','⚡','🗺️','📖','🏰','🌙','🦅','🌀','🔥'];return names.map((nm,i)=>({id:'def'+i,name:nm,colors:cols[i%cols.length],color:cols[i%cols.length][0],cost:1+~~(i/4),atk:2+(i%5),def:1+(i%4),illust:ills[i],flavor:'',effects:[],vfx:[]}));}
 
-// ═══ INIT ═══
-// 設計方針: Firebaseへの接続を一切awaitしない
-// ① まずlocalStorageのカードとデフォルトで即座にゲームを起動（0秒）
-// ② FirebaseはonValueで非同期に受信し、データが来たら反映する
-function init(){
-  // --- Step1: カードをlocalStorageキャッシュから即座に読み込む ---
-  setLoad(30,'カードを準備中...');
-  const activeIdStr=localStorage.getItem('activeCardIds')||'all';
-  let cachedCards=[];
+// ── Save to Firebase (strips images) ──
+async function save(S){
   try{
-    const cached=localStorage.getItem('cardrealmDeck');
-    if(cached)cachedCards=JSON.parse(cached);
-  }catch(e){}
+    const slim=JSON.parse(JSON.stringify(S));
+    const stripIll=c=>{if(c?.illust?.startsWith('data:'))c.illust='[img]';};
+    for(const p of Object.values(slim.players||{}))(p.hand||[]).forEach(stripIll);
+    stripIll(slim.atkCardPlayed);stripIll(slim.defCardPlayed);stripIll(slim.discardCard);
+    await set(gameRef,slim);
+  }catch(e){console.warn('save fail:',e.message);}
+}
 
-  function applyCards(allCards){
-    if(activeIdStr==='all'||!activeIdStr){pool=allCards;}
-    else{
-      try{const ids=new Set(JSON.parse(activeIdStr));pool=allCards.filter(c=>ids.has(c.id));}
-      catch(e){pool=allCards;}
-    }
-    if(!pool.length)pool=allCards;
+// ── INIT ──
+// Design: Show game immediately from localStorage cache, Firebase syncs in background
+function init(){
+  setLoad(30,'カード準備中...');
+
+  // Load cards from localStorage cache first (instant)
+  let allCards=[];
+  try{const cached=localStorage.getItem('cardrealmDeck');if(cached)allCards=JSON.parse(cached);}catch(e){}
+
+  function applyPool(cards){
+    if(activeIdStr==='all'||!activeIdStr){pool=cards;}
+    else{try{const ids=new Set(JSON.parse(activeIdStr));pool=cards.filter(c=>ids.has(c.id));}catch(e){pool=cards;}}
+    if(!pool.length)pool=cards;
     if(!pool.length)pool=genDefault();
   }
+  applyPool(allCards);
 
-  // まずキャッシュで起動
-  applyCards(cachedCards);
-
-  // --- Step2: ゲーム状態の初期化 ---
-  // Firebase接続前に暫定状態を作る（後でFirebaseから上書きされる）
-  setLoad(60,'ゲームを初期化中...');
-  G=buildState(numP); // 暫定状態（Firebaseから実際の状態が届いたら上書き）
-
-  // --- Step3: 即座に画面を表示（Firebaseを待たない）---
+  setLoad(70,'ゲーム準備中...');
+  // Build initial state (will be replaced by Firebase data if available)
+  G=buildState(numP);
   setLoad(100,'開始！');
-  // 200ms後に画面表示
-  setTimeout(()=>{
-    document.getElementById('loadScr').style.display='none';
-    document.getElementById('gameApp').style.display='flex';
-    renderAll();
-  },200);
+  setTimeout(showGame,150);
+  setTimeout(renderAll,200);
 
-  // 緊急フォールバック: 3秒後もまだロード画面なら強制表示
-  setTimeout(()=>{
-    const ls=document.getElementById('loadScr');
-    if(ls&&ls.style.display!=='none'){
-      console.warn('[EMERGENCY] Force showing game after 3s timeout');
-      ls.style.display='none';
-      document.getElementById('gameApp').style.display='flex';
-      if(!G)G=buildState(numP);
-      renderAll();
-    }
-  },3000);
-
-  // --- Step4: Firebaseからカードを非同期で取得（バックグラウンド）---
-  // 成功したらpool更新、失敗してもゲームには影響しない
-  onValue(cardsRef, snap=>{
+  // Background: sync cards from Firebase
+  onValue(cardsRef,snap=>{
     try{
-      const allCards=Object.values(snap.val()||{});
-      if(allCards.length){
-        localStorage.setItem('cardrealmDeck',JSON.stringify(allCards));
-        applyCards(allCards);
-      }
-    }catch(e){console.warn('cards onValue error:',e);}
-  },{onlyOnce:false});
+      const cards=Object.values(snap.val()||{});
+      if(cards.length){localStorage.setItem('cardrealmDeck',JSON.stringify(cards));applyPool(cards);}
+    }catch(e){}
+  },{onlyOnce:true});// onlyOnce to avoid repeated large downloads
 
-  // --- Step5: ゲーム状態をFirebaseと同期（バックグラウンド）---
-  let gameInitialized=false;
-  onValue(gameRef, snap=>{
+  // Background: sync game state from Firebase
+  // Strategy: mySlot===1 (host) creates state, others receive it
+  let firstSync=true;
+  onValue(gameRef,snap=>{
     try{
       if(processing)return;
       if(!snap.val()){
-        // Firebaseにゲーム状態がない = このプレイヤーが最初に接続
-        // ホストだけがbuildStateして保存（mySlot===1のプレイヤー）
-        if(!gameInitialized&&mySlot===1){
-          gameInitialized=true;
-          G=buildState(numP);
-          save(G);
-          renderAll();
+        // No game state in Firebase yet
+        if(firstSync){
+          firstSync=false;
+          if(mySlot===1){
+            // Host creates and saves state
+            G=buildState(numP);save(G);renderAll();
+          }
+          // Non-hosts wait for host's state via the listener
         }
         return;
       }
       const ng=snap.val();
-      // 初回は必ずFirebaseの状態で上書き（先行後攻を統一）
-      if(!gameInitialized){
-        gameInitialized=true;
-        G=ng;renderAll();checkWin();return;
+      if(firstSync){
+        // First data received: use Firebase state (ensures all players have same state)
+        firstSync=false;G=ng;renderAll();checkWin();return;
       }
+      // Subsequent updates: only update if something changed
       if(ng.turnCount===G.turnCount&&ng.seqIdx===G.seqIdx&&ng.playedThisTurn===G.playedThisTurn&&ng.status===G.status)return;
       G=ng;renderAll();checkWin();
-    }catch(e){console.warn('gameRef onValue error:',e);}
+    }catch(e){console.warn('gameRef error:',e.message);}
   });
 
-  // --- Step6: 部屋監視（roomCodeが有効な場合のみ）---
-  if(roomCode&&roomCode!=='default'){
-    onValue(roomRef, snap=>{
+  // Room action listener (home/rematch)
+  if(roomRef){
+    onValue(roomRef,snap=>{
       try{
-        if(!snap.exists())return;
+        if(!snap.exists()||navigating)return;
         const room=snap.val();
-        // actionを一度読んだらFirebaseから消去（重複発火防止）
-        if(room.action==='home'&&!navigating){
+        if(room.action==='home'){
           navigating=true;
-          remove(ref(db,`rooms/${roomCode}/action`)).catch(()=>{});
-          gameOverShown=false;
-          setTimeout(()=>{window.location.href='index.html';},300);
-        } else if(room.action==='rematch'&&!navigating){
-          remove(ref(db,`rooms/${roomCode}/action`)).catch(()=>{});
+          // Clear action from Firebase
+          update(roomRef,{action:null}).catch(()=>{});
+          setTimeout(()=>window.location.href='index.html',200);
+        } else if(room.action==='rematch'){
+          update(roomRef,{action:null}).catch(()=>{});
           gameOverShown=false;
           document.getElementById('gop').classList.remove('show');
-          // ★ ホスト以外はFirebaseからゲーム状態を受信するだけ
-          // ホストがbuildStateして保存済みのものをonValueで受け取る
+          if(mySlot===1){G=buildState(numP);save(G);}
         }
-      }catch(e){console.warn('roomRef onValue error:',e);}
+      }catch(e){console.warn('room error:',e.message);}
     });
   }
 }
 
-// Firebase保存（非同期・失敗してもゲームに影響しない）
-async function save(s){
-  try{
-    const slim=JSON.parse(JSON.stringify(s));
-    const stripIll=c=>{if(c&&c.illust&&c.illust.startsWith('data:'))c.illust='[img]';};
-    for(const p of Object.values(slim.players||{})){(p.hand||[]).forEach(stripIll);}
-    stripIll(slim.atkCardPlayed);stripIll(slim.defCardPlayed);stripIll(slim.discardCard);
-    await set(gameRef,slim);
-  }catch(e){console.warn('save fail (non-critical):',e);}
-}
-
-// ═══ ACTIONS ═══
+// ── Game actions ──
 window.selCardFn=function(i){
   if(processing)return;
   if(!isMyTurn()){showToast('あなたのターンではありません');return;}
   if(G.playedThisTurn){showToast('今ターンはすでにカードを出しました');return;}
   const card=G.players[mySlot]?.hand?.[i];if(!card)return;
   if(selCard===i){selCard=-1;renderMyHand();updateBtns();return;}
-  if(!canPlay(card)){const disc=G.discardCard;showToast(disc?`出せません（「${disc.name}」と同色/同コスト、または出し条件未達）`:'コスト不足か出し条件未達');return;}
+  if(!canPlay(card)){const d=G.discardCard;showToast(d?`出せません（同色/同コスト、または出し条件未達）`:'コスト不足か出し条件未達');return;}
   selCard=i;renderMyHand();updateBtns();
 };
 
@@ -638,22 +581,20 @@ window.playCard=async function(){
   lockUI();
   try{
     const me=G.players[mySlot];const card=me.hand?.[selCard];if(!card){unlockUI();return;}
-    // Pre-resolve hand picks
     let pickIdx=-1;
-    const hasHandPick=(card.effects||[]).some(e=>['selfAtkUp','selfDefUp','buffAtk','buffDef'].includes(e.eff||e.effType||e.type||'')&&(e.trigger===phase()||e.trigger==='onPlay'||['ifHpLow','ifHpHigh','ifChance','ifWeatherSun','ifWeatherRain','ifWeatherStorm','ifTurnGte'].includes(e.trigger)));
-    if(hasHandPick&&me.hand.length>1){
-      const otherHand=me.hand.filter((_,i)=>i!==selCard);
-      pickIdx=await pickHandCard(otherHand,'手札から1枚選んでください');
-      if(pickIdx>=selCard)pickIdx++;
+    const needsPick=(card.effects||[]).some(e=>['selfAtkUp','selfDefUp','buffAtk','buffDef'].includes(e.eff||e.type||'')&&(e.trigger==='onPlay'||e.trigger==='onAttack'||e.trigger==='onDefend'||['ifHpLow','ifHpHigh','ifChance'].includes(e.trigger)));
+    if(needsPick&&me.hand.length>1){
+      const other=me.hand.filter((_,i)=>i!==selCard);
+      const pi=await pickHandCard(other,'手札から1枚選んでください');
+      pickIdx=pi>=selCard?pi+1:pi;
     }
     const S=clone(G);const p=S.players[mySlot];
-    // Apply played card debuffs from opponent
+    // Apply opponent debuffs to this card
     const pc={...card};
     if(p._nAtkD){pc.atk=Math.max(0,(pc.atk||0)-p._nAtkD);p._nAtkD=0;}
     if(p._nDefD){pc.def=Math.max(0,(pc.def||0)-p._nDefD);p._nDefD=0;}
-    // selfCardAtkUp/DefUp
-    for(const e of (card.effects||[])){if(e.eff==='selfCardAtkUp')pc.atk=(pc.atk||0)+(e.effVal||1);if(e.eff==='selfCardDefUp')pc.def=(pc.def||0)+(e.effVal||1);}
-    // ★ Apply _cB cost reduction (minimum 1)
+    for(const e of(card.effects||[])){if(e.eff==='selfCardAtkUp')pc.atk=(pc.atk||0)+(e.effVal||1);if(e.eff==='selfCardDefUp')pc.def=(pc.def||0)+(e.effVal||1);}
+    // Apply cost with _cB reduction
     const baseCost=wCost(card,S);const finalCost=Math.max(1,baseCost-(p._cB||0));
     if((p.cost||0)<finalCost){showToast('コスト不足');unlockUI();return;}
     p.cost-=finalCost;p._cB=0;
@@ -662,26 +603,26 @@ window.playCard=async function(){
     if(phase(S)==='attack'){
       S.atkCardPlayed=clone(pc);S.defCardPlayed=null;S.lastAtkPlayer=mySlot;
       S.log.push(`P${mySlot}「${pNames[mySlot]||myName}」→攻撃「${pc.name}」ATK:${wAtk(pc,S)}`);
-      applyEffSync(pc,S,mySlot,'onPlay',pickIdx);applyEffSync(pc,S,mySlot,'onAttack',pickIdx);
+      applyEff(pc,S,mySlot,'onPlay',pickIdx);applyEff(pc,S,mySlot,'onAttack',pickIdx);
     } else {
       S.defCardPlayed=clone(pc);
       const atkCard=S.atkCardPlayed;
       if(atkCard){
         const av=wAtk(atkCard,S);const dv=pc.def||0;const dmg=Math.max(0,av-dv);
-        if(dmg>0){p.hp=Math.max(0,p.hp-dmg);S.log.push(`⚔ 「${atkCard.name}」ATK:${av} vs 「${pc.name}」DEF:${dv} → ${dmg}ダメ！`);setTimeout(()=>attackEffect(atkCard,dmg,false),150);applyEffSync(atkCard,S,S.lastAtkPlayer,'onDamage',pickIdx);applyEffSync(pc,S,mySlot,'onTakeDmg',pickIdx);}
+        if(dmg>0){p.hp=Math.max(0,p.hp-dmg);S.log.push(`⚔ 「${atkCard.name}」ATK:${av} vs 「${pc.name}」DEF:${dv} → ${dmg}ダメ！`);setTimeout(()=>attackEffect(atkCard,dmg,false),150);applyEff(atkCard,S,S.lastAtkPlayer,'onDamage',pickIdx);applyEff(pc,S,mySlot,'onTakeDmg',pickIdx);}
         else{S.log.push(`🛡 「${atkCard.name}」ATK:${av} vs 「${pc.name}」DEF:${dv} → ブロック！`);setTimeout(()=>attackEffect(atkCard,0,true),150);}
       }
-      applyEffSync(pc,S,mySlot,'onPlay',pickIdx);applyEffSync(pc,S,mySlot,'onDefend',pickIdx);
+      applyEff(pc,S,mySlot,'onPlay',pickIdx);applyEff(pc,S,mySlot,'onDefend',pickIdx);
       S.atkCardPlayed=null;weatherTick(S);
     }
     // Draw on play
-    const drawn=drawCard();if(drawn){p.hand.push(drawn);S.log.push(`P${mySlot}→1枚ドロー`);newCardSet.add('new_'+(p.hand.length-1));}
+    const drawn=drawCard();
+    if(drawn){p.hand.push(drawn);newCards.add('new_'+(p.hand.length-1));S.log.push(`P${mySlot}→1枚ドロー`);}
     triggerVfx(pc);
-    selCard=-1;G=S;renderAll();checkWin();
-    await save(S);
+    selCard=-1;G=S;renderAll();checkWin();await save(S);
     // Auto end turn
     setTimeout(async()=>{if(!G||!isMyTurn()||!G.playedThisTurn)return;lockUI();try{await endTurnInternal();}finally{unlockUI();}},900);
-  }catch(err){console.error('playCard error',err);showToast('エラーが発生しました');}
+  }catch(e){console.error('playCard error',e);showToast('エラー');}
   finally{unlockUI();}
 };
 
@@ -690,130 +631,107 @@ window.extraDraw=async function(){
   lockUI();try{
     const S=clone(G);const p=S.players[mySlot];
     if((p.hp||0)<=2){showToast('HP2消費できません');return;}
-    // ★ Weighted draw: biased toward colors player doesn't have
-    const card=drawCardWeighted(p.hand);if(!card){showToast('カードプールが空です');return;}
-    p.hp-=2;p.hand.push(card);newCardSet.add('new_'+(p.hand.length-1));S.log.push(`P${mySlot}がHP2消費で追加ドロー（色重み付き）`);
+    const card=drawCardWeighted(p.hand);if(!card){showToast('プールが空です');return;}
+    p.hp-=2;p.hand.push(card);newCards.add('new_'+(p.hand.length-1));S.log.push(`P${mySlot}がHP-2で追加ドロー`);
     G=S;renderAll();await save(S);showToast('ドロー！');
   }finally{unlockUI();}
 };
 
-window.endTurn=async function(){
-  if(processing||!isMyTurn())return;lockUI();try{await endTurnInternal();}finally{unlockUI();}
-};
+window.endTurn=async function(){if(processing||!isMyTurn())return;lockUI();try{await endTurnInternal();}finally{unlockUI();}};
 
 async function endTurnInternal(){
   if(!isMyTurn())return;
   const S=clone(G);const c=S.seq[S.seqIdx%S.seq.length];
   if(c.phase==='defend'&&!S.playedThisTurn){
     const atkCard=S.atkCardPlayed;
-    if(atkCard){const av=wAtk(atkCard,S);if(av>0){S.players[c.player].hp=Math.max(0,(S.players[c.player].hp||0)-av);S.log.push(`P${c.player}がガードせず ${av}ダメ！`);setTimeout(()=>attackEffect(atkCard,av,false),50);applyEffSync(atkCard,S,S.lastAtkPlayer,'onDamage',-1);}}
+    if(atkCard){const av=wAtk(atkCard,S);if(av>0){S.players[c.player].hp=Math.max(0,(S.players[c.player].hp||0)-av);S.log.push(`P${c.player}がガードせず${av}ダメ！`);setTimeout(()=>attackEffect(atkCard,av,false),50);applyEff(atkCard,S,S.lastAtkPlayer,'onDamage',-1);}}
   }
   if(c.phase==='defend'){S.atkCardPlayed=null;S.defCardPlayed=null;weatherTick(S);}
-  // Mark dead
-  for(let i=1;i<=S.numP;i++){if(S.players[i]&&(S.players[i].hp||0)<=0&&S.players[i].alive!==false){S.players[i].alive=false;S.log.push(`💀 P${i}「${pNames[i]||'P'+i}」が脱落！`);}}
-  // Skip dead
+  for(let i=1;i<=S.numP;i++){if(S.players[i]&&(S.players[i].hp||0)<=0&&S.players[i].alive!==false){S.players[i].alive=false;S.log.push(`💀 P${i}「${pNames[i]||'P'+i}」脱落！`);}}
   let nextIdx=(S.seqIdx+1)%S.seq.length;
   for(let safe=0;safe<S.seq.length*2;safe++){if(S.players[S.seq[nextIdx%S.seq.length].player]?.alive!==false)break;nextIdx=(nextIdx+1)%S.seq.length;}
   S.seqIdx=nextIdx%S.seq.length;S.playedThisTurn=false;S.turnCount=(S.turnCount||0)+1;
   const next=S.seq[S.seqIdx%S.seq.length];const np=S.players[next.player];
-  // ★ Reset opponent debuffs at turn start (they've had their effect applied)
-  // _nAtkD/_nDefD only last one turn on the attacker's state
-  if(next.phase==='attack'){
-    if(np){S.atkCardPlayed=null;S.defCardPlayed=null;
-      // ★ Cost recovery +3, first attack turn also gets +3
-      np.cost=(np.cost||0)+3;
-      S.log.push(`P${next.player}「${pNames[next.player]||'P'+next.player}」の攻撃ターン（コスト+3）`);}
-  } else {
-    if(np){np.cost=(np.cost||0)+3;S.log.push(`P${next.player}「${pNames[next.player]||'P'+next.player}」の防御ターン（コスト+3）`);}
-  }
-  // Clear ATK/DEF debuffs that were pending (they applied this turn)
-  // _nAtkD/_nDefD are consumed when the card is played, not here
+  if(np){np.cost=(np.cost||0)+3;S.atkCardPlayed=null;S.defCardPlayed=null;S.log.push(`P${next.player}「${pNames[next.player]||'P'+next.player}」の${next.phase==='attack'?'攻撃':'防御'}ターン（コスト+3）`);}
   selCard=-1;G=S;renderAll();checkWin();await save(S);
 }
 
-window.leaveToLobby=function(){if(confirm("ロビーに戻りますか？（試合は中断されます）"))window.location.href="lobby.html?room="+roomCode;};
 window.forceEnd=async function(){
   if(!confirm('試合を強制終了しますか？'))return;
   navigating=true;
   try{await remove(gameRef);}catch(e){}
-  try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}
+  if(roomRef)try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}
   window.location.href='index.html';
 };
+window.leaveToLobby=function(){if(confirm('ロビーに戻りますか？'))window.location.href=(roomCode?'lobby.html?room='+roomCode:'index.html');};
 window.onGoHome=async function(){
   navigating=true;
-  try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}
+  if(roomRef)try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}
   window.location.href='index.html';
 };
 window.onRematch=async function(){
   document.getElementById('gop').classList.remove('show');gameOverShown=false;
-  try{await update(roomRef,{action:'rematch',status:'playing'});await remove(gameRef);}catch(e){}
-  G=buildState(numP);await save(G);renderAll();
+  if(roomRef)try{await update(roomRef,{action:null,status:'playing'});await remove(gameRef);}catch(e){}
+  if(mySlot===1){G=buildState(numP);await save(G);}
 };
 
-// ═══ WIN CHECK ═══
+// ── Win check ──
 function checkWin(){
   if(!G||G.status!=='playing'||gameOverShown)return;
-  const alive=[];for(let i=1;i<=G.numP;i++)if(G.players[i]&&G.players[i].alive!==false&&(G.players[i].hp||0)>0)alive.push(i);
+  const alive=[];for(let i=1;i<=G.numP;i++)if(G.players[i]?.alive!==false&&(G.players[i]?.hp||0)>0)alive.push(i);
   if(alive.length>1)return;
   gameOverShown=true;G.status='over';
-  const iWin=alive.includes(mySlot)||(alive.length===0);
+  const iWin=alive.includes(mySlot)||alive.length===0;
   const winName=alive.length?alive.map(i=>pNames[i]||'P'+i).join('・'):'引き分け';
-  const lastLog=G.log?.[G.log.length-1]||'';
   document.getElementById('gopTitle').textContent=iWin?'🏆 勝利！':'💀 敗北';
   document.getElementById('gopTitle').style.color=iWin?'var(--gold)':'var(--red)';
-  document.getElementById('gopSub').innerHTML=`${winName} の勝利！<br><small style="font-size:.75rem;opacity:.65">${lastLog}</small>`;
+  document.getElementById('gopSub').innerHTML=`${winName} の勝利！<br><small style="opacity:.6">${G.log?.[G.log.length-1]||''}</small>`;
   setTimeout(()=>document.getElementById('gop').classList.add('show'),2000);
 }
 
-// ═══ RENDER ═══
+// ── Render ──
 function renderAll(){if(!G)return;renderMyStatus();renderTurnBanner();renderHint();renderWeather();renderOpps();renderBF();renderMyHand();renderLog();updateBtns();}
-
 function renderMyStatus(){
   const me=G.players[mySlot];if(!me)return;
   const pct=Math.max(0,Math.min(100,(me.hp/me.maxHp)*100));
   document.getElementById('myNameDisp').textContent=(pNames[mySlot]||myName)+' 👤';
   document.getElementById('myHpBar').style.width=pct+'%';
   document.getElementById('myHpTxt').textContent=`${me.hp}/${me.maxHp}`;
-  const cost=me.cost||0;const cNum=document.getElementById('myCostNum');cNum.textContent=cost;
-  const circ=document.getElementById('myCostCircle');
+  const cost=me.cost||0;document.getElementById('myCostNum').textContent=cost;
   const col=cost>=10?'rgba(241,196,15,.85)':cost>=5?'rgba(201,168,76,.65)':'rgba(201,168,76,.45)';
-  circ.style.borderColor=col;circ.style.boxShadow=cost>=5?`0 0 12px ${col}`:'none';
-  cNum.style.color=cost>=10?'#f1c40f':cost>=5?'var(--gold-light)':'var(--gold)';
+  const circ=document.getElementById('myCostCircle');circ.style.borderColor=col;circ.style.boxShadow=cost>=5?`0 0 10px ${col}`:'none';
   document.getElementById('hudTurn').textContent=`T${(G.turnCount||0)+1}`;
 }
 function renderTurnBanner(){
   const c=cur();const tb=document.getElementById('turnBadge');const bn=document.getElementById('turnBanner');const icon=document.getElementById('turnIcon');const txt=document.getElementById('turnBannerTxt');
-  if(isMyTurn()&&phase()==='attack'){tb.className='tbadge tb-a';tb.textContent='あなたの攻撃';bn.className='turn-banner attack';icon.textContent='⚔️';txt.textContent='あなたの攻撃ターン — カードを選んで「出す」を押してください';}
-  else if(isMyTurn()&&phase()==='defend'){tb.className='tbadge tb-d';tb.textContent='あなたの防御';bn.className='turn-banner defend';icon.textContent='🛡️';txt.textContent='あなたの防御ターン — 防御カードを出すかターン終了';}
-  else{const name=pNames[c.player]||`P${c.player}`;tb.className='tbadge tb-w';tb.textContent=`${name}の${phase()==='attack'?'攻撃':'防御'}`;bn.className='turn-banner wait';icon.textContent='⏳';txt.textContent=`${name} のターン — お待ちください`;}
+  if(isMyTurn()&&phase()==='attack'){tb.className='tbadge tb-a';tb.textContent='あなたの攻撃';bn.className='turn-banner attack';icon.textContent='⚔️';txt.textContent='攻撃ターン — カードを選んで「出す」を押してください';}
+  else if(isMyTurn()&&phase()==='defend'){tb.className='tbadge tb-d';tb.textContent='あなたの防御';bn.className='turn-banner defend';icon.textContent='🛡️';txt.textContent='防御ターン — 防御カードを出すかターン終了';}
+  else{const name=pNames[c.player]||`P${c.player}`;tb.className='tbadge tb-w';tb.textContent=`${name}のターン`;bn.className='turn-banner wait';icon.textContent='⏳';txt.textContent=`${name} のターン — お待ちください`;}
 }
 function renderHint(){
   const disc=G.discardCard;const atk=G.atkCardPlayed;
-  const sh=document.getElementById('shint');
-  const d=disc?`捨て札:「${disc.name}」[${getColors(disc).map(x=>(CN[x]||x)).join('/')} C${disc.cost}]`:'捨て札なし（最初は何でも出せる）';
-  const a=atk?` | 相手攻撃:「${atk.name}」ATK:${wAtk(atk)}`:'';
-  sh.textContent=d+a;
+  document.getElementById('shint').textContent=(disc?`捨て札:「${disc.name}」[${getColors(disc).map(x=>CN[x]||x).join('/')} C${disc.cost}]`:'最初は何でも出せます')+(atk?` | 攻撃:「${atk.name}」ATK:${wAtk(atk)}`:'');
 }
 function renderWeather(){const w=wData(G.weather.current);document.getElementById('wIcon').textContent=w.icon;document.getElementById('wName').textContent=w.name;document.getElementById('wEff').textContent=' '+w.eff;document.getElementById('wChg').textContent=`変化まで${2*G.numP-(G.weather.defendsDone||0)}防御`;}
 function renderOpps(){
-  const pp=document.getElementById('oppsPanel');pp.innerHTML='';const c=cur();
+  const el=document.getElementById('oppsPanel');el.innerHTML='';const c=cur();
   for(let i=1;i<=G.numP;i++){
     if(i===mySlot)continue;const p=G.players[i];if(!p)continue;
     const isDead=p.alive===false||(p.hp||0)<=0;
     const isAtk=!isDead&&c.player===i&&c.phase==='attack';const isDef=!isDead&&c.player===i&&c.phase==='defend';
     const pct=Math.max(0,Math.min(100,(p.hp/p.maxHp)*100));const name=pNames[i]||`P${i}`;
-    const d=document.createElement('div');d.className='opp-area'+(isDead?' opp-dead':isAtk?' oa':isDef?' od':'');
     const rc=isDead?'rp-dead':isAtk?'rp-a':isDef?'rp-d':'rp-w';const rt=isDead?'💀脱落':isAtk?'攻撃中':isDef?'防御中':'待機';
     const fieldCard=(G.atkCardPlayed&&G.lastAtkPlayer===i)?G.atkCardPlayed:(G.defCardPlayed&&isDef?G.defCardPlayed:null);
+    const d=document.createElement('div');d.className='opp-area'+(isDead?' opp-dead':isAtk?' oa':isDef?' od':'');
     d.innerHTML=`<div class="opp-info"><div class="opp-name">${name}</div><div class="rpill ${rc}">${rt}</div>
-      <div class="opp-hp-row"><span style="font-size:.72rem;flex-shrink:0">❤️</span><div class="opp-hb-out"><div class="opp-hb-in" style="width:${pct}%"></div></div><div class="opp-hp-txt">${p.hp}/${p.maxHp}</div></div>
+      <div class="opp-hp-row"><span style="font-size:.7rem;flex-shrink:0">❤️</span><div class="opp-hb-out"><div class="opp-hb-in" style="width:${pct}%"></div></div><div class="opp-hp-txt">${p.hp}/${p.maxHp}</div></div>
       <div class="opp-cost-c"><div class="occ-l">cost</div><div class="occ-n">${p.cost||0}</div></div>
       <span style="font-family:'Rajdhani',sans-serif;font-size:.58rem;color:var(--text-dim)">🃏${p.hand?.length||0}</span></div>
-    <div style="display:flex;gap:.3rem;align-items:flex-start;flex-wrap:wrap">
-      ${!isDead&&p.hand?.length?`<div style="display:flex;gap:.25rem;overflow-x:auto;padding-bottom:2px">${Array(Math.min(p.hand.length,6)).fill(0).map(()=>`<div class="gc facedown static-card" style="border-color:rgba(201,168,76,.15);width:38px;height:55px"><div class="gc-art" style="height:28px;font-size:.8rem;z-index:1;position:relative">🃏</div></div>`).join('')}${p.hand.length>6?`<span style="font-size:.52rem;color:var(--text-dim);align-self:center">+${p.hand.length-6}</span>`:''}</div>`:''}
+    <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:flex-start">
+      ${!isDead&&p.hand?.length?`<div style="display:flex;gap:.22rem;overflow-x:auto;padding-bottom:2px">${Array(Math.min(p.hand.length,6)).fill(0).map(()=>`<div class="gc facedown static-card" style="border-color:rgba(201,168,76,.15);width:36px;height:52px"><div class="gc-art" style="height:26px;font-size:.75rem;position:relative;z-index:1">🃏</div></div>`).join('')}${p.hand.length>6?`<span style="font-size:.52rem;color:var(--text-dim);align-self:center">+${p.hand.length-6}</span>`:''}</div>`:''}
       ${fieldCard?`<div style="flex-shrink:0">${buildGC(fieldCard,false,true)}</div>`:''}
     </div>`;
-    pp.appendChild(d);
+    el.appendChild(d);
   }
 }
 function renderBF(){
@@ -823,15 +741,15 @@ function renderBF(){
 }
 function buildGC(card,isSel,isStatic){
   const cols=getColors(card);const mc=mainC(card);const av=wAtk(card);const atkCh=av!==(card.atk||0);
-  const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#12121e" onerror="this.style.display='none'">`:(card.illust||'🃏');
+  const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.style.display='none'">`:(card.illust||'🃏');
   const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
-  const sk=cardSkillLines(card);
-  return `<div class="gc${isSel?' sel':''}${isStatic?' static-card':''}" style="border-color:${mc.border};box-shadow:${isStatic?'0 0 8px '+mc.glow:isSel?'0 0 12px '+mc.glow:'none'}">
+  const sk=cardSkills(card);
+  return `<div class="gc${isSel?' sel':''}${isStatic?' static-card':''}" style="border-color:${mc.border};box-shadow:${isSel?'0 0 12px '+mc.glow:isStatic?'0 0 7px '+mc.glow:'none'}">
     ${sk.length?'<div class="gc-sdot"></div>':''}
     <div class="gc-cs">${cs}</div>
     <div class="gc-head"><div class="gc-cost" style="background:${mc.cost}">${card.cost||1}</div><div class="gc-name">${card.name||'?'}</div></div>
     <div class="gc-art">${ill}</div>
-    <div class="gc-stats"><span style="color:${atkCh?'#f1c40f':mc.accent}">${av>0?'⚔':''}${av}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div>
+    <div class="gc-stats"><span style="color:${atkCh?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div>
     <div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div>
   </div>`;
 }
@@ -840,24 +758,21 @@ function renderMyHand(){
   const el=document.getElementById('myHand');
   if(!hand.length){el.innerHTML='<div style="color:var(--text-dim);font-size:.76rem;padding:.4rem">手札なし</div>';return;}
   const myT=isMyTurn();
-  // ★ Sort hand by cost (ascending)
   const sorted=[...hand.map((c,i)=>({card:c,origIdx:i}))].sort((a,b)=>(a.card.cost||0)-(b.card.cost||0));
-  el.innerHTML=sorted.map(({card,origIdx:i},sortedIdx)=>{
+  el.innerHTML=sorted.map(({card,origIdx:i},si)=>{
     const mc=mainC(card);const cols=getColors(card);
     const effAtk=wAtk(card);const atkCh=effAtk!==(card.atk||0);
     const effCost=Math.max(1,wCost(card)-(me._cB||0));const cstCh=effCost!==card.cost;
     const isSel=selCard===i;
-    // Check if this card needs deal animation
-    const isNew=newCardSet.has('init_'+i)||newCardSet.has('new_'+i)||newCardSet.has('init_'+sortedIdx);
-    let isDim=false;
-    if(myT&&!G.playedThisTurn){isDim=!canPlay(card);}
-    else if(myT&&G.playedThisTurn){isDim=true;}
-    const sk=cardSkillLines(card);
-    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#12121e" onerror="this.style.display='none'">`:(card.illust||'🃏');
+    const isDim=myT&&!G.playedThisTurn?!canPlay(card):myT&&G.playedThisTurn?true:false;
+    const isNew=newCards.has('init_'+i)||newCards.has('new_'+i)||newCards.has('init_'+si);
+    if(isNew){newCards.delete('init_'+i);newCards.delete('new_'+i);newCards.delete('init_'+si);}
+    const dealCls=isNew?' dealing':'';
+    const sk=cardSkills(card);
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.style.display='none'">`:(card.illust||'🃏');
     const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
-        const dealClass=isNew?' dealing':'';if(isNew){newCardSet.delete('init_'+i);newCardSet.delete('new_'+i);newCardSet.delete('init_'+sortedIdx);}
-    return `<div class="gc hand-card${isSel?' sel':''}${isDim?' dim':''}${dealClass}"`
-      style="border-color:${mc.border};box-shadow:${isSel?'0 0 16px '+mc.glow+',0 0 30px '+mc.glow.replace('.4','.2'):'none'}"
+    return `<div class="gc hand-card${isSel?' sel':''}${isDim?' dim':''}${dealCls}"
+      style="border-color:${mc.border};box-shadow:${isSel?'0 0 16px '+mc.glow+',0 0 28px '+mc.glow.replace('.4','.18'):'none'}"
       onclick="${myT&&!isDim&&!processing?`selCardFn(${i})`:'void(0)'}"
       onmouseenter="showTT(event,${i})" onmouseleave="hideTT()"
       ontouchstart="showTT(event,${i})" ontouchend="hideTT()">
@@ -865,26 +780,38 @@ function renderMyHand(){
       <div class="gc-cs">${cs}</div>
       <div class="gc-head"><div class="gc-cost" style="background:${mc.cost};${cstCh?'outline:2px solid #f1c40f;outline-offset:-1px':''}">${effCost}</div><div class="gc-name">${card.name||'?'}</div></div>
       <div class="gc-art">${ill}</div>
-      <div class="gc-stats"><span style="color:${atkCh?'#f1c40f':mc.accent}">${effAtk>0?'⚔':''}${effAtk}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div>
+      <div class="gc-stats"><span style="color:${atkCh?'#f1c40f':mc.accent}">⚔${effAtk}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div>
       <div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div>
     </div>`;
   }).join('');
   document.getElementById('handCnt').textContent=`(${hand.length}枚)`;
 }
-function renderLog(){const el=document.getElementById('glog');const logs=(G.log||[]).slice(-12);el.innerHTML=logs.map(t=>{let c='le';if(t.includes('ダメ')||t.includes('ガード'))c+=' dmg';else if(t.includes('回復'))c+=' heal';else if(t.includes('🌟'))c+=' eff';else if(t.includes('天候')||t.includes('🌤'))c+=' wth';else if(t.includes('開始')||t.includes('ゲーム'))c+=' hl';return `<div class="${c}">▸ ${t}</div>`;}).join('');el.scrollTop=el.scrollHeight;}
+function renderLog(){const el=document.getElementById('glog');const logs=(G.log||[]).slice(-12);el.innerHTML=logs.map(t=>{let c='le';if(t.includes('ダメ')||t.includes('ガード'))c+=' dmg';else if(t.includes('回復'))c+=' heal';else if(t.includes('🌟'))c+=' eff';else if(t.includes('天候'))c+=' wth';else if(t.includes('ゲーム'))c+=' hl';return`<div class="${c}">▸ ${t}</div>`;}).join('');el.scrollTop=el.scrollHeight;}
 function updateBtns(){const myT=isMyTurn();const ph=phase();document.getElementById('btnDraw').disabled=!myT||ph!=='attack'||G.playedThisTurn||processing;document.getElementById('btnPlay').disabled=!myT||selCard<0||G.playedThisTurn||processing;document.getElementById('btnEnd').disabled=!myT||processing;}
 window.showTT=function(e,i){
   const me=G?.players?.[mySlot];if(!me)return;const card=me.hand?.[i];if(!card)return;
   document.getElementById('ttN').textContent=card.name||'?';
   document.getElementById('ttS').textContent=`コスト:${Math.max(1,wCost(card)-(me._cB||0))} ATK:${wAtk(card)} DEF:${card.def||0} [${getColors(card).map(c=>CN[c]||c).join('/')}]`;
-  document.getElementById('ttSk').textContent=cardSkillLines(card).join('\n')||'スキルなし';
+  document.getElementById('ttSk').textContent=cardSkills(card).join('\n')||'スキルなし';
   document.getElementById('ttF').textContent=card.flavor||'';
   const t=document.getElementById('tooltip');t.style.display='block';
   const cx=e.touches?e.touches[0].clientX:e.clientX;const cy=e.touches?e.touches[0].clientY:e.clientY;
   t.style.left=Math.min(cx+12,innerWidth-198)+'px';t.style.top=Math.max(cy-130,5)+'px';
 };
 window.hideTT=function(){document.getElementById('tooltip').style.display='none';};
-function genDefault(){const cols=[['red'],['blue'],['yellow'],['green'],['red','blue'],['yellow','green']];const names=['騎士','魔法使い','竜','妖精','戦士','弓使い','僧侶','忍者','海賊','錬金術師','天使','悪魔','剣士','盗賊','召喚士','聖騎士','魔剣士','竜騎士','幻術師','召喚魔法'];const ills=['⚔️','🔮','🐉','🦋','🛡️','🏹','✨','🌸','🗡️','🧪','👼','😈','⚡','🗺️','📖','🏰','🌙','🦅','🌀','🔥'];return names.map((n,i)=>({id:'def'+i,name:n,colors:cols[i%cols.length],color:cols[i%cols.length][0],cost:1+~~(i/4),atk:2+(i%5),def:1+(i%4),illust:ills[i],flavor:'',effects:[],effect:{trigger:'',type:'',value:1},vfx:[]}));}
+
+// ── Add missing CSS for animations ──
+const style=document.createElement('style');
+style.textContent=`
+@keyframes fup{0%{opacity:1;transform:translateY(0)scale(1.2)}80%{opacity:.8}100%{opacity:0;transform:translateY(-75px)scale(.7)}}
+@keyframes sfA{0%{opacity:.45}100%{opacity:0}}
+@keyframes swA{0%{transform:scale(.1);opacity:.9}100%{transform:scale(5);opacity:0}}
+@keyframes ptA{0%{transform:translate(0,0)scale(1);opacity:1}100%{transform:translate(var(--tx),var(--ty))scale(0);opacity:0}}
+@keyframes biIn{0%{opacity:0;transform:translateX(16px)scale(.85)}100%{opacity:1;transform:translateX(0)scale(1)}}
+@keyframes biOut{0%{opacity:1}100%{opacity:0;transform:translateX(10px)}}
+`;
+document.head.appendChild(style);
+
 init();
 </script>
 </body>
