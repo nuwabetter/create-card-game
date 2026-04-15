@@ -153,6 +153,13 @@ let selectedCards=new Set();
 let navigating=false;
 
 // ══ Firebase: 部屋のリアルタイム監視 ══
+// ページ開いた時に古いaction/statusをクリア（ロビーに戻った時に試合画面に飛ばない）
+update(ref(db,`rooms/${roomCode}`),{action:null}).catch(()=>{});
+
+let lobbyReady=false;
+// 500ms待ってからリスナー開始（上のクリアが反映されてから）
+setTimeout(()=>{ lobbyReady=true; },500);
+
 onValue(ref(db,`rooms/${roomCode}`),snap=>{
   if(!snap.exists()){
     if(!navigating){alert('部屋が解散されました');window.location.href='index.html';}
@@ -160,8 +167,8 @@ onValue(ref(db,`rooms/${roomCode}`),snap=>{
   }
   roomData=snap.val();
   renderRoom();
-  // 試合開始シグナルを受信
-  if(roomData.status==='playing'&&!navigating){
+  // 試合開始シグナルを受信（lobbyReady後のみ反応）
+  if(lobbyReady&&roomData.status==='playing'&&!navigating){
     goToGame();
   }
 });

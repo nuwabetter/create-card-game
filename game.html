@@ -178,6 +178,13 @@ body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-se
 .proc-ov{position:fixed;inset:0;z-index:750;background:transparent;cursor:wait}
 .toast{position:fixed;bottom:4.5rem;left:50%;transform:translateX(-50%) translateY(110px);background:var(--panel);border:1px solid var(--gold);border-radius:7px;padding:.5rem 1rem;font-family:'Rajdhani',sans-serif;font-size:.78rem;letter-spacing:.07em;color:var(--gold);z-index:420;transition:transform .32s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:88vw;text-align:center}
 .toast.show{transform:translateX(-50%) translateY(0)}
+/* Card deal animation */
+@keyframes dealCard{
+  0%{opacity:0;transform:translateY(-40px) scale(.7) rotate(-8deg)}
+  60%{opacity:1;transform:translateY(6px) scale(1.05) rotate(1deg)}
+  100%{opacity:1;transform:translateY(0) scale(1) rotate(0deg)}
+}
+.hand-card.dealing{animation:dealCard .38s cubic-bezier(.34,1.4,.64,1) forwards}
 </style>
 </head>
 <body>
@@ -256,7 +263,8 @@ const WEATHERS=[{id:'sun',icon:'☀️',name:'晴れ',eff:'天候効果なし'},
 
 let G=null,mySlot=parseInt(localStorage.getItem('mySlot')||'1'),numP=parseInt(localStorage.getItem('actualPlayers')||localStorage.getItem('numPlayers')||'2');
 let myName=localStorage.getItem('myName')||('P'+mySlot),pNames=JSON.parse(localStorage.getItem('playerNames')||'{}');
-let selCard=-1,pool=[],processing=false,gameOverShown=false;
+let selCard=-1,pool=[],processing=false,gameOverShown=false,navigating=false;
+const newCardSet=new Set(); // indices of hand cards that need deal animation
 
 // ═══ HELPERS ═══
 const wData=id=>WEATHERS.find(w=>w.id===id)||WEATHERS[0];
@@ -481,6 +489,7 @@ function buildState(n){
     const slot=order[oi];
     // ★ All players start with cost 1
     const hand=Array.from({length:oi===0?7:8},()=>drawCard()).filter(Boolean);
+    if(slot===mySlot)hand.forEach((_,i)=>newCardSet.add('init_'+i));
     players[slot]={hp:20,maxHp:20,cost:1,_cB:0,_nAtkD:0,_nDefD:0,hand,alive:true};
   }
   return{status:'playing',numP:n,seqIdx:0,seq,players,discardCard:null,atkCardPlayed:null,defCardPlayed:null,playedThisTurn:false,turnCount:0,weather:{current:'sun',changeCount:0,defendsDone:0},log:[`ゲーム開始！先行: P${seq[0].player}「${pNames[seq[0].player]||'P'+seq[0].player}」`]};
@@ -513,9 +522,10 @@ function init(){
   // まずキャッシュで起動
   applyCards(cachedCards);
 
-  // --- Step2: ゲーム状態もlocalStorageから復元を試みる ---
+  // --- Step2: ゲーム状態の初期化 ---
+  // Firebase接続前に暫定状態を作る（後でFirebaseから上書きされる）
   setLoad(60,'ゲームを初期化中...');
-  G=buildState(numP);
+  G=buildState(numP); // 暫定状態（Firebaseから実際の状態が届いたら上書き）
 
   // --- Step3: 即座に画面を表示（Firebaseを待たない）---
   setLoad(100,'開始！');
@@ -551,11 +561,27 @@ function init(){
   },{onlyOnce:false});
 
   // --- Step5: ゲーム状態をFirebaseと同期（バックグラウンド）---
+  let gameInitialized=false;
   onValue(gameRef, snap=>{
     try{
-      if(!snap.val()||processing)return;
+      if(processing)return;
+      if(!snap.val()){
+        // Firebaseにゲーム状態がない = このプレイヤーが最初に接続
+        // ホストだけがbuildStateして保存（mySlot===1のプレイヤー）
+        if(!gameInitialized&&mySlot===1){
+          gameInitialized=true;
+          G=buildState(numP);
+          save(G);
+          renderAll();
+        }
+        return;
+      }
       const ng=snap.val();
-      if(!G){G=ng;renderAll();checkWin();return;}
+      // 初回は必ずFirebaseの状態で上書き（先行後攻を統一）
+      if(!gameInitialized){
+        gameInitialized=true;
+        G=ng;renderAll();checkWin();return;
+      }
       if(ng.turnCount===G.turnCount&&ng.seqIdx===G.seqIdx&&ng.playedThisTurn===G.playedThisTurn&&ng.status===G.status)return;
       G=ng;renderAll();checkWin();
     }catch(e){console.warn('gameRef onValue error:',e);}
@@ -567,11 +593,18 @@ function init(){
       try{
         if(!snap.exists())return;
         const room=snap.val();
-        if(room.action==='home'){gameOverShown=false;setTimeout(()=>{window.location.href='index.html';},300);}
-        else if(room.action==='rematch'){
+        // actionを一度読んだらFirebaseから消去（重複発火防止）
+        if(room.action==='home'&&!navigating){
+          navigating=true;
+          remove(ref(db,`rooms/${roomCode}/action`)).catch(()=>{});
+          gameOverShown=false;
+          setTimeout(()=>{window.location.href='index.html';},300);
+        } else if(room.action==='rematch'&&!navigating){
+          remove(ref(db,`rooms/${roomCode}/action`)).catch(()=>{});
           gameOverShown=false;
           document.getElementById('gop').classList.remove('show');
-          setTimeout(()=>{G=buildState(numP);save(G);renderAll();},300);
+          // ★ ホスト以外はFirebaseからゲーム状態を受信するだけ
+          // ホストがbuildStateして保存済みのものをonValueで受け取る
         }
       }catch(e){console.warn('roomRef onValue error:',e);}
     });
@@ -642,7 +675,7 @@ window.playCard=async function(){
       S.atkCardPlayed=null;weatherTick(S);
     }
     // Draw on play
-    const drawn=drawCard();if(drawn){p.hand.push(drawn);S.log.push(`P${mySlot}→1枚ドロー`);}
+    const drawn=drawCard();if(drawn){p.hand.push(drawn);S.log.push(`P${mySlot}→1枚ドロー`);newCardSet.add('new_'+(p.hand.length-1));}
     triggerVfx(pc);
     selCard=-1;G=S;renderAll();checkWin();
     await save(S);
@@ -659,7 +692,7 @@ window.extraDraw=async function(){
     if((p.hp||0)<=2){showToast('HP2消費できません');return;}
     // ★ Weighted draw: biased toward colors player doesn't have
     const card=drawCardWeighted(p.hand);if(!card){showToast('カードプールが空です');return;}
-    p.hp-=2;p.hand.push(card);S.log.push(`P${mySlot}がHP2消費で追加ドロー（色重み付き）`);
+    p.hp-=2;p.hand.push(card);newCardSet.add('new_'+(p.hand.length-1));S.log.push(`P${mySlot}がHP2消費で追加ドロー（色重み付き）`);
     G=S;renderAll();await save(S);showToast('ドロー！');
   }finally{unlockUI();}
 };
@@ -701,12 +734,15 @@ async function endTurnInternal(){
 window.leaveToLobby=function(){if(confirm("ロビーに戻りますか？（試合は中断されます）"))window.location.href="lobby.html?room="+roomCode;};
 window.forceEnd=async function(){
   if(!confirm('試合を強制終了しますか？'))return;
+  navigating=true;
   try{await remove(gameRef);}catch(e){}
-  window.location.href='lobby.html?room='+roomCode;
+  try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}
+  window.location.href='index.html';
 };
 window.onGoHome=async function(){
+  navigating=true;
   try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}
-  setTimeout(()=>{window.location.href='index.html';},200);
+  window.location.href='index.html';
 };
 window.onRematch=async function(){
   document.getElementById('gop').classList.remove('show');gameOverShown=false;
@@ -806,18 +842,21 @@ function renderMyHand(){
   const myT=isMyTurn();
   // ★ Sort hand by cost (ascending)
   const sorted=[...hand.map((c,i)=>({card:c,origIdx:i}))].sort((a,b)=>(a.card.cost||0)-(b.card.cost||0));
-  el.innerHTML=sorted.map(({card,origIdx:i})=>{
+  el.innerHTML=sorted.map(({card,origIdx:i},sortedIdx)=>{
     const mc=mainC(card);const cols=getColors(card);
     const effAtk=wAtk(card);const atkCh=effAtk!==(card.atk||0);
     const effCost=Math.max(1,wCost(card)-(me._cB||0));const cstCh=effCost!==card.cost;
     const isSel=selCard===i;
+    // Check if this card needs deal animation
+    const isNew=newCardSet.has('init_'+i)||newCardSet.has('new_'+i)||newCardSet.has('init_'+sortedIdx);
     let isDim=false;
     if(myT&&!G.playedThisTurn){isDim=!canPlay(card);}
     else if(myT&&G.playedThisTurn){isDim=true;}
     const sk=cardSkillLines(card);
     const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#12121e" onerror="this.style.display='none'">`:(card.illust||'🃏');
     const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
-    return `<div class="gc hand-card${isSel?' sel':''}${isDim?' dim':''}"
+        const dealClass=isNew?' dealing':'';if(isNew){newCardSet.delete('init_'+i);newCardSet.delete('new_'+i);newCardSet.delete('init_'+sortedIdx);}
+    return `<div class="gc hand-card${isSel?' sel':''}${isDim?' dim':''}${dealClass}"`
       style="border-color:${mc.border};box-shadow:${isSel?'0 0 16px '+mc.glow+',0 0 30px '+mc.glow.replace('.4','.2'):'none'}"
       onclick="${myT&&!isDim&&!processing?`selCardFn(${i})`:'void(0)'}"
       onmouseenter="showTT(event,${i})" onmouseleave="hideTT()"

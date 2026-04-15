@@ -238,7 +238,7 @@ input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;h
         <div id="recompressBar" style="height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));border-radius:4px;transition:width .3s;width:0%"></div>
       </div>
     </div>
-    <div class="deck-cards" id="deckCards"><div class="empty-deck">Firebase から読み込み中...</div></div>
+    <div class="deck-cards" id="deckCards"><div class="empty-deck" id="loadingMsg">Firebase から読み込み中... <button onclick="retryLoad()" style="margin-left:.5rem;padding:.2rem .5rem;border-radius:5px;background:rgba(201,168,76,.15);border:1px solid var(--gold-dim);color:var(--gold);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:.7rem">再読み込み</button></div></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -360,7 +360,17 @@ window.toggleCard=function(id){
 window.selectAllCards=function(){allCards.forEach(c=>selectedCards.add(c.id));renderCardSelect();showToast('全カードを選択しました');};
 window.deselectAllCards=function(){selectedCards.clear();renderCardSelect();showToast('全カードの選択を解除しました（全カード使用）');};
 
+// カード読み込みタイムアウト（10秒で再試行ボタン表示）
+let cardLoadTimer=setTimeout(()=>{
+  if(!allCards.length){
+    const el=document.getElementById('deckCards');
+    if(el)el.innerHTML='<div class="empty-deck">読み込みに時間がかかっています。<button onclick="retryLoad()" style="margin-left:.5rem;padding:.2rem .5rem;border-radius:5px;background:rgba(201,168,76,.15);border:1px solid var(--gold-dim);color:var(--gold);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:.7rem">再読み込み</button></div>';
+  }
+},10000);
+window.retryLoad=function(){window.location.reload();};
+
 onValue(cardsRef,snap=>{
+  clearTimeout(cardLoadTimer);
   allCards=Object.values(snap.val()||{}).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
   // 初回読み込み時、localStorageに保存がなければ全選択
   if(!localStorage.getItem('activeCardIds')){allCards.forEach(c=>selectedCards.add(c.id));}
