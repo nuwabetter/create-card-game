@@ -251,23 +251,34 @@ window.startGame=async function(){
   const names={};
   players.forEach(p=>{names[p.slot]=p.name;});
 
-  try{
-    // 部屋のstatusをplayingにして試合情報を書き込む
-    await update(ref(db,`rooms/${roomCode}`),{
-      status:'playing',
-      gameInfo:{
-        activeCardIds:activeIds,
-        numPlayers:players.length,
-        playerNames:names,
-        playerSlots:Object.fromEntries(players.map(p=>[p.id,p.slot])),
-        startedAt:Date.now()
-      }
-    });
-    // goToGame はonValueで呼ばれる
-  }catch(e){
-    document.getElementById('spinOv').classList.remove('show');
-    showToast('エラー: '+e.message);
-  }
+  const gameInfo={
+    activeCardIds:activeIds,
+    numPlayers:players.length,
+    playerNames:names,
+    playerSlots:Object.fromEntries(players.map(p=>[p.id,p.slot])),
+    startedAt:Date.now()
+  };
+
+  // ★ ホスト自身は先にlocalStorageを設定してから遷移
+  //    Firebaseの書き込み完了を待たない（onValueに依存しない）
+  const mySlotNow=gameInfo.playerSlots[myId]||1;
+  localStorage.setItem('roomCode',roomCode);
+  localStorage.setItem('myPlayerId',myId);
+  localStorage.setItem('mySlot',String(mySlotNow));
+  localStorage.setItem('myName',myName);
+  localStorage.setItem('numPlayers',String(players.length));
+  localStorage.setItem('actualPlayers',String(players.length));
+  localStorage.setItem('playerNames',JSON.stringify(names));
+  localStorage.setItem('activeCardIds',activeIds?JSON.stringify(activeIds):'all');
+
+  // Firebaseへの書き込みはバックグラウンドで（失敗しても遷移する）
+  update(ref(db,`rooms/${roomCode}`),{status:'playing',gameInfo}).catch(e=>console.warn('Firebase write fail:',e));
+
+  // 即座にgame.htmlへ遷移
+  navigating=true;
+  document.getElementById('spinOv').classList.add('show');
+  document.getElementById('spinMsg').textContent='試合ページに移動します...';
+  setTimeout(()=>window.location.href='game.html',300);
 };
 
 function goToGame(){

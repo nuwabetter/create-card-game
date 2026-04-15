@@ -263,7 +263,7 @@ const wData=id=>WEATHERS.find(w=>w.id===id)||WEATHERS[0];
 const getColors=c=>Array.isArray(c.colors)?c.colors:[c.color||'red'];
 const mainC=c=>CM[getColors(c)[0]]||CM.red;
 const clone=o=>JSON.parse(JSON.stringify(o));
-const setLoad=(p,m)=>{document.getElementById('loadFill').style.width=p+'%';document.getElementById('loadMsg').textContent=m;};
+const setLoad=(p,m)=>{document.getElementById('loadFill').style.width=p+'%';document.getElementById('loadMsg').textContent=m;console.log('[LOAD]',p+'%',m);};
 function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
 function drawCard(){if(!pool.length)return null;return clone(pool[Math.floor(Math.random()*pool.length)]);}
 // ★ Weighted draw for extraDraw: cards with colors the player DOESN'T have get 3x weight
@@ -283,8 +283,6 @@ function drawCardWeighted(playerHand){
   return clone(weighted[Math.floor(Math.random()*weighted.length)]);
 }
 const cur=S=>(S||G).seq[(S||G).seqIdx%(S||G).seq.length];
-const isMyTurn=S=>cur(S).player===mySlot;
-const phase=S=>cur(S).phase;
 const isMyTurn=S=>cur(S).player===mySlot;
 const phase=S=>cur(S).phase;
 function lockUI(){processing=true;if(!document.getElementById('procOv')){const o=document.createElement('div');o.className='proc-ov';o.id='procOv';document.body.appendChild(o);}}
@@ -521,11 +519,24 @@ function init(){
 
   // --- Step3: 即座に画面を表示（Firebaseを待たない）---
   setLoad(100,'開始！');
+  // 200ms後に画面表示
   setTimeout(()=>{
     document.getElementById('loadScr').style.display='none';
     document.getElementById('gameApp').style.display='flex';
     renderAll();
   },200);
+
+  // 緊急フォールバック: 3秒後もまだロード画面なら強制表示
+  setTimeout(()=>{
+    const ls=document.getElementById('loadScr');
+    if(ls&&ls.style.display!=='none'){
+      console.warn('[EMERGENCY] Force showing game after 3s timeout');
+      ls.style.display='none';
+      document.getElementById('gameApp').style.display='flex';
+      if(!G)G=buildState(numP);
+      renderAll();
+    }
+  },3000);
 
   // --- Step4: Firebaseからカードを非同期で取得（バックグラウンド）---
   // 成功したらpool更新、失敗してもゲームには影響しない
