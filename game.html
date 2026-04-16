@@ -630,18 +630,18 @@ function init(){
         return;
       }
 
-      // ★ Subsequent updates: always apply (opponent's moves must be reflected)
-      // Skip ONLY if nothing meaningful changed
-      const handLenMe=(ng.players?.[mySlot]?.hand||[]).length;
-      const handLenNow=(G?.players?.[mySlot]?.hand||[]).length;
-      if(ng.turnCount===G?.turnCount&&
-         ng.seqIdx===G?.seqIdx&&
-         ng.playedThisTurn===G?.playedThisTurn&&
-         ng.status===G?.status&&
-         handLenMe===handLenNow)return;
-
-      // Apply update with image rehydration
+      // ★ ALWAYS apply Firebase updates - trust Firebase as single source of truth
+      // Preserve selCard if the update is a self-echo (our own save coming back)
+      const prevSelCard=selCard;
+      const prevSeqIdx=G?.seqIdx;
+      const prevTurn=G?.turnCount;
       G=rehydrateState(ng);
+      // If seqIdx and turnCount didn't change, this is likely a self-echo - keep selCard
+      if(ng.seqIdx===prevSeqIdx&&ng.turnCount===prevTurn){
+        selCard=prevSelCard;
+      } else {
+        selCard=-1;// Turn changed - reset selection
+      }
       renderAll();checkWin();
     }catch(e){console.warn('gameRef error:',e.message);}
   });
