@@ -250,7 +250,7 @@ import{getDatabase,ref,set,onValue,remove,update}from"https://www.gstatic.com/fi
 const FB={apiKey:"AIzaSyBsASKwkmpRx_vi7JBqC-fvBl3LOgoOtbo",authDomain:"newcard-8fd59.firebaseapp.com",databaseURL:"https://newcard-8fd59-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"newcard-8fd59",storageBucket:"newcard-8fd59.firebasestorage.app",messagingSenderId:"822236707244",appId:"1:822236707244:web:f2a82f612226d7ac3f6209"};
 const db=getDatabase(initializeApp(FB));
 
-// ── Params from localStorage (set by lobby.html) ──
+// ─── LocalStorage params (set by lobby.html before navigating here) ───
 const roomCode=localStorage.getItem('roomCode')||'';
 const mySlot=parseInt(localStorage.getItem('mySlot')||'1');
 const numP=parseInt(localStorage.getItem('actualPlayers')||localStorage.getItem('numPlayers')||'2');
@@ -258,12 +258,12 @@ const myName=localStorage.getItem('myName')||'P'+mySlot;
 const pNames=JSON.parse(localStorage.getItem('playerNames')||'{}');
 const activeIdStr=localStorage.getItem('activeCardIds')||'all';
 
-// ── Firebase refs ──
+// Firebase refs
 const gameRef=roomCode?ref(db,`rooms/${roomCode}/gameState`):ref(db,'gameState_solo');
 const cardsRef=ref(db,'sharedCards');
 const roomRef=roomCode?ref(db,`rooms/${roomCode}`):null;
 
-// ── Constants ──
+// ─── Constants ───
 const CM={
   red:{border:'#c0392b',accent:'#e74c3c',glow:'rgba(192,57,43,.4)',cost:'#c0392b',dot:'#e74c3c',fx:'rgba(231,76,60,.85)'},
   blue:{border:'#2471a3',accent:'#3498db',glow:'rgba(36,113,163,.4)',cost:'#2471a3',dot:'#3498db',fx:'rgba(52,152,219,.85)'},
@@ -273,19 +273,28 @@ const CM={
 const CN={red:'赤',blue:'青',yellow:'黄',green:'緑'};
 const WEATHERS=[{id:'sun',icon:'☀️',name:'晴れ',eff:'天候効果なし'},{id:'rain',icon:'🌧️',name:'雨',eff:'コスト-1(最低1)'},{id:'storm',icon:'⛈️',name:'嵐',eff:'全ATK+2'}];
 
-// ── Mutable state ──
-let G=null,pool=[],processing=false,gameOverShown=false,navigating=false,gameInited=false;
-let selCard=-1;
-const newCards=new Set();// card indices needing deal animation
+// ─── Mutable state ───
+let G=null,pool=[],poolMap={},navigating=false,gameOverShown=false;
+let processing=false,selCard=-1;
+const newCards=new Set();
 
-// ── Helpers ──
+// ─── Helpers ───
 const wData=id=>WEATHERS.find(w=>w.id===id)||WEATHERS[0];
 const getColors=c=>Array.isArray(c.colors)?c.colors:[c.color||'red'];
 const mainC=c=>CM[getColors(c)[0]]||CM.red;
 const clone=o=>JSON.parse(JSON.stringify(o));
 const setLoad=(p,m)=>{document.getElementById('loadFill').style.width=p+'%';document.getElementById('loadMsg').textContent=m;};
-function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
 function showGame(){document.getElementById('loadScr').style.display='none';document.getElementById('gameApp').style.display='flex';}
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
+
+// ─── Pool management ───
+// poolMap: cardId → full card with images
+// This lets us re-inject images after Firebase strips them
+function setPool(cards){
+  pool=cards;
+  poolMap={};
+  cards.forEach(c=>{if(c.id)poolMap[c.id]=c;});
+}
 function drawCard(){if(!pool.length)return null;return clone(pool[Math.floor(Math.random()*pool.length)]);}
 function drawCardWeighted(hand){
   if(!pool.length)return null;
@@ -293,14 +302,41 @@ function drawCardWeighted(hand){
   const w=[];for(const c of pool){const n=getColors(c).some(col=>!myC.has(col));for(let i=0;i<(n?3:1);i++)w.push(c);}
   return clone(w[~~(Math.random()*w.length)]);
 }
+
+// ★ KEY FIX: Re-inject images from poolMap into cards that have illust='[img]'
+function rehydrate(card){
+  if(!card)return card;
+  if(card.illust==='[img]'&&card.id&&poolMap[card.id]){
+    card.illust=poolMap[card.id].illust;
+  }
+  return card;
+}
+function rehydrateState(S){
+  if(!S)return S;
+  for(const p of Object.values(S.players||{})){
+    (p.hand||[]).forEach(rehydrate);
+  }
+  rehydrate(S.atkCardPlayed);rehydrate(S.defCardPlayed);rehydrate(S.discardCard);
+  return S;
+}
+
+function applyPool(cards){
+  let p=cards;
+  if(activeIdStr&&activeIdStr!=='all'){
+    try{const ids=new Set(JSON.parse(activeIdStr));p=cards.filter(c=>ids.has(c.id));}catch(e){}
+  }
+  if(!p.length)p=cards;
+  if(!p.length)p=genDefault();
+  setPool(p);
+}
+
 const cur=S=>(S||G).seq[(S||G).seqIdx%(S||G).seq.length];
 const isMyTurn=S=>cur(S).player===mySlot;
-const isMine=S=>phase(S)==='attack'&&isMyTurn(S)||phase(S)==='defend'&&isMyTurn(S);
 const phase=S=>cur(S).phase;
 function lockUI(){processing=true;if(!document.getElementById('procOv')){const o=document.createElement('div');o.className='proc-ov';o.id='procOv';document.body.appendChild(o);}}
 function unlockUI(){processing=false;const o=document.getElementById('procOv');if(o)o.remove();}
 
-// ── Weather ──
+// ─── Weather ───
 function wCost(card,S){return(S||G).weather.current==='rain'?Math.max(1,(card.cost||1)-1):(card.cost||1);}
 function wAtk(card,S){S=S||G;return(card.atk||0)+(S.weather.current==='storm'?2:0);}
 function setWeather(S,id){S.weather.current=id;S.weather.defendsDone=0;S.log.push(`🌤 天候→${wData(id).icon}${wData(id).name}`);}
@@ -309,12 +345,12 @@ function weatherTick(S){
   if(S.weather.defendsDone>=2*S.numP){
     S.weather.defendsDone=0;
     const ids=['sun','rain','storm'].filter(w=>w!==S.weather.current);
-    const pick=ids[~~(Math.random()*ids.length)]||'sun';
-    S.weather.current=pick;S.log.push(`🌤 天候変化→${wData(pick).icon}${wData(pick).name}`);
+    const nw=ids[~~(Math.random()*ids.length)]||'sun';
+    S.weather.current=nw;S.log.push(`🌤 天候変化→${wData(nw).icon}${wData(nw).name}`);
   }
 }
 
-// ── canPlay ──
+// ─── canPlay ───
 function canPlay(card,S){
   S=S||G;const me=S.players[mySlot];if(!me)return false;
   if((me.cost||0)<wCost(card,S))return false;
@@ -333,7 +369,7 @@ function canPlay(card,S){
   return true;
 }
 
-// ── Skill text ──
+// ─── Skill text ───
 const EFF_DESC={
   draw:n=>`${n}枚ドロー`,selfHeal:n=>`自HP+${n}`,selfDamage:n=>`自-${n}ダメ`,
   selfAtkUp:n=>`手札ATK+${n}`,selfDefUp:n=>`手札DEF+${n}`,
@@ -342,14 +378,15 @@ const EFF_DESC={
   selfCostUp:n=>`自コスト+${n}`,oppCostDown:n=>`相コスト-${n}`,
   oppAtkDown:n=>`相ATK-${n}`,oppDefDown:n=>`相DEF-${n}`,
   weatherSun:()=>'→☀️',weatherRain:()=>'→🌧️',weatherStorm:()=>'→⛈️',weatherChange:()=>'天候変化',
-  buffAtk:n=>`手札ATK+${n}`,buffDef:n=>`手札DEF+${n}`,heal:n=>`自HP+${n}`,damage:n=>`相手+${n}ダメ`,costReduce:n=>`次コスト-${n}`,costGain:n=>`自コスト+${n}`,
+  buffAtk:n=>`手札ATK+${n}`,buffDef:n=>`手札DEF+${n}`,heal:n=>`自HP+${n}`,
+  damage:n=>`相手+${n}ダメ`,costReduce:n=>`次コスト-${n}`,costGain:n=>`自コスト+${n}`,
 };
 const TRIG_S={onAttack:'攻撃時',onDefend:'防御時',onPlay:'出した時',onDamage:'ダメ与',onTakeDmg:'被ダメ',ifHpLow:'HP≤n',ifHpHigh:'HP≥n',ifChance:'n%で',ifWeatherSun:'晴れ時',ifWeatherRain:'雨時',ifWeatherStorm:'嵐時',ifTurnGte:'T≥n',playCondition:'★出し条件'};
 const PCOND_S={ifHpLow:'HP≤n',ifHpHigh:'HP≥n',ifChance:'n%',ifWeatherSun:'晴れ時',ifWeatherRain:'雨時',ifWeatherStorm:'嵐時'};
 function skillLine(e){
-  if(e.trigger==='playCondition'){return`★出し条件[${(PCOND_S[e.playCond]||e.playCond||'?').replace(/n/g,e.condVal||'?')}]`;}
-  const trig=e.trigger||'';const effKey=e.eff||e.type||'';const ev=e.effVal||e.value||1;const cv=e.condVal||ev;
-  const t=(TRIG_S[trig]||trig).replace(/n/g,cv);const ef=EFF_DESC[effKey]?EFF_DESC[effKey](ev):'';
+  if(e.trigger==='playCondition')return`★出し条件[${(PCOND_S[e.playCond]||'?').replace(/n/g,e.condVal||'?')}]`;
+  const trig=e.trigger||'';const ek=e.eff||e.type||'';const ev=e.effVal||e.value||1;const cv=e.condVal||ev;
+  const t=(TRIG_S[trig]||trig).replace(/n/g,cv);const ef=EFF_DESC[ek]?EFF_DESC[ek](ev):'';
   if(!t&&!ef)return '';return`【${t||'常時'}】${ef}`;
 }
 function cardSkills(card){
@@ -357,42 +394,18 @@ function cardSkills(card){
   return effs.map(e=>skillLine(e)).filter(Boolean);
 }
 
-// ── Card pick modal ──
-function pickHandCard(hand,title){
-  return new Promise(res=>{
-    if(!hand?.length){res(-1);return;}
-    document.getElementById('cpovT').textContent=title||'手札から1枚選んでください';
-    const s=document.getElementById('cpovS');s.innerHTML='';
-    hand.forEach((card,i)=>{
-      const mc=mainC(card);const div=document.createElement('div');div.className='cpov-item';
-      const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.style.display='none'">`:(card.illust||'🃏');
-      const cs=getColors(card).map(c=>`<div style="flex:1;background:${CM[c]?.dot||'#888'}"></div>`).join('');
-      div.innerHTML=`<div class="gc static-card" style="border-color:${mc.border};width:90px;height:138px">
-        <div style="height:5px;display:flex">${cs}</div>
-        <div class="gc-head" style="padding:3px 4px"><div class="gc-cost" style="background:${mc.cost};width:18px;height:18px;font-size:.65rem">${card.cost}</div><div class="gc-name" style="font-size:.5rem;word-break:break-all;max-height:2em">${card.name||'?'}</div></div>
-        <div class="gc-art" style="height:55px;font-size:2rem">${ill}</div>
-        <div class="gc-stats" style="font-size:.62rem;padding:2px 4px"><span style="color:${mc.accent}">⚔${wAtk(card)}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div>
-        <div class="gc-flavor" style="padding:2px 4px"><div class="gc-sl" style="font-size:.46rem">${cardSkills(card).join(' ')}</div></div>
-      </div>`;
-      div.onclick=()=>{document.getElementById('cpov').style.display='none';res(i);};
-      s.appendChild(div);
-    });
-    document.getElementById('cpov').style.display='flex';
-  });
-}
-
-// ── Apply effects (sync) ──
+// ─── Effects ───
 function applyEff(card,S,slot,trigger,pickIdx){
   if(!card)return;
   const effs=card.effects?.length?card.effects:(card.effect&&(card.effect.trigger||card.effect.type)?[{trigger:card.effect.trigger,eff:card.effect.type||'',effVal:card.effect.value,condVal:3}]:[]);
-  const COND=['ifHpLow','ifHpHigh','ifChance','ifWeatherSun','ifWeatherRain','ifWeatherStorm','ifTurnGte'];
-  const PLAY=['onPlay','onAttack','onDefend'];
+  const COND_TRIGS=['ifHpLow','ifHpHigh','ifChance','ifWeatherSun','ifWeatherRain','ifWeatherStorm','ifTurnGte'];
+  const PLAY_TRIGS=['onPlay','onAttack','onDefend'];
   const getOpp=sl=>{if(S.numP===2)return sl===1?2:1;const ni=(S.seqIdx+1)%S.seq.length;return S.seq[ni].player;};
   for(const e of effs){
     const trig=e.trigger||'';if(trig==='playCondition')continue;
-    const effKey=e.eff||e.type||'';const ev=parseInt(e.effVal||e.value||1);const cv=parseInt(e.condVal||ev);
-    if(COND.includes(trig)){
-      if(!PLAY.includes(trigger))continue;
+    const ek=e.eff||e.type||'';const ev=parseInt(e.effVal||e.value||1);const cv=parseInt(e.condVal||ev);
+    if(COND_TRIGS.includes(trig)){
+      if(!PLAY_TRIGS.includes(trigger))continue;
       if(trig==='ifHpLow'&&(S.players[slot]?.hp||0)>cv)continue;
       if(trig==='ifHpHigh'&&(S.players[slot]?.hp||0)<cv)continue;
       if(trig==='ifChance'&&Math.random()*100>cv)continue;
@@ -400,15 +413,15 @@ function applyEff(card,S,slot,trigger,pickIdx){
       if(trig==='ifWeatherRain'&&S.weather.current!=='rain')continue;
       if(trig==='ifWeatherStorm'&&S.weather.current!=='storm')continue;
       if(trig==='ifTurnGte'&&(S.turnCount||0)<cv)continue;
-    } else{if(trig!==trigger)continue;}
+    } else if(trig!==trigger)continue;
     const p=S.players[slot];if(!p)continue;
     const oppSlot=getOpp(slot);const op=oppSlot?S.players[oppSlot]:null;
-    switch(effKey){
+    switch(ek){
       case'draw':for(let i=0;i<ev;i++){const d=drawCard();if(d){p.hand.push(d);newCards.add('new_'+(p.hand.length-1));}}S.log.push(`🌟${card.name}→${ev}枚ドロー`);break;
       case'selfHeal':case'heal':if((p.hp||0)>0){p.hp=Math.min(p.maxHp,(p.hp||0)+ev);S.log.push(`🌟${card.name}→自HP+${ev}`);}break;
       case'selfDamage':p.hp=Math.max(0,(p.hp||0)-ev);S.log.push(`🌟${card.name}→自-${ev}ダメ`);break;
-      case'selfAtkUp':case'buffAtk':{const idx=pickIdx??0;if(p.hand[idx]){p.hand[idx].atk=(p.hand[idx].atk||0)+ev;S.log.push(`🌟${card.name}→${p.hand[idx].name}ATK+${ev}`);}}break;
-      case'selfDefUp':case'buffDef':{const idx=pickIdx??0;if(p.hand[idx]){p.hand[idx].def=(p.hand[idx].def||0)+ev;S.log.push(`🌟${card.name}→${p.hand[idx].name}DEF+${ev}`);}}break;
+      case'selfAtkUp':case'buffAtk':{const idx=pickIdx??0;if(p.hand[idx]){p.hand[idx].atk=(p.hand[idx].atk||0)+ev;S.log.push(`🌟${card.name}→ATK+${ev}`);}}break;
+      case'selfDefUp':case'buffDef':{const idx=pickIdx??0;if(p.hand[idx]){p.hand[idx].def=(p.hand[idx].def||0)+ev;S.log.push(`🌟${card.name}→DEF+${ev}`);}}break;
       case'oppDamage':case'damage':if(op){op.hp=Math.max(0,(op.hp||0)-ev);S.log.push(`🌟${card.name}→相手-${ev}ダメ`);}break;
       case'selfCostDown':case'costReduce':p._cB=(p._cB||0)+ev;S.log.push(`🌟${card.name}→次コスト-${ev}`);break;
       case'selfCostUp':case'costGain':p.cost=(p.cost||0)+ev;S.log.push(`🌟${card.name}→自コスト+${ev}`);break;
@@ -422,19 +435,19 @@ function applyEff(card,S,slot,trigger,pickIdx){
   }
 }
 
-// ── VFX (lightweight) ──
+// ─── VFX ───
 function getCenter(){const bf=document.querySelector('.battlefield');if(!bf)return{x:innerWidth/2,y:innerHeight/2};const r=bf.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};}
-function spawnPt(cx,cy,d,sz,col,dur){const e=document.createElement('div');e.className='pt';const a=Math.random()*360;const rad=a*Math.PI/180;e.style.cssText=`position:fixed;left:${cx-sz/2}px;top:${cy-sz/2}px;width:${sz}px;height:${sz}px;background:${col};border-radius:50%;pointer-events:none;z-index:585;animation:ptA ${dur}s ease-out forwards;--tx:${Math.cos(rad)*d}px;--ty:${Math.sin(rad)*d}px`;document.body.appendChild(e);setTimeout(()=>e.remove(),(dur*1000)+50);}
-function flashScreen(col){const f=document.createElement('div');f.style.cssText=`position:fixed;inset:0;background:${col};opacity:.2;pointer-events:none;z-index:560;animation:sfA .5s ease-out forwards`;document.body.appendChild(f);setTimeout(()=>f.remove(),600);}
+function spawnPt(cx,cy,d,sz,col,dur){const e=document.createElement('div');const a=Math.random()*360,rad=a*Math.PI/180;e.style.cssText=`position:fixed;left:${cx-sz/2}px;top:${cy-sz/2}px;width:${sz}px;height:${sz}px;background:${col};border-radius:50%;pointer-events:none;z-index:585;animation:ptA ${dur}s ease-out forwards;--tx:${Math.cos(rad)*d}px;--ty:${Math.sin(rad)*d}px`;document.body.appendChild(e);setTimeout(()=>e.remove(),(dur*1000)+50);}
+function flashScreen(col){const f=document.createElement('div');f.style.cssText=`position:fixed;inset:0;background:${col};opacity:.18;pointer-events:none;z-index:560;animation:sfA .5s ease-out forwards`;document.body.appendChild(f);setTimeout(()=>f.remove(),600);}
 function floatNum(txt,col,cx,cy){const e=document.createElement('div');e.style.cssText=`position:fixed;left:${cx-25}px;top:${cy-15}px;font-family:'Rajdhani',sans-serif;font-size:clamp(1.6rem,6vw,2.4rem);font-weight:900;color:${col};text-shadow:0 0 12px ${col};pointer-events:none;z-index:600;animation:fup 1.6s ease-out forwards`;e.textContent=txt;document.body.appendChild(e);setTimeout(()=>e.remove(),1800);}
 let biTimer=null;
 function showBigIllust(card,mc){
   if(biTimer)clearTimeout(biTimer);document.querySelectorAll('.bi').forEach(e=>e.remove());
   const ov=document.createElement('div');ov.className='bi';ov.style.cssText=`position:fixed;bottom:calc(54px + 3.5rem);right:.65rem;z-index:690;pointer-events:none;width:84px;height:120px;border-radius:8px;overflow:hidden;border:2px solid ${mc.border};box-shadow:0 0 18px rgba(0,0,0,.7),0 0 12px ${mc.glow};animation:biIn .28s ease-out forwards`;
   const art=document.createElement('div');art.style.cssText='width:100%;height:calc(100% - 20px);display:flex;align-items:center;justify-content:center;font-size:3rem;background:rgba(0,0,0,.3);overflow:hidden';
-  if(card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))){const img=document.createElement('img');img.src=card.illust;img.style.cssText='width:100%;height:100%;object-fit:contain;background:#111';art.appendChild(img);}
-  else art.textContent=card.illust||'🃏';
-  const nm=document.createElement('div');nm.style.cssText='height:20px;display:flex;align-items:center;justify-content:center;font-family:\'Rajdhani\',sans-serif;font-size:.6rem;font-weight:700;color:#fff;background:rgba(0,0,0,.85);padding:0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';nm.textContent=card.name||'';
+  if(card.illust&&card.illust!=='[img]'&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))){const img=document.createElement('img');img.src=card.illust;img.style.cssText='width:100%;height:100%;object-fit:contain;background:#111';art.appendChild(img);}
+  else art.textContent=(card.illust&&card.illust!=='[img]')?card.illust:'🃏';
+  const nm=document.createElement('div');nm.style.cssText="height:20px;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-size:.6rem;font-weight:700;color:#fff;background:rgba(0,0,0,.85);padding:0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";nm.textContent=card.name||'';
   ov.appendChild(art);ov.appendChild(nm);document.body.appendChild(ov);
   biTimer=setTimeout(()=>{ov.style.animation='biOut .22s ease-in forwards';setTimeout(()=>ov.remove(),250);},1700);
 }
@@ -446,17 +459,48 @@ function triggerVfx(card){
   if(vfxSet.has('fire')||(!vfxSet.size&&getColors(card).includes('red')))for(let i=0;i<6;i++)setTimeout(()=>spawnPt(cx,cy,30+Math.random()*55,8,i%2?'#e74c3c':'#f39c12',.6),i*20);
   if(vfxSet.has('lightning')||(!vfxSet.size&&getColors(card).includes('yellow'))){const l=document.createElement('div');l.style.cssText=`position:fixed;left:${cx-1}px;top:${cy-55}px;width:2px;height:110px;background:linear-gradient(to bottom,transparent,#f1c40f,#fff,#f1c40f,transparent);z-index:575;pointer-events:none;animation:sfA .4s ease-out forwards;box-shadow:0 0 8px #f1c40f`;document.body.appendChild(l);setTimeout(()=>l.remove(),450);}
   if(vfxSet.has('shockwave')){const sw=document.createElement('div');sw.style.cssText=`position:fixed;left:${cx-55}px;top:${cy-55}px;width:110px;height:110px;border-radius:50%;border:4px solid ${mc.fx};pointer-events:none;z-index:580;animation:swA .6s ease-out forwards`;document.body.appendChild(sw);setTimeout(()=>sw.remove(),700);}
-  if(vfxSet.has('darkness')){flashScreen('rgba(0,0,0,.7)');}
-  if(vfxSet.has('rainbow'))flashScreen('linear-gradient(135deg,rgba(255,0,0,.1),rgba(0,255,0,.1),rgba(0,0,255,.1))');
+  if(vfxSet.has('darkness'))flashScreen('rgba(0,0,0,.5)');
+  if(vfxSet.has('rainbow'))flashScreen('linear-gradient(135deg,rgba(255,0,0,.1),rgba(0,200,0,.1),rgba(0,0,255,.1))');
 }
 function attackEffect(atkCard,dmg,blocked){
   const mc=mainC(atkCard);const{x:cx,y:cy}=getCenter();
   flashScreen(mc.fx);for(let i=0;i<18;i++)spawnPt(cx,cy,60+Math.random()*110,6+Math.random()*8,mc.fx,.45+Math.random()*.75);
-  setTimeout(()=>{if(blocked){floatNum('🛡BLOCK','#2ecc71',cx,cy-20);}else{floatNum('-'+dmg,'#e74c3c',cx,cy-20);}},180);
+  setTimeout(()=>{if(blocked)floatNum('🛡BLOCK','#2ecc71',cx,cy-20);else floatNum('-'+dmg,'#e74c3c',cx,cy-20);},180);
 }
 
-// ── Build game state ──
+// ─── Card pick modal ───
+function pickHandCard(hand,title){
+  return new Promise(res=>{
+    if(!hand?.length){res(-1);return;}
+    document.getElementById('cpovT').textContent=title||'手札から1枚選んでください';
+    const s=document.getElementById('cpovS');s.innerHTML='';
+    hand.forEach((card,i)=>{
+      const mc=mainC(card);const div=document.createElement('div');div.className='cpov-item';
+      const ill=buildIll(card,'2rem');
+      const cs=getColors(card).map(c=>`<div style="flex:1;background:${CM[c]?.dot||'#888'}"></div>`).join('');
+      div.innerHTML=`<div class="gc static-card" style="border-color:${mc.border};width:90px;height:138px">
+        <div style="height:5px;display:flex">${cs}</div>
+        <div class="gc-head" style="padding:3px 4px"><div class="gc-cost" style="background:${mc.cost};width:18px;height:18px;font-size:.65rem">${card.cost}</div><div class="gc-name" style="font-size:.5rem;word-break:break-all;max-height:2em">${card.name||'?'}</div></div>
+        <div class="gc-art" style="height:55px">${ill}</div>
+        <div class="gc-stats" style="font-size:.62rem;padding:2px 4px"><span style="color:${mc.accent}">⚔${wAtk(card)}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div>
+        <div class="gc-flavor" style="padding:2px 4px"><div class="gc-sl" style="font-size:.46rem">${cardSkills(card).join(' ')}</div></div>
+      </div>`;
+      div.onclick=()=>{document.getElementById('cpov').style.display='none';res(i);};
+      s.appendChild(div);
+    });
+    document.getElementById('cpov').style.display='flex';
+  });
+}
+
+// ─── Build game state ───
+function genDefault(){
+  const cols=[['red'],['blue'],['yellow'],['green'],['red','blue'],['yellow','green']];
+  const nms=['騎士','魔法使い','竜','妖精','戦士','弓使い','僧侶','忍者','海賊','錬金術師','天使','悪魔','剣士','盗賊','召喚士','聖騎士','魔剣士','竜騎士','幻術師','召喚魔法'];
+  const ils=['⚔️','🔮','🐉','🦋','🛡️','🏹','✨','🌸','🗡️','🧪','👼','😈','⚡','🗺️','📖','🏰','🌙','🦅','🌀','🔥'];
+  return nms.map((nm,i)=>({id:'def'+i,name:nm,colors:cols[i%cols.length],color:cols[i%cols.length][0],cost:1+~~(i/4),atk:2+(i%5),def:1+(i%4),illust:ils[i],flavor:'',effects:[],vfx:[]}));
+}
 function buildState(n){
+  if(!pool.length)return null;// Cannot build without cards
   let order=Array.from({length:n},(_,i)=>i+1);
   for(let i=order.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
   const seq=[];for(let oi=0;oi<order.length;oi++){seq.push({player:order[oi],phase:'attack'});seq.push({player:order[(oi+1)%order.length],phase:'defend'});}
@@ -465,16 +509,22 @@ function buildState(n){
     const slot=order[oi];
     const hand=Array.from({length:oi===0?7:8},()=>drawCard()).filter(Boolean);
     if(slot===mySlot)hand.forEach((_,i)=>newCards.add('init_'+i));
-    players[slot]={hp:20,maxHp:20,cost:1,_cB:0,_nAtkD:0,_nDefD:0,hand,alive:true};
+    // ★ FIX: first attack turn starts with cost 1, first cost recovery happens at turn 2
+    // Actually cost starts at 1 and the first endTurn adds +3, so the first attack player
+    // needs cost to already be 4 at start (1 initial + would-have-recovered 3)
+    // Solution: give everyone cost=4 at start so first turn feels normal
+    players[slot]={hp:20,maxHp:20,cost:4,_cB:0,_nAtkD:0,_nDefD:0,hand,alive:true};
   }
-  return{status:'playing',numP:n,seqIdx:0,seq,players,discardCard:null,atkCardPlayed:null,defCardPlayed:null,playedThisTurn:false,turnCount:0,weather:{current:'sun',changeCount:0,defendsDone:0},log:[`ゲーム開始！先行: P${seq[0].player}「${pNames[seq[0].player]||'P'+seq[0].player}」`]};
+  const firstPlayer=seq[0].player;
+  return{status:'playing',numP:n,seqIdx:0,seq,players,discardCard:null,atkCardPlayed:null,defCardPlayed:null,playedThisTurn:false,turnCount:0,weather:{current:'sun',changeCount:0,defendsDone:0},log:[`ゲーム開始！先行: P${firstPlayer}「${pNames[firstPlayer]||'P'+firstPlayer}」`]};
 }
-function genDefault(){const cols=[['red'],['blue'],['yellow'],['green'],['red','blue'],['yellow','green']];const names=['騎士','魔法使い','竜','妖精','戦士','弓使い','僧侶','忍者','海賊','錬金術師','天使','悪魔','剣士','盗賊','召喚士','聖騎士','魔剣士','竜騎士','幻術師','召喚魔法'];const ills=['⚔️','🔮','🐉','🦋','🛡️','🏹','✨','🌸','🗡️','🧪','👼','😈','⚡','🗺️','📖','🏰','🌙','🦅','🌀','🔥'];return names.map((nm,i)=>({id:'def'+i,name:nm,colors:cols[i%cols.length],color:cols[i%cols.length][0],cost:1+~~(i/4),atk:2+(i%5),def:1+(i%4),illust:ills[i],flavor:'',effects:[],vfx:[]}));}
 
-// ── Save to Firebase (strips images) ──
+// ─── Save to Firebase ───
+// Strips base64 images (saves bandwidth), cards re-hydrated from poolMap on load
 async function save(S){
   try{
     const slim=JSON.parse(JSON.stringify(S));
+    // Strip images but keep card id for rehydration
     const stripIll=c=>{if(c?.illust?.startsWith('data:'))c.illust='[img]';};
     for(const p of Object.values(slim.players||{}))(p.hand||[]).forEach(stripIll);
     stripIll(slim.atkCardPlayed);stripIll(slim.defCardPlayed);stripIll(slim.discardCard);
@@ -482,68 +532,121 @@ async function save(S){
   }catch(e){console.warn('save fail:',e.message);}
 }
 
-// ── INIT ──
-// Design: Show game immediately from localStorage cache, Firebase syncs in background
+// ─── INIT ───
+// Phase 1: Load cards (from cache or Firebase), then
+// Phase 2: Load/create game state
+// Rule: Only mySlot===1 (host) creates game state. Others wait for Firebase.
 function init(){
-  setLoad(30,'カード準備中...');
+  setLoad(20,'カードを読み込み中...');
 
-  // Load cards from localStorage cache first (instant)
-  let allCards=[];
-  try{const cached=localStorage.getItem('cardrealmDeck');if(cached)allCards=JSON.parse(cached);}catch(e){}
+  // Try cache first
+  let cachedCards=[];
+  try{const cd=localStorage.getItem('cardrealmDeck');if(cd)cachedCards=JSON.parse(cd);}catch(e){}
 
-  function applyPool(cards){
-    if(activeIdStr==='all'||!activeIdStr){pool=cards;}
-    else{try{const ids=new Set(JSON.parse(activeIdStr));pool=cards.filter(c=>ids.has(c.id));}catch(e){pool=cards;}}
-    if(!pool.length)pool=cards;
-    if(!pool.length)pool=genDefault();
+  // ★ KEY: We must have cards before showing the game
+  // If we have cached cards, start immediately
+  // If not, show loading until Firebase delivers them
+  let cardsReady=cachedCards.length>0;
+  let gameStateReady=false;
+
+  function tryStartGame(){
+    if(!cardsReady||!gameStateReady)return;
+    setLoad(100,'開始！');
+    setTimeout(showGame,150);
+    setTimeout(renderAll,200);
   }
-  applyPool(allCards);
 
-  setLoad(70,'ゲーム準備中...');
-  // Build initial state (will be replaced by Firebase data if available)
-  G=buildState(numP);
-  setLoad(100,'開始！');
-  setTimeout(showGame,150);
-  setTimeout(renderAll,200);
+  if(cardsReady){
+    applyPool(cachedCards);
+    setLoad(50,'ゲーム状態を確認中...');
+  }
 
-  // Background: sync cards from Firebase
+  // ★ Fetch cards from Firebase ONCE (not continuous listener to save bandwidth)
+  // Use onValue with onlyOnce:true for card loading
   onValue(cardsRef,snap=>{
     try{
       const cards=Object.values(snap.val()||{});
-      if(cards.length){localStorage.setItem('cardrealmDeck',JSON.stringify(cards));applyPool(cards);}
-    }catch(e){}
-  },{onlyOnce:true});// onlyOnce to avoid repeated large downloads
+      if(cards.length){
+        localStorage.setItem('cardrealmDeck',JSON.stringify(cards));
+        applyPool(cards);
+        cardsReady=true;
+        if(!gameStateReady)setLoad(50,'ゲーム状態を確認中...');
+        tryStartGame();
+      } else if(!cardsReady){
+        // No cards in Firebase and no cache - use defaults
+        applyPool(genDefault());
+        cardsReady=true;
+        tryStartGame();
+      }
+    }catch(e){console.warn('cards error:',e);}
+  },{onlyOnce:true});
 
-  // Background: sync game state from Firebase
-  // Strategy: mySlot===1 (host) creates state, others receive it
-  let firstSync=true;
+  // ★ Timeout: if cards don't load in 5s, use defaults
+  setTimeout(()=>{
+    if(!cardsReady){
+      applyPool(genDefault());cardsReady=true;
+      tryStartGame();
+    }
+  },5000);
+
+  // ─── Game state sync ───
+  // ★ CRITICAL DESIGN:
+  // - Host (mySlot===1): Creates game state, saves to Firebase
+  // - Others: Wait for Firebase to deliver host's state
+  // - On reconnect: Always use Firebase state (never re-build)
+  // - Only skip Firebase update if BOTH turnCount AND seqIdx AND playedThisTurn unchanged
+  //   AND hand length unchanged (handles case where only hand changed)
+  let firstGameSync=true;
+
   onValue(gameRef,snap=>{
     try{
-      if(processing)return;
-      if(!snap.val()){
-        // No game state in Firebase yet
-        if(firstSync){
-          firstSync=false;
-          if(mySlot===1){
-            // Host creates and saves state
-            G=buildState(numP);save(G);renderAll();
-          }
-          // Non-hosts wait for host's state via the listener
+      // ★ FIX: Never skip due to processing - we need opponent's moves
+      // Only skip if we're mid-animation (brief window)
+      const ng=snap.val();
+
+      if(!ng){
+        // No game state yet
+        if(!firstGameSync)return;// Already processed empty state
+        firstGameSync=false;
+        if(mySlot===1&&cardsReady){
+          // Host creates state
+          const newState=buildState(numP);
+          if(newState){G=newState;save(G);gameStateReady=true;tryStartGame();}
+        } else {
+          // Non-host: show loading, wait for host to create state
+          setLoad(60,'ホストの開始を待っています...');
+          // Will receive state via this same onValue when host saves
         }
         return;
       }
-      const ng=snap.val();
-      if(firstSync){
-        // First data received: use Firebase state (ensures all players have same state)
-        firstSync=false;G=ng;renderAll();checkWin();return;
+
+      // Received game state from Firebase
+      if(firstGameSync){
+        firstGameSync=false;
+        // Always trust Firebase on first load
+        G=rehydrateState(ng);
+        gameStateReady=true;
+        tryStartGame();
+        return;
       }
-      // Subsequent updates: only update if something changed
-      if(ng.turnCount===G.turnCount&&ng.seqIdx===G.seqIdx&&ng.playedThisTurn===G.playedThisTurn&&ng.status===G.status)return;
-      G=ng;renderAll();checkWin();
+
+      // ★ Subsequent updates: always apply (opponent's moves must be reflected)
+      // Skip ONLY if nothing meaningful changed
+      const handLenMe=(ng.players?.[mySlot]?.hand||[]).length;
+      const handLenNow=(G?.players?.[mySlot]?.hand||[]).length;
+      if(ng.turnCount===G?.turnCount&&
+         ng.seqIdx===G?.seqIdx&&
+         ng.playedThisTurn===G?.playedThisTurn&&
+         ng.status===G?.status&&
+         handLenMe===handLenNow)return;
+
+      // Apply update with image rehydration
+      G=rehydrateState(ng);
+      renderAll();checkWin();
     }catch(e){console.warn('gameRef error:',e.message);}
   });
 
-  // Room action listener (home/rematch)
+  // Room listener
   if(roomRef){
     onValue(roomRef,snap=>{
       try{
@@ -551,28 +654,27 @@ function init(){
         const room=snap.val();
         if(room.action==='home'){
           navigating=true;
-          // Clear action from Firebase
           update(roomRef,{action:null}).catch(()=>{});
-          setTimeout(()=>window.location.href='index.html',200);
+          setTimeout(()=>window.location.href='index.html',300);
         } else if(room.action==='rematch'){
           update(roomRef,{action:null}).catch(()=>{});
-          gameOverShown=false;
+          gameOverShown=false;firstGameSync=true;
           document.getElementById('gop').classList.remove('show');
-          if(mySlot===1){G=buildState(numP);save(G);}
+          if(mySlot===1&&cardsReady){const ns=buildState(numP);if(ns){G=ns;save(G);renderAll();}}
         }
       }catch(e){console.warn('room error:',e.message);}
     });
   }
 }
 
-// ── Game actions ──
+// ─── Actions ───
 window.selCardFn=function(i){
   if(processing)return;
   if(!isMyTurn()){showToast('あなたのターンではありません');return;}
   if(G.playedThisTurn){showToast('今ターンはすでにカードを出しました');return;}
   const card=G.players[mySlot]?.hand?.[i];if(!card)return;
   if(selCard===i){selCard=-1;renderMyHand();updateBtns();return;}
-  if(!canPlay(card)){const d=G.discardCard;showToast(d?`出せません（同色/同コスト、または出し条件未達）`:'コスト不足か出し条件未達');return;}
+  if(!canPlay(card)){const d=G.discardCard;showToast(d?'出せません（同色/同コスト、または出し条件未達）':'コスト不足か出し条件未達');return;}
   selCard=i;renderMyHand();updateBtns();
 };
 
@@ -589,12 +691,10 @@ window.playCard=async function(){
       pickIdx=pi>=selCard?pi+1:pi;
     }
     const S=clone(G);const p=S.players[mySlot];
-    // Apply opponent debuffs to this card
     const pc={...card};
     if(p._nAtkD){pc.atk=Math.max(0,(pc.atk||0)-p._nAtkD);p._nAtkD=0;}
     if(p._nDefD){pc.def=Math.max(0,(pc.def||0)-p._nDefD);p._nDefD=0;}
     for(const e of(card.effects||[])){if(e.eff==='selfCardAtkUp')pc.atk=(pc.atk||0)+(e.effVal||1);if(e.eff==='selfCardDefUp')pc.def=(pc.def||0)+(e.effVal||1);}
-    // Apply cost with _cB reduction
     const baseCost=wCost(card,S);const finalCost=Math.max(1,baseCost-(p._cB||0));
     if((p.cost||0)<finalCost){showToast('コスト不足');unlockUI();return;}
     p.cost-=finalCost;p._cB=0;
@@ -609,20 +709,17 @@ window.playCard=async function(){
       const atkCard=S.atkCardPlayed;
       if(atkCard){
         const av=wAtk(atkCard,S);const dv=pc.def||0;const dmg=Math.max(0,av-dv);
-        if(dmg>0){p.hp=Math.max(0,p.hp-dmg);S.log.push(`⚔ 「${atkCard.name}」ATK:${av} vs 「${pc.name}」DEF:${dv} → ${dmg}ダメ！`);setTimeout(()=>attackEffect(atkCard,dmg,false),150);applyEff(atkCard,S,S.lastAtkPlayer,'onDamage',pickIdx);applyEff(pc,S,mySlot,'onTakeDmg',pickIdx);}
-        else{S.log.push(`🛡 「${atkCard.name}」ATK:${av} vs 「${pc.name}」DEF:${dv} → ブロック！`);setTimeout(()=>attackEffect(atkCard,0,true),150);}
+        if(dmg>0){p.hp=Math.max(0,p.hp-dmg);S.log.push(`⚔「${atkCard.name}」ATK:${av} vs「${pc.name}」DEF:${dv} → ${dmg}ダメ！`);setTimeout(()=>attackEffect(atkCard,dmg,false),150);applyEff(atkCard,S,S.lastAtkPlayer,'onDamage',pickIdx);applyEff(pc,S,mySlot,'onTakeDmg',pickIdx);}
+        else{S.log.push(`🛡「${atkCard.name}」ATK:${av} vs「${pc.name}」DEF:${dv} → ブロック！`);setTimeout(()=>attackEffect(atkCard,0,true),150);}
       }
       applyEff(pc,S,mySlot,'onPlay',pickIdx);applyEff(pc,S,mySlot,'onDefend',pickIdx);
       S.atkCardPlayed=null;weatherTick(S);
     }
-    // Draw on play
     const drawn=drawCard();
     if(drawn){p.hand.push(drawn);newCards.add('new_'+(p.hand.length-1));S.log.push(`P${mySlot}→1枚ドロー`);}
-    triggerVfx(pc);
-    selCard=-1;G=S;renderAll();checkWin();await save(S);
-    // Auto end turn
+    triggerVfx(pc);selCard=-1;G=S;renderAll();checkWin();await save(S);
     setTimeout(async()=>{if(!G||!isMyTurn()||!G.playedThisTurn)return;lockUI();try{await endTurnInternal();}finally{unlockUI();}},900);
-  }catch(e){console.error('playCard error',e);showToast('エラー');}
+  }catch(e){console.error('playCard error',e);showToast('エラー: '+e.message);}
   finally{unlockUI();}
 };
 
@@ -652,7 +749,7 @@ async function endTurnInternal(){
   for(let safe=0;safe<S.seq.length*2;safe++){if(S.players[S.seq[nextIdx%S.seq.length].player]?.alive!==false)break;nextIdx=(nextIdx+1)%S.seq.length;}
   S.seqIdx=nextIdx%S.seq.length;S.playedThisTurn=false;S.turnCount=(S.turnCount||0)+1;
   const next=S.seq[S.seqIdx%S.seq.length];const np=S.players[next.player];
-  if(np){np.cost=(np.cost||0)+3;S.atkCardPlayed=null;S.defCardPlayed=null;S.log.push(`P${next.player}「${pNames[next.player]||'P'+next.player}」の${next.phase==='attack'?'攻撃':'防御'}ターン（コスト+3）`);}
+  if(np){np.cost=(np.cost||0)+3;S.log.push(`P${next.player}「${pNames[next.player]||'P'+next.player}」の${next.phase==='attack'?'攻撃':'防御'}ターン（コスト+3）`);}
   selCard=-1;G=S;renderAll();checkWin();await save(S);
 }
 
@@ -672,10 +769,10 @@ window.onGoHome=async function(){
 window.onRematch=async function(){
   document.getElementById('gop').classList.remove('show');gameOverShown=false;
   if(roomRef)try{await update(roomRef,{action:null,status:'playing'});await remove(gameRef);}catch(e){}
-  if(mySlot===1){G=buildState(numP);await save(G);}
+  if(mySlot===1&&pool.length){const ns=buildState(numP);if(ns){G=ns;await save(G);renderAll();}}
 };
 
-// ── Win check ──
+// ─── Win check ───
 function checkWin(){
   if(!G||G.status!=='playing'||gameOverShown)return;
   const alive=[];for(let i=1;i<=G.numP;i++)if(G.players[i]?.alive!==false&&(G.players[i]?.hp||0)>0)alive.push(i);
@@ -689,14 +786,34 @@ function checkWin(){
   setTimeout(()=>document.getElementById('gop').classList.add('show'),2000);
 }
 
-// ── Render ──
+// ─── Render ───
+function buildIll(card,fs='1.1rem'){
+  const ill=card.illust;
+  if(ill&&ill!=='[img]'&&(ill.startsWith('http')||ill.startsWith('data:'))){
+    return `<img src="${ill}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.style.display='none'">`;
+  }
+  return ill&&ill!=='[img]'?ill:'🃏';
+}
+function buildGC(card,isSel,isStatic){
+  if(!card)return '';
+  const cols=getColors(card);const mc=mainC(card);const av=wAtk(card);const atkCh=av!==(card.atk||0);
+  const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
+  const sk=cardSkills(card);
+  return `<div class="gc${isSel?' sel':''}${isStatic?' static-card':''}" style="border-color:${mc.border};box-shadow:${isSel?'0 0 12px '+mc.glow:isStatic?'0 0 7px '+mc.glow:'none'}">
+    ${sk.length?'<div class="gc-sdot"></div>':''}
+    <div class="gc-cs">${cs}</div>
+    <div class="gc-head"><div class="gc-cost" style="background:${mc.cost}">${card.cost||1}</div><div class="gc-name">${card.name||'?'}</div></div>
+    <div class="gc-art">${buildIll(card)}</div>
+    <div class="gc-stats"><span style="color:${atkCh?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div>
+    <div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div>
+  </div>`;
+}
 function renderAll(){if(!G)return;renderMyStatus();renderTurnBanner();renderHint();renderWeather();renderOpps();renderBF();renderMyHand();renderLog();updateBtns();}
 function renderMyStatus(){
   const me=G.players[mySlot];if(!me)return;
   const pct=Math.max(0,Math.min(100,(me.hp/me.maxHp)*100));
   document.getElementById('myNameDisp').textContent=(pNames[mySlot]||myName)+' 👤';
-  document.getElementById('myHpBar').style.width=pct+'%';
-  document.getElementById('myHpTxt').textContent=`${me.hp}/${me.maxHp}`;
+  document.getElementById('myHpBar').style.width=pct+'%';document.getElementById('myHpTxt').textContent=`${me.hp}/${me.maxHp}`;
   const cost=me.cost||0;document.getElementById('myCostNum').textContent=cost;
   const col=cost>=10?'rgba(241,196,15,.85)':cost>=5?'rgba(201,168,76,.65)':'rgba(201,168,76,.45)';
   const circ=document.getElementById('myCostCircle');circ.style.borderColor=col;circ.style.boxShadow=cost>=5?`0 0 10px ${col}`:'none';
@@ -705,8 +822,8 @@ function renderMyStatus(){
 function renderTurnBanner(){
   const c=cur();const tb=document.getElementById('turnBadge');const bn=document.getElementById('turnBanner');const icon=document.getElementById('turnIcon');const txt=document.getElementById('turnBannerTxt');
   if(isMyTurn()&&phase()==='attack'){tb.className='tbadge tb-a';tb.textContent='あなたの攻撃';bn.className='turn-banner attack';icon.textContent='⚔️';txt.textContent='攻撃ターン — カードを選んで「出す」を押してください';}
-  else if(isMyTurn()&&phase()==='defend'){tb.className='tbadge tb-d';tb.textContent='あなたの防御';bn.className='turn-banner defend';icon.textContent='🛡️';txt.textContent='防御ターン — 防御カードを出すかターン終了';}
-  else{const name=pNames[c.player]||`P${c.player}`;tb.className='tbadge tb-w';tb.textContent=`${name}のターン`;bn.className='turn-banner wait';icon.textContent='⏳';txt.textContent=`${name} のターン — お待ちください`;}
+  else if(isMyTurn()&&phase()==='defend'){tb.className='tbadge tb-d';tb.textContent='あなたの防御';bn.className='turn-banner defend';icon.textContent='🛡️';txt.textContent='防御ターン — カードを出すかターン終了';}
+  else{const nm=pNames[c.player]||`P${c.player}`;tb.className='tbadge tb-w';tb.textContent=`${nm}のターン`;bn.className='turn-banner wait';icon.textContent='⏳';txt.textContent=`${nm} のターン — お待ちください`;}
 }
 function renderHint(){
   const disc=G.discardCard;const atk=G.atkCardPlayed;
@@ -719,16 +836,16 @@ function renderOpps(){
     if(i===mySlot)continue;const p=G.players[i];if(!p)continue;
     const isDead=p.alive===false||(p.hp||0)<=0;
     const isAtk=!isDead&&c.player===i&&c.phase==='attack';const isDef=!isDead&&c.player===i&&c.phase==='defend';
-    const pct=Math.max(0,Math.min(100,(p.hp/p.maxHp)*100));const name=pNames[i]||`P${i}`;
+    const pct=Math.max(0,Math.min(100,(p.hp/p.maxHp)*100));const nm=pNames[i]||`P${i}`;
     const rc=isDead?'rp-dead':isAtk?'rp-a':isDef?'rp-d':'rp-w';const rt=isDead?'💀脱落':isAtk?'攻撃中':isDef?'防御中':'待機';
     const fieldCard=(G.atkCardPlayed&&G.lastAtkPlayer===i)?G.atkCardPlayed:(G.defCardPlayed&&isDef?G.defCardPlayed:null);
     const d=document.createElement('div');d.className='opp-area'+(isDead?' opp-dead':isAtk?' oa':isDef?' od':'');
-    d.innerHTML=`<div class="opp-info"><div class="opp-name">${name}</div><div class="rpill ${rc}">${rt}</div>
+    d.innerHTML=`<div class="opp-info"><div class="opp-name">${nm}</div><div class="rpill ${rc}">${rt}</div>
       <div class="opp-hp-row"><span style="font-size:.7rem;flex-shrink:0">❤️</span><div class="opp-hb-out"><div class="opp-hb-in" style="width:${pct}%"></div></div><div class="opp-hp-txt">${p.hp}/${p.maxHp}</div></div>
       <div class="opp-cost-c"><div class="occ-l">cost</div><div class="occ-n">${p.cost||0}</div></div>
       <span style="font-family:'Rajdhani',sans-serif;font-size:.58rem;color:var(--text-dim)">🃏${p.hand?.length||0}</span></div>
-    <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:flex-start">
-      ${!isDead&&p.hand?.length?`<div style="display:flex;gap:.22rem;overflow-x:auto;padding-bottom:2px">${Array(Math.min(p.hand.length,6)).fill(0).map(()=>`<div class="gc facedown static-card" style="border-color:rgba(201,168,76,.15);width:36px;height:52px"><div class="gc-art" style="height:26px;font-size:.75rem;position:relative;z-index:1">🃏</div></div>`).join('')}${p.hand.length>6?`<span style="font-size:.52rem;color:var(--text-dim);align-self:center">+${p.hand.length-6}</span>`:''}</div>`:''}
+    <div style="display:flex;gap:.3rem;flex-wrap:wrap">
+      ${!isDead&&p.hand?.length?`<div style="display:flex;gap:.22rem;overflow-x:auto">${Array(Math.min(p.hand.length,6)).fill(0).map(()=>`<div class="gc facedown static-card" style="border-color:rgba(201,168,76,.15);width:36px;height:52px"><div class="gc-art" style="height:26px;font-size:.75rem;z-index:1;position:relative">🃏</div></div>`).join('')}${p.hand.length>6?`<span style="font-size:.52rem;color:var(--text-dim);align-self:center">+${p.hand.length-6}</span>`:''}</div>`:''}
       ${fieldCard?`<div style="flex-shrink:0">${buildGC(fieldCard,false,true)}</div>`:''}
     </div>`;
     el.appendChild(d);
@@ -738,20 +855,6 @@ function renderBF(){
   document.getElementById('atkZone').innerHTML=G.atkCardPlayed?buildGC(G.atkCardPlayed,false,true):'<div class="field-empty">🗡️</div>';
   document.getElementById('discardZone').innerHTML=G.discardCard?buildGC(G.discardCard,false,true):'<div class="discard-none">なし<br>最初は<br>自由</div>';
   document.getElementById('defZone').innerHTML=G.defCardPlayed?buildGC(G.defCardPlayed,false,true):'<div class="field-empty">🛡️</div>';
-}
-function buildGC(card,isSel,isStatic){
-  const cols=getColors(card);const mc=mainC(card);const av=wAtk(card);const atkCh=av!==(card.atk||0);
-  const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.style.display='none'">`:(card.illust||'🃏');
-  const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
-  const sk=cardSkills(card);
-  return `<div class="gc${isSel?' sel':''}${isStatic?' static-card':''}" style="border-color:${mc.border};box-shadow:${isSel?'0 0 12px '+mc.glow:isStatic?'0 0 7px '+mc.glow:'none'}">
-    ${sk.length?'<div class="gc-sdot"></div>':''}
-    <div class="gc-cs">${cs}</div>
-    <div class="gc-head"><div class="gc-cost" style="background:${mc.cost}">${card.cost||1}</div><div class="gc-name">${card.name||'?'}</div></div>
-    <div class="gc-art">${ill}</div>
-    <div class="gc-stats"><span style="color:${atkCh?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div>
-    <div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div>
-  </div>`;
 }
 function renderMyHand(){
   const me=G?.players?.[mySlot];const hand=me?.hand||[];
@@ -764,30 +867,28 @@ function renderMyHand(){
     const effAtk=wAtk(card);const atkCh=effAtk!==(card.atk||0);
     const effCost=Math.max(1,wCost(card)-(me._cB||0));const cstCh=effCost!==card.cost;
     const isSel=selCard===i;
-    const isDim=myT&&!G.playedThisTurn?!canPlay(card):myT&&G.playedThisTurn?true:false;
+    const isDim=myT?(!G.playedThisTurn?!canPlay(card):true):false;
     const isNew=newCards.has('init_'+i)||newCards.has('new_'+i)||newCards.has('init_'+si);
     if(isNew){newCards.delete('init_'+i);newCards.delete('new_'+i);newCards.delete('init_'+si);}
-    const dealCls=isNew?' dealing':'';
     const sk=cardSkills(card);
-    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.style.display='none'">`:(card.illust||'🃏');
     const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
-    return `<div class="gc hand-card${isSel?' sel':''}${isDim?' dim':''}${dealCls}"
-      style="border-color:${mc.border};box-shadow:${isSel?'0 0 16px '+mc.glow+',0 0 28px '+mc.glow.replace('.4','.18'):'none'}"
+    return `<div class="gc hand-card${isSel?' sel':''}${isDim?' dim':''}${isNew?' dealing':''}"
+      style="border-color:${mc.border};box-shadow:${isSel?'0 0 16px '+mc.glow+',0 0 28px '+mc.glow.replace('.4','.15'):'none'}"
       onclick="${myT&&!isDim&&!processing?`selCardFn(${i})`:'void(0)'}"
       onmouseenter="showTT(event,${i})" onmouseleave="hideTT()"
       ontouchstart="showTT(event,${i})" ontouchend="hideTT()">
       ${sk.length?'<div class="gc-sdot"></div>':''}
       <div class="gc-cs">${cs}</div>
       <div class="gc-head"><div class="gc-cost" style="background:${mc.cost};${cstCh?'outline:2px solid #f1c40f;outline-offset:-1px':''}">${effCost}</div><div class="gc-name">${card.name||'?'}</div></div>
-      <div class="gc-art">${ill}</div>
+      <div class="gc-art">${buildIll(card)}</div>
       <div class="gc-stats"><span style="color:${atkCh?'#f1c40f':mc.accent}">⚔${effAtk}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div>
       <div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div>
     </div>`;
   }).join('');
   document.getElementById('handCnt').textContent=`(${hand.length}枚)`;
 }
-function renderLog(){const el=document.getElementById('glog');const logs=(G.log||[]).slice(-12);el.innerHTML=logs.map(t=>{let c='le';if(t.includes('ダメ')||t.includes('ガード'))c+=' dmg';else if(t.includes('回復'))c+=' heal';else if(t.includes('🌟'))c+=' eff';else if(t.includes('天候'))c+=' wth';else if(t.includes('ゲーム'))c+=' hl';return`<div class="${c}">▸ ${t}</div>`;}).join('');el.scrollTop=el.scrollHeight;}
-function updateBtns(){const myT=isMyTurn();const ph=phase();document.getElementById('btnDraw').disabled=!myT||ph!=='attack'||G.playedThisTurn||processing;document.getElementById('btnPlay').disabled=!myT||selCard<0||G.playedThisTurn||processing;document.getElementById('btnEnd').disabled=!myT||processing;}
+function renderLog(){const el=document.getElementById('glog');el.innerHTML=(G.log||[]).slice(-12).map(t=>{let c='le';if(t.includes('ダメ')||t.includes('ガード'))c+=' dmg';else if(t.includes('回復'))c+=' heal';else if(t.includes('🌟'))c+=' eff';else if(t.includes('天候'))c+=' wth';else if(t.includes('ゲーム'))c+=' hl';return`<div class="${c}">▸ ${t}</div>`;}).join('');el.scrollTop=el.scrollHeight;}
+function updateBtns(){const myT=isMyTurn();document.getElementById('btnDraw').disabled=!myT||phase()!=='attack'||G.playedThisTurn||processing;document.getElementById('btnPlay').disabled=!myT||selCard<0||G.playedThisTurn||processing;document.getElementById('btnEnd').disabled=!myT||processing;}
 window.showTT=function(e,i){
   const me=G?.players?.[mySlot];if(!me)return;const card=me.hand?.[i];if(!card)return;
   document.getElementById('ttN').textContent=card.name||'?';
@@ -800,17 +901,17 @@ window.showTT=function(e,i){
 };
 window.hideTT=function(){document.getElementById('tooltip').style.display='none';};
 
-// ── Add missing CSS for animations ──
-const style=document.createElement('style');
-style.textContent=`
+// CSS for animations
+document.head.insertAdjacentHTML('beforeend',`<style>
 @keyframes fup{0%{opacity:1;transform:translateY(0)scale(1.2)}80%{opacity:.8}100%{opacity:0;transform:translateY(-75px)scale(.7)}}
 @keyframes sfA{0%{opacity:.45}100%{opacity:0}}
 @keyframes swA{0%{transform:scale(.1);opacity:.9}100%{transform:scale(5);opacity:0}}
 @keyframes ptA{0%{transform:translate(0,0)scale(1);opacity:1}100%{transform:translate(var(--tx),var(--ty))scale(0);opacity:0}}
 @keyframes biIn{0%{opacity:0;transform:translateX(16px)scale(.85)}100%{opacity:1;transform:translateX(0)scale(1)}}
 @keyframes biOut{0%{opacity:1}100%{opacity:0;transform:translateX(10px)}}
-`;
-document.head.appendChild(style);
+@keyframes dealCard{0%{opacity:0;transform:translateY(-40px)scale(.7)rotate(-8deg)}60%{opacity:1;transform:translateY(6px)scale(1.05)rotate(1deg)}100%{opacity:1;transform:translateY(0)scale(1)rotate(0)}}
+.hand-card.dealing{animation:dealCard .38s cubic-bezier(.34,1.4,.64,1) forwards}
+</style>`);
 
 init();
 </script>
