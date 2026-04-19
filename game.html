@@ -257,6 +257,9 @@ const numP=parseInt(localStorage.getItem('actualPlayers')||localStorage.getItem(
 const myName=localStorage.getItem('myName')||'P'+mySlot;
 const pNames=JSON.parse(localStorage.getItem('playerNames')||'{}');
 const activeIdStr=localStorage.getItem('activeCardIds')||'all';
+// ホスト判定: lobby.html が localStorage['isHost'] をセットする
+// フォールバック: mySlot===1（旧動作との互換性）
+const amHost=localStorage.getItem('isHost')==='true'||(localStorage.getItem('isHost')===null&&mySlot===1);
 
 const gameRef=roomCode?ref(db,`rooms/${roomCode}/gameState`):ref(db,'gameState_solo');
 const cardsRef=ref(db,'sharedCards');
@@ -414,7 +417,7 @@ function init(){
       if(!gameStarted){
         // ─── フェーズ1: ゲーム開始前 ───
         if(!ng){
-          if(mySlot===1){
+          if(amHost){
             // ホスト: 状態を作って保存 → onValueが再発火して全員がstartGame()に入る
             setLoad(70,'ゲームを初期化中...');
             const tryBuild=()=>{
@@ -457,7 +460,7 @@ function init(){
           update(roomRef,{action:null}).catch(()=>{});
           gameOverShown=false;gameStarted=false;
           document.getElementById('gop').classList.remove('show');
-          if(mySlot===1&&pool.length){const ns=buildState(numP);if(ns)save(ns);}
+          if(amHost&&pool.length){const ns=buildState(numP);if(ns)save(ns);}
         }
       }catch(e){console.warn('room:',e.message);}
     });
@@ -519,7 +522,7 @@ async function endTurnInternal(){
 window.forceEnd=async function(){if(!confirm('試合を強制終了しますか？'))return;navigating=true;try{await remove(gameRef);}catch(e){}if(roomRef)try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}window.location.href='index.html';};
 window.leaveToLobby=function(){if(confirm('ロビーに戻りますか？'))window.location.href=(roomCode?'lobby.html?room='+roomCode:'index.html');};
 window.onGoHome=async function(){navigating=true;if(roomRef)try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}window.location.href='index.html';};
-window.onRematch=async function(){document.getElementById('gop').classList.remove('show');gameOverShown=false;if(roomRef)try{await update(roomRef,{action:null,status:'playing'});await remove(gameRef);}catch(e){}if(mySlot===1&&pool.length){const ns=buildState(numP);if(ns)save(ns);}};
+window.onRematch=async function(){document.getElementById('gop').classList.remove('show');gameOverShown=false;if(roomRef)try{await update(roomRef,{action:null,status:'playing'});await remove(gameRef);}catch(e){}if(amHost&&pool.length){const ns=buildState(numP);if(ns)save(ns);}};
 
 function checkWin(){
   if(!G||G.status!=='playing'||gameOverShown)return;
@@ -537,8 +540,10 @@ function checkWin(){
 function buildIll(card){const ill=card?.illust;if(ill&&ill!=='[img]'&&(ill.startsWith('http')||ill.startsWith('data:')))return`<img src="${ill}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.style.display='none'">`;return(ill&&ill!=='[img]')?ill:'🃏';}
 function buildGC(card,isSel,isStatic){if(!card)return '';const cols=getColors(card);const mc=mainC(card);const av=wAtk(card);const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');const sk=cardSkills(card);return`<div class="gc${isSel?' sel':''}${isStatic?' static-card':''}" style="border-color:${mc.border};box-shadow:${isSel?'0 0 12px '+mc.glow:isStatic?'0 0 7px '+mc.glow:'none'}">${sk.length?'<div class="gc-sdot"></div>':''}<div class="gc-cs">${cs}</div><div class="gc-head"><div class="gc-cost" style="background:${mc.cost}">${card.cost||1}</div><div class="gc-name">${card.name||'?'}</div></div><div class="gc-art">${buildIll(card)}</div><div class="gc-stats"><span style="color:${av!==(card.atk||0)?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div><div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div></div>`;}
 function renderAll(){if(!G)return;renderMyStatus();renderTurnBanner();renderHint();renderWeather();renderOpps();renderBF();renderMyHand();renderLog();updateBtns();}
-function renderMyStatus(){const me=G.players[mySlot];if(!me)return;document.getElementById('myNameDisp').textContent=(pNames[mySlot]||myName)+' 👤';document.getElementById('myHpBar').style.width=Math.max(0,Math.min(100,(me.hp/me.maxHp)*100))+'%';document.getElementById('myHpTxt').textContent=`${me.hp}/${me.maxHp}`;const cost=me.cost||0;document.getElementById('myCostNum').textContent=cost;const col=cost>=10?'rgba(241,196,15,.85)':cost>=5?'rgba(201,168,76,.65)':'rgba(201,168,76,.45)';const circ=document.getElementById('myCostCircle');circ.style.borderColor=col;circ.style.boxShadow=cost>=5?`0 0 10px ${col}`:'none';document.getElementById('hudTurn').textContent=`T${(G.turnCount||0)+1}`;}
-function renderTurnBanner(){const c=cur();const tb=document.getElementById('turnBadge');const bn=document.getElementById('turnBanner');if(isMyTurn()&&phase()==='attack'){tb.className='tbadge tb-a';tb.textContent='あなたの攻撃';bn.className='turn-banner attack';document.getElementById('turnIcon').textContent='⚔️';document.getElementById('turnBannerTxt').textContent='攻撃ターン — カードを選んで「出す」を押してください';}else if(isMyTurn()&&phase()==='defend'){tb.className='tbadge tb-d';tb.textContent='あなたの防御';bn.className='turn-banner defend';document.getElementById('turnIcon').textContent='🛡️';document.getElementById('turnBannerTxt').textContent='防御ターン — カードを出すかターン終了';}else{const nm=pNames[c.player]||`P${c.player}`;tb.className='tbadge tb-w';tb.textContent=`${nm}のターン`;bn.className='turn-banner wait';document.getElementById('turnIcon').textContent='⏳';document.getElementById('turnBannerTxt').textContent=`${nm} のターン — お待ちください`;}}
+function renderMyStatus(){const me=G.players[mySlot];if(!me)return;document.getElementById('myNameDisp').textContent=(pNames[mySlot]||myName)+' 👤';document.getElementById('myHpBar').style.width=Math.max(0,Math.min(100,(me.hp/me.maxHp)*100))+'%';document.getElementById('myHpTxt').textContent=`${me.hp}/${me.maxHp}`;const cost=me.cost||0;document.getElementById('myCostNum').textContent=cost;const col=cost>=10?'rgba(241,196,15,.85)':cost>=5?'rgba(201,168,76,.65)':'rgba(201,168,76,.45)';const circ=document.getElementById('myCostCircle');circ.style.borderColor=col;circ.style.boxShadow=cost>=5?`0 0 10px ${col}`:'none';// hudTurn: see renderTurnBanner}
+function renderTurnBanner(){const c=cur();const tb=document.getElementById('turnBadge');const bn=document.getElementById('turnBanner');
+  // デバッグ: HUDにseq状態を表示
+  const _hud=document.getElementById('hudTurn');if(_hud)_hud.textContent=`T${(G.turnCount||0)+1}[seq:${G.seqIdx}cur:P${c.player}${c.phase[0]}me:${mySlot}host:${amHost?1:0}]`;if(isMyTurn()&&phase()==='attack'){tb.className='tbadge tb-a';tb.textContent='あなたの攻撃';bn.className='turn-banner attack';document.getElementById('turnIcon').textContent='⚔️';document.getElementById('turnBannerTxt').textContent='攻撃ターン — カードを選んで「出す」を押してください';}else if(isMyTurn()&&phase()==='defend'){tb.className='tbadge tb-d';tb.textContent='あなたの防御';bn.className='turn-banner defend';document.getElementById('turnIcon').textContent='🛡️';document.getElementById('turnBannerTxt').textContent='防御ターン — カードを出すかターン終了';}else{const nm=pNames[c.player]||`P${c.player}`;tb.className='tbadge tb-w';tb.textContent=`${nm}のターン`;bn.className='turn-banner wait';document.getElementById('turnIcon').textContent='⏳';document.getElementById('turnBannerTxt').textContent=`${nm} のターン — お待ちください`;}}
 function renderHint(){const disc=G.discardCard;const atk=G.atkCardPlayed;document.getElementById('shint').textContent=(disc?`捨て札:「${disc.name}」[${getColors(disc).map(x=>CN[x]||x).join('/')} C${disc.cost}]`:'最初は何でも出せます')+(atk?` | 攻撃:「${atk.name}」ATK:${wAtk(atk)}`:'');}
 function renderWeather(){const w=wData(G.weather.current);document.getElementById('wIcon').textContent=w.icon;document.getElementById('wName').textContent=w.name;document.getElementById('wEff').textContent=' '+w.eff;document.getElementById('wChg').textContent=`変化まで${2*G.numP-(G.weather.defendsDone||0)}防御`;}
 function renderOpps(){

@@ -277,6 +277,7 @@ window.startGame=async function(){
   localStorage.setItem('actualPlayers',String(players.length));
   localStorage.setItem('playerNames',JSON.stringify(names));
   localStorage.setItem('activeCardIds',activeIds?JSON.stringify(activeIds):'all');
+  localStorage.setItem('isHost','true');// ホストだけtrue
 
   // Firebaseへの書き込みはバックグラウンドで（失敗しても遷移する）
   update(ref(db,`rooms/${roomCode}`),{status:'playing',gameInfo}).catch(e=>console.warn('Firebase write fail:',e));
@@ -301,6 +302,7 @@ function goToGame(){
   localStorage.setItem('actualPlayers',String(gi.numPlayers||2));
   localStorage.setItem('playerNames',JSON.stringify(gi.playerNames||{}));
   localStorage.setItem('activeCardIds',gi.activeCardIds?JSON.stringify(gi.activeCardIds):'all');
+  localStorage.setItem('isHost','false');// 非ホスト
   document.getElementById('spinOv').classList.add('show');
   document.getElementById('spinMsg').textContent='試合ページに移動します...';
   setTimeout(()=>window.location.href='game.html',400);
