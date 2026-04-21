@@ -399,28 +399,26 @@ function init(){
     renderAll();
   }
 
-  // ホストだけgameStateを作る。全員onValue経由でstartGame()に入る。
+  // ホストだけgameStateを作成してFirebaseに保存
+  // save()後にonValueが再発火 → 全員startGame()経由でゲーム開始
   if(amHost){
     SL(70,'ゲームを初期化中...');
-    // ホストはFirebaseにgameStateを作って保存
-    // poolが準備できたらbuildState→save
-    function tryBuild(){
-      if(pool.length){
-        const ns=buildState(numP);
-        if(ns){
-          save(ns);
-          // onValueが再発火してstartGame()が呼ばれる
-        } else {
-          applyPool(genDefault());
-          const ns2=buildState(numP);
-          if(ns2)save(ns2);
-        }
-      } else {
-        setTimeout(tryBuild,200);
-      }
+    // poolが確実に準備されてからbuildState
+    // キャッシュがあれば即座に実行、なければFirebaseのonValueを待つ
+    const doHostBuild=()=>{
+      if(!pool.length)applyPool(genDefault());// 最終フォールバック
+      const ns=buildState(numP);
+      if(ns)save(ns);
+      // save()後にonValue(gameRef)が発火してstartGame()が呼ばれる
+    };
+    // キャッシュ有り→300ms後、キャッシュ無し→Firebaseカード取得後に実行
+    if(cached.length){
+      setTimeout(doHostBuild,300);
+    } else {
+      // Firebaseカードが来たら実行（onValue onlyOnce済みなので最大1回）
+      // タイムアウトも設定
+      setTimeout(doHostBuild,2000);
     }
-    // 少し待ってからbuild（Firebaseのカードがあれば取得してから）
-    setTimeout(tryBuild,300);
   } else {
     SL(60,'ホストの試合開始を待っています...');
   }
@@ -430,12 +428,10 @@ function init(){
     try{
       const ng=snap.val();
       if(!gameStarted){
-        // ゲーム開始前
         if(ng){
-          // Firebase にゲーム状態が来た → 全員ここで開始
+          // Firebaseにゲーム状態がある → 全員ここで開始
           startGame(ng);
         }
-        // ng===null の場合はホストがbuildState中（またはまだ開始していない）
         return;
       }
       // ゲーム中: 常に最新状態を適用

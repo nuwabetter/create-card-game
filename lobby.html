@@ -153,12 +153,8 @@ let selectedCards=new Set();
 let navigating=false;
 
 // ══ Firebase: 部屋のリアルタイム監視 ══
-// ページ開いた時にaction・statusをwaitingにリセット（試合後ロビーに戻った時の誤遷移防止）
+// ページ開いた時にaction・statusをwaitingにリセット
 update(ref(db,`rooms/${roomCode}`),{action:null,status:'waiting'}).catch(()=>{});
-
-let lobbyReady=false;
-// 1500ms待ってからリスナー開始（status:waitingのFirebase反映を確実に待つ）
-setTimeout(()=>{ lobbyReady=true; },1500);
 
 onValue(ref(db,`rooms/${roomCode}`),snap=>{
   if(!snap.exists()){
@@ -167,8 +163,9 @@ onValue(ref(db,`rooms/${roomCode}`),snap=>{
   }
   roomData=snap.val();
   renderRoom();
-  // 試合開始シグナルを受信（lobbyReady後のみ反応）
-  if(lobbyReady&&roomData.status==='playing'&&!navigating){
+  // 非ホストのみ: status==='playing'でgoToGame()
+  // ホストはstartGame()から直接遷移するので反応しない
+  if(roomData.status==='playing'&&!navigating&&localStorage.getItem('isHost')!=='true'){
     goToGame();
   }
 });
@@ -279,14 +276,21 @@ window.startGame=async function(){
   localStorage.setItem('activeCardIds',activeIds?JSON.stringify(activeIds):'all');
   localStorage.setItem('isHost','true');// ホストだけtrue
 
-  // Firebaseへの書き込みはバックグラウンドで（失敗しても遷移する）
-  update(ref(db,`rooms/${roomCode}`),{status:'playing',gameInfo}).catch(e=>console.warn('Firebase write fail:',e));
-
-  // 即座にgame.htmlへ遷移
+  // ★ navigating=true を先にセット（goToGame()の誤発火を防ぐ）
   navigating=true;
   document.getElementById('spinOv').classList.add('show');
+  document.getElementById('spinMsg').textContent='試合を開始中...';
+
+  try{
+    // Firebaseへ書き込み完了を待つ
+    await update(ref(db,`rooms/${roomCode}`),{status:'playing',gameInfo});
+  }catch(e){
+    console.warn('Firebase write fail:',e);
+    // 書き込み失敗でも遷移する
+  }
+
   document.getElementById('spinMsg').textContent='試合ページに移動します...';
-  setTimeout(()=>window.location.href='game.html',300);
+  setTimeout(()=>window.location.href='game.html',200);
 };
 
 function goToGame(){
