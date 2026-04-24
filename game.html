@@ -286,7 +286,37 @@ function applyPool(cards){let p=cards;if(activeIdStr&&activeIdStr!=='all'){try{c
 function drawCard(){return pool.length?clone(pool[~~(Math.random()*pool.length)]):null;}
 function drawW(hand){if(!pool.length)return null;const mc=new Set();(hand||[]).forEach(c=>getColors(c).forEach(col=>mc.add(col)));const w=[];for(const c of pool){const n=getColors(c).some(col=>!mc.has(col));for(let i=0;i<(n?3:1);i++)w.push(c);}return clone(w[~~(Math.random()*w.length)]);}
 function rehydrate(c){if(c?.illust==='[img]'&&c.id&&poolMap[c.id])c.illust=poolMap[c.id].illust;return c;}
-function rehydrateState(S){if(!S)return S;for(const p of Object.values(S.players||{}))(p.hand||[]).forEach(rehydrate);rehydrate(S.atkCardPlayed);rehydrate(S.defCardPlayed);rehydrate(S.discardCard);return S;}
+
+// ★ Firebaseから受け取ったデータを正規化
+// 文字列キー形式 → 数値キーのオブジェクトに戻す
+function normalizeState(S){
+  if(!S)return S;
+  // players: {'s1':{...},'s2':{...}} → {1:{...},2:{...}}
+  if(S.players&&!Array.isArray(S.players)){
+    const keys=Object.keys(S.players);
+    if(keys.length&&keys[0].startsWith('s')){
+      const norm={};
+      for(const[k,v]of Object.entries(S.players))norm[parseInt(k.slice(1))]=v;
+      S.players=norm;
+    }
+  }
+  // seq: {'i0':{...},'i1':{...}} → [{...},{...}]
+  if(S.seq&&!Array.isArray(S.seq)){
+    const len=S.seqLen||Object.keys(S.seq).length;
+    const arr=[];
+    for(let i=0;i<len;i++)arr.push(S.seq['i'+i]);
+    S.seq=arr;
+  }
+  return S;
+}
+
+function rehydrateState(S){
+  if(!S)return S;
+  normalizeState(S);// まず正規化
+  for(const p of Object.values(S.players||{}))(p.hand||[]).forEach(rehydrate);
+  rehydrate(S.atkCardPlayed);rehydrate(S.defCardPlayed);rehydrate(S.discardCard);
+  return S;
+}
 
 const cur=S=>(S||G).seq[(S||G).seqIdx%(S||G).seq.length];
 const myTurn=S=>cur(S).player===mySlot;
@@ -330,7 +360,26 @@ function pickCard(hand,title){return new Promise(res=>{if(!hand?.length){res(-1)
 function genDefault(){const cols=[['red'],['blue'],['yellow'],['green'],['red','blue'],['yellow','green']];const nms=['騎士','魔法使い','竜','妖精','戦士','弓使い','僧侶','忍者','海賊','錬金術師','天使','悪魔','剣士','盗賊','召喚士','聖騎士','魔剣士','竜騎士','幻術師','召喚魔法'];const ils=['⚔️','🔮','🐉','🦋','🛡️','🏹','✨','🌸','🗡️','🧪','👼','😈','⚡','🗺️','📖','🏰','🌙','🦅','🌀','🔥'];return nms.map((nm,i)=>({id:'def'+i,name:nm,colors:cols[i%cols.length],color:cols[i%cols.length][0],cost:1+~~(i/4),atk:2+(i%5),def:1+(i%4),illust:ils[i],flavor:'',effects:[],vfx:[]}));}
 function buildState(n){if(!pool.length)return null;let order=Array.from({length:n},(_,i)=>i+1);for(let i=order.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}const seq=[];for(let oi=0;oi<order.length;oi++){seq.push({player:order[oi],phase:'attack'});seq.push({player:order[(oi+1)%order.length],phase:'defend'});}const players={};for(let oi=0;oi<order.length;oi++){const slot=order[oi];const hand=Array.from({length:oi===0?7:8},()=>drawCard()).filter(Boolean);if(slot===mySlot)hand.forEach((_,i)=>newCards.add('i'+i));players[slot]={hp:20,maxHp:20,cost:4,_cB:0,_nAtkD:0,_nDefD:0,hand,alive:true};}const fp=seq[0].player;return{status:'playing',numP:n,seqIdx:0,seq,players,discardCard:null,atkCardPlayed:null,defCardPlayed:null,playedThisTurn:false,turnCount:0,weather:{current:'sun',changeCount:0,defendsDone:0},log:[`ゲーム開始！先行:P${fp}「${pNames[fp]||'P'+fp}」`]};}
 
-async function save(S){try{const slim=clone(S);const strip=c=>{if(c?.illust?.startsWith('data:'))c.illust='[img]';};for(const p of Object.values(slim.players||{}))(p.hand||[]).forEach(strip);strip(slim.atkCardPlayed);strip(slim.defCardPlayed);strip(slim.discardCard);await set(gameRef,slim);}catch(e){console.error('save fail:',e.message);}}
+async function save(S){
+  try{
+    const slim=clone(S);
+    // ★ Firebaseは数値キーのオブジェクトを配列に変換するため文字列キーに変換
+    // players: {1:{...},2:{...}} → {'p1':{...},'p2':{...}}
+    const playersObj={};
+    for(const[k,v]of Object.entries(slim.players||{}))playersObj['s'+k]=v;
+    slim.players=playersObj;
+    // seq: [{player:1,...},...] → {'i0':{...},'i1':{...},...}
+    const seqObj={};
+    (slim.seq||[]).forEach((s,i)=>seqObj['i'+i]=s);
+    slim.seq=seqObj;
+    slim.seqLen=(S.seq||[]).length;// 長さを別途保存
+    // 画像データを除去
+    const strip=c=>{if(c?.illust?.startsWith('data:'))c.illust='[img]';};
+    for(const p of Object.values(slim.players||{}))(p.hand||[]).forEach(strip);
+    strip(slim.atkCardPlayed);strip(slim.defCardPlayed);strip(slim.discardCard);
+    await set(gameRef,slim);
+  }catch(e){console.error('save fail:',e.message);}
+}
 
 // ══════════════════════════════════════════
 // ★ onGameRef: モジュールレベルのコールバック

@@ -153,8 +153,15 @@ let selectedCards=new Set();
 let navigating=false;
 
 // ══ Firebase: 部屋のリアルタイム監視 ══
-// ページ開いた時にaction・statusをwaitingにリセット
-update(ref(db,`rooms/${roomCode}`),{action:null,status:'waiting'}).catch(()=>{});
+// ページ開いた時: ゲーム中でなければstatusをwaitingにリセット
+get(ref(db,`rooms/${roomCode}/status`)).then(snap=>{
+  if(snap.val()==='playing'){
+    // ゲーム中にロビーが開かれた場合はactionだけクリア（statusは触らない）
+    update(ref(db,`rooms/${roomCode}`),{action:null}).catch(()=>{});
+  } else {
+    update(ref(db,`rooms/${roomCode}`),{action:null,status:'waiting'}).catch(()=>{});
+  }
+}).catch(()=>{update(ref(db,`rooms/${roomCode}`),{action:null,status:'waiting'}).catch(()=>{});});
 
 onValue(ref(db,`rooms/${roomCode}`),snap=>{
   if(!snap.exists()){
