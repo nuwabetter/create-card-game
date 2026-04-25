@@ -225,9 +225,6 @@ window.startGame=async function(){
 //   2. onValue で status:'playing' を受信したら非ホストはgoGuest()
 //      ★ navigating=true になった後はgoHost/goGuestは呼ばれない
 
-// まずactionalをクリア（statusには触らない）
-update(ref(db,`rooms/${roomCode}`),{action:null}).catch(()=>{});
-
 // ページ読み込み時に一度だけ現在のstatus確認
 // → playing中に誤ってロビーに来た場合の処理
 get(ref(db,`rooms/${roomCode}`)).then(snap=>{
@@ -247,14 +244,31 @@ onValue(ref(db,`rooms/${roomCode}`),snap=>{
   }
   roomData=snap.val();
   renderRoom();
+  checkAndGo();
+});
 
-  // ★ 非ホストのみ: status==='playing'でgoGuest()
-  // ホストはstartGame()から直接goHost()するのでここでは処理しない
-  // navigating=trueになった後は何もしない
-  if(!navigating&&roomData.status==='playing'&&roomData.hostId!==myId&&roomData.gameInfo){
+// 試合開始チェック（onValueとポーリングの両方から呼ばれる）
+function checkAndGo(){
+  if(navigating)return;
+  if(!roomData)return;
+  if(roomData.status==='playing'&&roomData.hostId!==myId&&roomData.gameInfo){
     goGuest(roomData.gameInfo);
   }
-});
+}
+
+// ポーリング: 3秒ごとにFirebaseから直接取得して確認
+// onValueが何らかの理由で発火しない場合のフォールバック
+setInterval(()=>{
+  if(navigating)return;
+  get(ref(db,`rooms/${roomCode}`)).then(snap=>{
+    if(!snap.exists())return;
+    const d=snap.val();
+    if(d.status==='playing'&&d.hostId!==myId&&d.gameInfo){
+      roomData=d;
+      goGuest(d.gameInfo);
+    }
+  }).catch(()=>{});
+},3000);
 
 // ══ カードデータ読み込み ══
 onValue(ref(db,'sharedCards'),snap=>{
