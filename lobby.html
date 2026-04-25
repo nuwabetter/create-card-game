@@ -153,15 +153,21 @@ let selectedCards=new Set();
 let navigating=false;
 
 // ══ Firebase: 部屋のリアルタイム監視 ══
-// ページ開いた時: ゲーム中でなければstatusをwaitingにリセット
-get(ref(db,`rooms/${roomCode}/status`)).then(snap=>{
-  if(snap.val()==='playing'){
-    // ゲーム中にロビーが開かれた場合はactionだけクリア（statusは触らない）
-    update(ref(db,`rooms/${roomCode}`),{action:null}).catch(()=>{});
-  } else {
-    update(ref(db,`rooms/${roomCode}`),{action:null,status:'waiting'}).catch(()=>{});
+// actionをクリア（statusには触らない）
+update(ref(db,`rooms/${roomCode}`),{action:null}).catch(()=>{});
+
+// ロビー準備完了フラグ
+// 初回onValue発火（古いstatus:'playing'が残っている可能性）を無視するため
+// 1500ms後にtrueにして、その時点でstatus確認も行う
+let lobbyReady=false;
+setTimeout(()=>{
+  lobbyReady=true;
+  // タイムアウト後に現在のroomDataを再確認
+  // onValueが再発火しなくても対応できるようにする
+  if(roomData&&roomData.status==='playing'&&!navigating&&localStorage.getItem('isHost')!=='true'){
+    goToGame();
   }
-}).catch(()=>{update(ref(db,`rooms/${roomCode}`),{action:null,status:'waiting'}).catch(()=>{});});
+},1500);
 
 onValue(ref(db,`rooms/${roomCode}`),snap=>{
   if(!snap.exists()){
@@ -170,9 +176,8 @@ onValue(ref(db,`rooms/${roomCode}`),snap=>{
   }
   roomData=snap.val();
   renderRoom();
-  // 非ホストのみ: status==='playing'でgoToGame()
-  // ホストはstartGame()から直接遷移するので反応しない
-  if(roomData.status==='playing'&&!navigating&&localStorage.getItem('isHost')!=='true'){
+  // lobbyReady後かつstatus==='playing'なら遷移
+  if(lobbyReady&&roomData.status==='playing'&&!navigating&&localStorage.getItem('isHost')!=='true'){
     goToGame();
   }
 });
