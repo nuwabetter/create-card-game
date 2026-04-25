@@ -125,50 +125,121 @@ body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-se
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, set, get, onValue, remove, update, serverTimestamp }
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import{getDatabase,ref,get,set,onValue,remove,update}from"https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const FB={apiKey:"AIzaSyBsASKwkmpRx_vi7JBqC-fvBl3LOgoOtbo",authDomain:"newcard-8fd59.firebaseapp.com",databaseURL:"https://newcard-8fd59-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"newcard-8fd59",storageBucket:"newcard-8fd59.firebasestorage.app",messagingSenderId:"822236707244",appId:"1:822236707244:web:f2a82f612226d7ac3f6209"};
 const db=getDatabase(initializeApp(FB));
 
-// パラメータ取得
 const params=new URLSearchParams(location.search);
 const roomCode=params.get('room')||localStorage.getItem('roomCode')||'';
 const myId=localStorage.getItem('myPlayerId')||'';
 const myName=localStorage.getItem('myName')||'Player';
 
-if(!roomCode||!myId){alert('ロビー情報が見つかりません。トップに戻ります。');window.location.href='index.html';}
+if(!roomCode||!myId){alert('ロビー情報が見つかりません');window.location.href='index.html';}
 
 const CM={red:{border:'#c0392b',accent:'#e74c3c'},blue:{border:'#2471a3',accent:'#3498db'},yellow:{border:'#d4ac0d',accent:'#f1c40f'},green:{border:'#1e8449',accent:'#2ecc71'}};
 const ICONS=['👑','⚔️','🔮','🐉'];
 
-// 部屋表示
 document.getElementById('roomCodeDisp').textContent=roomCode;
 document.getElementById('rcCode').textContent=roomCode;
 
-let roomData=null;
-let allCards=[];
-let selectedCards=new Set();
-let navigating=false;
+let roomData=null,allCards=[],selectedCards=new Set(),navigating=false;
+
+function isHost(){return roomData&&roomData.hostId===myId;}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3500);}
+
+// ══ 試合遷移 ══
+// ホスト用: isHost=trueでgame.htmlへ
+function goHost(gameInfo,players){
+  if(navigating)return;navigating=true;
+  const mySlot=(gameInfo.playerSlots||{})[myId]||1;
+  const names={};players.forEach(p=>names[p.slot]=p.name);
+  localStorage.setItem('roomCode',roomCode);
+  localStorage.setItem('myPlayerId',myId);
+  localStorage.setItem('mySlot',String(mySlot));
+  localStorage.setItem('myName',myName);
+  localStorage.setItem('numPlayers',String(players.length));
+  localStorage.setItem('actualPlayers',String(players.length));
+  localStorage.setItem('playerNames',JSON.stringify(gameInfo.playerNames||names));
+  localStorage.setItem('activeCardIds',gameInfo.activeCardIds?JSON.stringify(gameInfo.activeCardIds):'all');
+  localStorage.setItem('isHost','true');
+  document.getElementById('spinMsg').textContent='試合ページに移動します...';
+  document.getElementById('spinOv').classList.add('show');
+  setTimeout(()=>window.location.href='game.html',200);
+}
+
+// 非ホスト用: isHost=falseでgame.htmlへ
+function goGuest(gameInfo){
+  if(navigating)return;navigating=true;
+  const mySlot=(gameInfo.playerSlots||{})[myId]||1;
+  localStorage.setItem('roomCode',roomCode);
+  localStorage.setItem('myPlayerId',myId);
+  localStorage.setItem('mySlot',String(mySlot));
+  localStorage.setItem('myName',myName);
+  localStorage.setItem('numPlayers',String(gameInfo.numPlayers||2));
+  localStorage.setItem('actualPlayers',String(gameInfo.numPlayers||2));
+  localStorage.setItem('playerNames',JSON.stringify(gameInfo.playerNames||{}));
+  localStorage.setItem('activeCardIds',gameInfo.activeCardIds?JSON.stringify(gameInfo.activeCardIds):'all');
+  localStorage.setItem('isHost','false');
+  document.getElementById('spinMsg').textContent='試合ページに移動します...';
+  document.getElementById('spinOv').classList.add('show');
+  setTimeout(()=>window.location.href='game.html',200);
+}
+
+// ══ 試合開始（ホストのみ）══
+window.startGame=async function(){
+  if(!isHost()){toast('ホストのみ試合を開始できます');return;}
+  if(navigating)return;
+  const players=Object.values(roomData?.players||{});
+  if(players.length<2){toast('2人以上必要です');return;}
+
+  const ids=[...selectedCards];
+  const activeIds=(ids.length===0||ids.length===allCards.length)?null:ids;
+  const names={};players.forEach(p=>{names[p.slot]=p.name;});
+  const playerSlots=Object.fromEntries(players.map(p=>[p.id,p.slot]));
+
+  const gameInfo={activeCardIds:activeIds,numPlayers:players.length,playerNames:names,playerSlots,startedAt:Date.now()};
+
+  document.getElementById('spinOv').classList.add('show');
+  document.getElementById('spinMsg').textContent='試合を開始中...';
+
+  try{
+    // ★ Firebaseに書き込んでから遷移（非ホストがonValueで受け取れるように）
+    await update(ref(db,`rooms/${roomCode}`),{status:'playing',gameInfo});
+    // 書き込み成功後に遷移
+    goHost(gameInfo,players);
+  }catch(e){
+    console.error('startGame fail:',e);
+    toast('試合開始に失敗しました: '+e.message);
+    document.getElementById('spinOv').classList.remove('show');
+    navigating=false;
+  }
+};
 
 // ══ Firebase: 部屋のリアルタイム監視 ══
-// actionをクリア（statusには触らない）
+// ★ 設計:
+//   1. ページ読み込み時にstatus確認
+//      - playing → 非ホストならgame.htmlへ即遷移（部屋が既にゲーム中）
+//      - waiting → 通常のロビー表示
+//   2. onValue で status:'playing' を受信したら非ホストはgoGuest()
+//      ★ navigating=true になった後はgoHost/goGuestは呼ばれない
+
+// まずactionalをクリア（statusには触らない）
 update(ref(db,`rooms/${roomCode}`),{action:null}).catch(()=>{});
 
-// ロビー準備完了フラグ
-// 初回onValue発火（古いstatus:'playing'が残っている可能性）を無視するため
-// 1500ms後にtrueにして、その時点でstatus確認も行う
-let lobbyReady=false;
-setTimeout(()=>{
-  lobbyReady=true;
-  // タイムアウト後に現在のroomDataを再確認
-  // onValueが再発火しなくても対応できるようにする
-  if(roomData&&roomData.status==='playing'&&!navigating&&localStorage.getItem('isHost')!=='true'){
-    goToGame();
+// ページ読み込み時に一度だけ現在のstatus確認
+// → playing中に誤ってロビーに来た場合の処理
+get(ref(db,`rooms/${roomCode}`)).then(snap=>{
+  if(!snap.exists())return;
+  const room=snap.val();
+  // ゲーム中かつ非ホストの場合は即遷移
+  if(room.status==='playing'&&room.hostId!==myId&&room.gameInfo){
+    goGuest(room.gameInfo);
   }
-},1500);
+}).catch(()=>{});
 
+// onValueでリアルタイム監視
 onValue(ref(db,`rooms/${roomCode}`),snap=>{
   if(!snap.exists()){
     if(!navigating){alert('部屋が解散されました');window.location.href='index.html';}
@@ -176,32 +247,31 @@ onValue(ref(db,`rooms/${roomCode}`),snap=>{
   }
   roomData=snap.val();
   renderRoom();
-  // lobbyReady後かつstatus==='playing'なら遷移
-  if(lobbyReady&&roomData.status==='playing'&&!navigating&&localStorage.getItem('isHost')!=='true'){
-    goToGame();
+
+  // ★ 非ホストのみ: status==='playing'でgoGuest()
+  // ホストはstartGame()から直接goHost()するのでここでは処理しない
+  // navigating=trueになった後は何もしない
+  if(!navigating&&roomData.status==='playing'&&roomData.hostId!==myId&&roomData.gameInfo){
+    goGuest(roomData.gameInfo);
   }
 });
 
 // ══ カードデータ読み込み ══
 onValue(ref(db,'sharedCards'),snap=>{
   allCards=Object.values(snap.val()||{});
-  // game.htmlが即座に起動できるようカードをキャッシュ保存
   try{localStorage.setItem('cardrealmDeck',JSON.stringify(allCards));}catch(e){}
-  // localStorageの選択状態を復元
   const saved=localStorage.getItem('activeCardIds');
   if(!saved||saved==='all'){allCards.forEach(c=>selectedCards.add(c.id));}
   else{try{selectedCards=new Set(JSON.parse(saved));}catch{allCards.forEach(c=>selectedCards.add(c.id));}}
   renderCards();
+  renderSelCards();
 });
 
-function isHost(){return roomData&&roomData.hostId===myId;}
-
+// ══ UI ══
 function renderRoom(){
   if(!roomData)return;
   const players=Object.values(roomData.players||{}).sort((a,b)=>a.slot-b.slot);
   const cnt=players.length;
-
-  // プレイヤースロット
   const sl=document.getElementById('slotsEl');sl.innerHTML='';
   for(let i=1;i<=4;i++){
     const p=players.find(x=>x.slot===i);
@@ -209,120 +279,43 @@ function renderRoom(){
     const isH=p?.id===roomData.hostId;
     const d=document.createElement('div');
     d.className='slot'+(p?' filled':'')+(isMe?' me':'');
-    if(p){
-      d.innerHTML=`<div class="slot-num">PLAYER ${i}</div><div class="slot-icon">${ICONS[i-1]||'🃏'}</div><div class="slot-name">${p.name}</div>${isH?'<div class="slot-badge">👑 ホスト</div>':''}${isMe?'<div style="font-size:.62rem;color:var(--text-dim);font-family:\'Rajdhani\',sans-serif">あなた</div>':''}`;
-    } else {
-      d.innerHTML=`<div class="slot-num">PLAYER ${i}</div><div class="slot-icon" style="opacity:.25">🎴</div><div class="slot-empty">待機中...</div>`;
-    }
+    if(p){d.innerHTML=`<div class="slot-num">PLAYER ${i}</div><div class="slot-icon">${ICONS[i-1]||'🃏'}</div><div class="slot-name">${p.name}</div>${isH?'<div class="slot-badge">👑 ホスト</div>':''}${isMe?'<div style="font-size:.62rem;color:var(--text-dim);font-family:\'Rajdhani\',sans-serif">あなた</div>':''}`;}
+    else{d.innerHTML=`<div class="slot-num">PLAYER ${i}</div><div class="slot-icon" style="opacity:.25">🎴</div><div class="slot-empty">待機中...</div>`;}
     sl.appendChild(d);
   }
-
-  // ステータスメッセージ
   const sm=document.getElementById('statusMsg');
   if(cnt>=2){sm.textContent=`${cnt}人参加中 — 試合を開始できます！`;sm.className='status-msg green-msg';}
   else{sm.textContent=`${cnt}人参加中 — あと${2-cnt}人で試合開始できます`;sm.className='status-msg';}
-
-  // 試合開始ボタン（ホストのみ・2人以上で有効）
   const sb=document.getElementById('startBtn');
-  const isH=isHost();
-  sb.disabled=!isH||cnt<2;
-  sb.style.opacity=(isH&&cnt>=2)?'1':'';
-  if(!isH)sb.textContent='ホストの試合開始を待っています';
+  const iAm=isHost();
+  sb.disabled=!iAm||cnt<2;
+  if(!iAm)sb.textContent='ホストの試合開始を待っています';
   else sb.textContent='⚔️ 試合開始！';
-
-  // ホスト専用ボタン
-  document.getElementById('dissolveBtn').style.display=isH?'inline-flex':'none';
+  document.getElementById('dissolveBtn').style.display=iAm?'inline-flex':'none';
 }
 
 function getColors(card){return Array.isArray(card.colors)?card.colors:[card.color||'red'];}
 function renderCards(){
   const g=document.getElementById('cardGrid');
-  if(!allCards.length){g.innerHTML='<div style="color:var(--text-dim);font-size:.75rem;padding:.5rem">カードがありません。カード作成ページで作成してください。</div>';document.getElementById('selCount').textContent='0枚';return;}
+  if(!allCards.length){g.innerHTML='<div style="color:var(--text-dim);font-size:.75rem;padding:.5rem">カードがありません</div>';document.getElementById('selCount').textContent='0枚';return;}
   g.innerHTML=allCards.map(card=>{
     const sel=selectedCards.has(card.id);
-    const c=CM[getColors(card)[0]]||CM.red;
+    const cols=getColors(card);const c=CM[cols[0]]||CM.red;
     const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#12121e" onerror="this.style.display='none'">`:(card.illust||'🃏');
-    return `<div class="csi${sel?' sel':''}" onclick="toggle('${card.id}')"><div class="chk">✓</div><div class="cst-thumb" style="border-color:${c.border};box-shadow:${sel?'0 0 7px '+c.border:'none'}"><div class="cst-art">${ill}</div><div class="cst-info"><div class="cst-stats"><span style="color:${c.accent}">C${card.cost}</span><span>A${card.atk}</span><span>D${card.def}</span></div><div class="cst-name">${card.name}</div></div></div></div>`;
+    const cs=cols.map(col=>`<div style="flex:1;height:3px;background:${CM[col]?.accent||'#888'}"></div>`).join('');
+    return `<div class="csi${sel?' sel':''}" onclick="toggle('${card.id}')"><div class="chk">✓</div><div class="cst-thumb" style="border-color:${c.border};box-shadow:${sel?'0 0 7px '+c.border:'none'}"><div style="display:flex">${cs}</div><div class="cst-art">${ill}</div><div class="cst-info"><div class="cst-stats"><span style="color:${c.accent}">C${card.cost}</span><span>A${card.atk}</span><span>D${card.def}</span></div><div class="cst-name">${card.name}</div></div></div></div>`;
   }).join('');
   const cnt=selectedCards.size;
   document.getElementById('selCount').textContent=cnt===allCards.length?`全${cnt}枚`:`${cnt}/${allCards.length}枚`;
   localStorage.setItem('activeCardIds',cnt===0||cnt===allCards.length?'all':JSON.stringify([...selectedCards]));
 }
+function renderSelCards(){
+  const saved=localStorage.getItem('activeCardIds');
+  if(!saved||saved==='all'){allCards.forEach(c=>selectedCards.add(c.id));}
+}
 window.toggle=function(id){selectedCards.has(id)?selectedCards.delete(id):selectedCards.add(id);renderCards();};
 window.selAll=function(){allCards.forEach(c=>selectedCards.add(c.id));renderCards();};
 window.deselAll=function(){selectedCards.clear();renderCards();};
-
-// ══ 試合開始 ══
-window.startGame=async function(){
-  if(!isHost()){showToast('ホストのみ試合を開始できます');return;}
-  if(navigating)return;
-  const players=Object.values(roomData?.players||{});
-  if(players.length<2){showToast('2人以上必要です');return;}
-
-  document.getElementById('spinOv').classList.add('show');
-  document.getElementById('spinMsg').textContent='試合を開始中...';
-
-  const ids=[...selectedCards];
-  const activeIds=(ids.length===0||ids.length===allCards.length)?null:ids;
-  const names={};
-  players.forEach(p=>{names[p.slot]=p.name;});
-
-  const gameInfo={
-    activeCardIds:activeIds,
-    numPlayers:players.length,
-    playerNames:names,
-    playerSlots:Object.fromEntries(players.map(p=>[p.id,p.slot])),
-    startedAt:Date.now()
-  };
-
-  // ★ ホスト自身は先にlocalStorageを設定してから遷移
-  //    Firebaseの書き込み完了を待たない（onValueに依存しない）
-  const mySlotNow=gameInfo.playerSlots[myId]||1;
-  localStorage.setItem('roomCode',roomCode);
-  localStorage.setItem('myPlayerId',myId);
-  localStorage.setItem('mySlot',String(mySlotNow));
-  localStorage.setItem('myName',myName);
-  localStorage.setItem('numPlayers',String(players.length));
-  localStorage.setItem('actualPlayers',String(players.length));
-  localStorage.setItem('playerNames',JSON.stringify(names));
-  localStorage.setItem('activeCardIds',activeIds?JSON.stringify(activeIds):'all');
-  localStorage.setItem('isHost','true');// ホストだけtrue
-
-  // ★ navigating=true を先にセット（goToGame()の誤発火を防ぐ）
-  navigating=true;
-  document.getElementById('spinOv').classList.add('show');
-  document.getElementById('spinMsg').textContent='試合を開始中...';
-
-  try{
-    // Firebaseへ書き込み完了を待つ
-    await update(ref(db,`rooms/${roomCode}`),{status:'playing',gameInfo});
-  }catch(e){
-    console.warn('Firebase write fail:',e);
-    // 書き込み失敗でも遷移する
-  }
-
-  document.getElementById('spinMsg').textContent='試合ページに移動します...';
-  setTimeout(()=>window.location.href='game.html',200);
-};
-
-function goToGame(){
-  if(navigating)return;
-  navigating=true;
-  const gi=roomData.gameInfo||{};
-  const mySlot=(gi.playerSlots||{})[myId]||1;
-  localStorage.setItem('roomCode',roomCode);
-  localStorage.setItem('myPlayerId',myId);
-  localStorage.setItem('mySlot',String(mySlot));
-  localStorage.setItem('myName',myName);
-  localStorage.setItem('numPlayers',String(gi.numPlayers||2));
-  localStorage.setItem('actualPlayers',String(gi.numPlayers||2));
-  localStorage.setItem('playerNames',JSON.stringify(gi.playerNames||{}));
-  localStorage.setItem('activeCardIds',gi.activeCardIds?JSON.stringify(gi.activeCardIds):'all');
-  localStorage.setItem('isHost','false');// 非ホスト
-  document.getElementById('spinOv').classList.add('show');
-  document.getElementById('spinMsg').textContent='試合ページに移動します...';
-  setTimeout(()=>window.location.href='game.html',400);
-}
 
 // ══ 退出・解散 ══
 window.leaveRoom=async function(){
@@ -333,29 +326,21 @@ window.leaveRoom=async function(){
   window.location.href='index.html';
 };
 window.dissolveRoom=async function(){
-  if(!isHost()){showToast('ホストのみ解散できます');return;}
-  if(!confirm('部屋を解散しますか？全員がトップに戻ります。'))return;
+  if(!isHost()){toast('ホストのみ解散できます');return;}
+  if(!confirm('部屋を解散しますか？'))return;
   navigating=true;
   try{await remove(ref(db,`rooms/${roomCode}`));}catch(e){}
   localStorage.removeItem('roomCode');localStorage.removeItem('myPlayerId');
   window.location.href='index.html';
 };
 window.copyCode=function(){
-  navigator.clipboard?.writeText(roomCode).then(()=>showToast('部屋番号 '+roomCode+' をコピーしました！')).catch(()=>showToast('部屋番号: '+roomCode));
+  navigator.clipboard?.writeText(roomCode).then(()=>toast('部屋番号 '+roomCode+' をコピーしました！')).catch(()=>toast('部屋番号: '+roomCode));
 };
 
-// ページを離れるとき自動退出（ブラウザバック等）
+// ページ離脱時
 window.addEventListener('beforeunload',()=>{
-  if(!navigating){
-    // beacon APIで非同期削除
-    navigator.sendBeacon&&navigator.sendBeacon('/delete'); // Firebase は直接削除できないので以下
-    // ページ離脱時にplayerを削除（ベストエフォート）
-    const key=`rooms/${roomCode}/players/${myId}`;
-    try{remove(ref(db,key));}catch(e){}
-  }
+  if(!navigating)try{remove(ref(db,`rooms/${roomCode}/players/${myId}`));}catch(e){}
 });
-
-function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3500);}
 </script>
 </body>
 </html>
