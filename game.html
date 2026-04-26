@@ -274,7 +274,20 @@ let gameStarted=false;
 const newCards=new Set();
 
 const wData=id=>WEATHERS.find(w=>w.id===id)||WEATHERS[0];
-const getColors=c=>Array.isArray(c.colors)?c.colors:[c.color||'red'];
+const getColors=c=>{
+  if(!c)return['red'];
+  // Firebaseから配列が来た場合
+  if(Array.isArray(c.colors)&&c.colors.length)return c.colors;
+  // Firebaseが配列をオブジェクトに変換した場合: {0:'red',1:'blue'}
+  if(c.colors&&typeof c.colors==='object'){
+    const vals=Object.values(c.colors).filter(v=>typeof v==='string');
+    if(vals.length)return vals;
+  }
+  // 文字列の場合
+  if(typeof c.colors==='string'&&c.colors)return[c.colors];
+  // color(単数)フォールバック
+  return[c.color||'red'];
+};
 const mainC=c=>CM[getColors(c)[0]]||CM.red;
 const clone=o=>JSON.parse(JSON.stringify(o));
 const SL=(p,m)=>{document.getElementById('loadFill').style.width=p+'%';document.getElementById('loadMsg').textContent=m;};
@@ -307,6 +320,14 @@ function normalizeState(S){
     for(let i=0;i<len;i++)arr.push(S.seq['i'+i]);
     S.seq=arr;
   }
+  // 各プレイヤーの手札カードのcolorsも正規化
+  for(const p of Object.values(S.players||{})){
+    for(const card of(p.hand||[])){
+      if(card.colors&&typeof card.colors==='object'&&!Array.isArray(card.colors)){
+        card.colors=Object.values(card.colors).filter(v=>typeof v==='string');
+      }
+    }
+  }
   return S;
 }
 
@@ -329,7 +350,12 @@ const wAtk=(card,S)=>{S=S||G;return(card.atk||0)+(S.weather.current==='storm'?2:
 function setWx(S,id){S.weather.current=id;S.weather.defendsDone=0;S.log.push(`🌤→${wData(id).icon}${wData(id).name}`);}
 function wxTick(S){S.weather.defendsDone=(S.weather.defendsDone||0)+1;if(S.weather.defendsDone>=2*S.numP){S.weather.defendsDone=0;const a=['sun','rain','storm'].filter(w=>w!==S.weather.current);const nw=a[~~(Math.random()*a.length)]||'sun';S.weather.current=nw;S.log.push(`🌤天候→${wData(nw).icon}${wData(nw).name}`);}}
 
-function canPlay(card,S){S=S||G;const me=S.players[mySlot];if(!me)return false;if((me.cost||0)<wCost(card,S))return false;const d=S.discardCard;if(d){const mc=getColors(card),dc=getColors(d);if(!mc.some(c=>dc.includes(c))&&(card.cost||1)!==(d.cost||1))return false;}for(const e of(card.effects||[])){if(e.trigger!=='playCondition')continue;const pc=e.playCond||'',cv=+e.condVal||3;if(pc==='ifHpLow'&&(me.hp||0)>cv)return false;if(pc==='ifHpHigh'&&(me.hp||0)<cv)return false;if(pc==='ifChance'&&Math.random()*100>cv)return false;if(pc==='ifWeatherSun'&&S.weather.current!=='sun')return false;if(pc==='ifWeatherRain'&&S.weather.current!=='rain')return false;if(pc==='ifWeatherStorm'&&S.weather.current!=='storm')return false;}return true;}
+function canPlay(card,S){S=S||G;const me=S.players[mySlot];if(!me)return false;if((me.cost||0)<wCost(card,S))return false;const d=S.discardCard;if(d){
+    const mc=getColors(card),dc=getColors(d);
+    const sameColor=mc.some(col=>dc.includes(col));
+    const sameCost=(card.cost||1)===(d.cost||1);
+    if(!sameColor&&!sameCost)return false;
+  }for(const e of(card.effects||[])){if(e.trigger!=='playCondition')continue;const pc=e.playCond||'',cv=+e.condVal||3;if(pc==='ifHpLow'&&(me.hp||0)>cv)return false;if(pc==='ifHpHigh'&&(me.hp||0)<cv)return false;if(pc==='ifChance'&&Math.random()*100>cv)return false;if(pc==='ifWeatherSun'&&S.weather.current!=='sun')return false;if(pc==='ifWeatherRain'&&S.weather.current!=='rain')return false;if(pc==='ifWeatherStorm'&&S.weather.current!=='storm')return false;}return true;}
 
 const ED={draw:n=>`${n}枚ドロー`,selfHeal:n=>`自HP+${n}`,selfDamage:n=>`自-${n}ダメ`,selfAtkUp:n=>`手札ATK+${n}`,selfDefUp:n=>`手札DEF+${n}`,selfCardAtkUp:n=>`カードATK+${n}`,selfCardDefUp:n=>`カードDEF+${n}`,oppDamage:n=>`相+${n}ダメ`,selfCostDown:n=>`次コスト-${n}`,selfCostUp:n=>`自コスト+${n}`,oppCostDown:n=>`相コスト-${n}`,oppAtkDown:n=>`相ATK-${n}`,oppDefDown:n=>`相DEF-${n}`,weatherSun:()=>'→☀️',weatherRain:()=>'→🌧️',weatherStorm:()=>'→⛈️',weatherChange:()=>'天候変化',buffAtk:n=>`手札ATK+${n}`,buffDef:n=>`手札DEF+${n}`,heal:n=>`自HP+${n}`,damage:n=>`相+${n}ダメ`,costReduce:n=>`次コスト-${n}`,costGain:n=>`自コスト+${n}`};
 const TS={onAttack:'攻撃時',onDefend:'防御時',onPlay:'出した時',onDamage:'ダメ与',onTakeDmg:'被ダメ',ifHpLow:'HP≤n',ifHpHigh:'HP≥n',ifChance:'n%',ifWeatherSun:'晴れ',ifWeatherRain:'雨',ifWeatherStorm:'嵐',ifTurnGte:'T≥n',playCondition:'★出し条件'};
@@ -474,7 +500,17 @@ window.playCard=async function(){
     vfx(pc);selCard=-1;G=S;renderAll();checkWin();
     await save(S);
     const snapSi=S.seqIdx,snapTc=S.turnCount;
-    setTimeout(async()=>{if(!G||G.seqIdx!==snapSi||G.turnCount!==snapTc)return;if(!myTurn()||!G.playedThisTurn)return;lock();try{await endTurnInt();}finally{unlock();}},900);
+    setTimeout(async()=>{
+      if(!G||G.seqIdx!==snapSi||G.turnCount!==snapTc)return;
+      if(!myTurn()||!G.playedThisTurn)return;
+      // processingが残っていてもautoEndTurnは実行（詰み防止）
+      const wasProcessing=processing;
+      processing=false;
+      lock();
+      try{await endTurnInt();}
+      catch(e){console.warn('autoEndTurn error:',e);}
+      finally{unlock();}
+    },900);
   }catch(e){console.error('playCard:',e);toast('エラー: '+e.message);}
   finally{unlock();}
 };
@@ -501,7 +537,13 @@ function rOpps(){const el=document.getElementById('oppsPanel');el.innerHTML='';c
 function rBF(){document.getElementById('atkZone').innerHTML=G.atkCardPlayed?gc2(G.atkCardPlayed,false,true):'<div class="field-empty">🗡️</div>';document.getElementById('discardZone').innerHTML=G.discardCard?gc2(G.discardCard,false,true):'<div class="discard-none">なし<br>最初は<br>自由</div>';document.getElementById('defZone').innerHTML=G.defCardPlayed?gc2(G.defCardPlayed,false,true):'<div class="field-empty">🛡️</div>';}
 function renderHand(){const me=G?.players?.[mySlot];const hand=me?.hand||[];const el=document.getElementById('myHand');if(!hand.length){el.innerHTML='<div style="color:var(--text-dim);font-size:.76rem;padding:.4rem">手札なし</div>';return;}const mt=myTurn();const sorted=[...hand.map((c,i)=>({card:c,oi:i}))].sort((a,b)=>(a.card.cost||0)-(b.card.cost||0));el.innerHTML=sorted.map(({card,oi:i},si)=>{const mc=mainC(card);const cols=getColors(card);const av=wAtk(card);const ec=Math.max(1,wCost(card)-(me._cB||0));const sel=selCard===i;const dim=mt?(!G.playedThisTurn?!canPlay(card):true):false;const isNew=newCards.has('i'+i)||newCards.has('n'+i)||newCards.has('i'+si);if(isNew){newCards.delete('i'+i);newCards.delete('n'+i);newCards.delete('i'+si);}const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');const sk=cskills(card);return`<div class="gc hand-card${sel?' sel':''}${dim?' dim':''}${isNew?' dealing':''}" style="border-color:${mc.border};box-shadow:${sel?'0 0 16px '+mc.glow+',0 0 28px '+mc.glow.replace('.4','.15'):'none'}" onclick="${mt&&!dim&&!processing?`selCardFn(${i})`:'void(0)'}" onmouseenter="showTT(event,${i})" onmouseleave="hideTT()" ontouchstart="showTT(event,${i})" ontouchend="hideTT()">${sk.length?'<div class="gc-sdot"></div>':''}<div class="gc-cs">${cs}</div><div class="gc-head"><div class="gc-cost" style="background:${mc.cost};${ec!==card.cost?'outline:2px solid #f1c40f;outline-offset:-1px':''}">${ec}</div><div class="gc-name">${card.name||'?'}</div></div><div class="gc-art">${ill(card)}</div><div class="gc-stats"><span style="color:${av!==(card.atk||0)?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div><div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div></div>`;}).join('');document.getElementById('handCnt').textContent=`(${hand.length}枚)`;}
 function rLog(){const el=document.getElementById('glog');el.innerHTML=(G.log||[]).slice(-12).map(t=>{let c='le';if(t.includes('ダメ')||t.includes('ガード'))c+=' dmg';else if(t.includes('回復')||t.includes('HP+'))c+=' heal';else if(t.includes('🌟'))c+=' eff';else if(t.includes('天候')||t.includes('🌤'))c+=' wth';else if(t.includes('開始'))c+=' hl';return`<div class="${c}">▸ ${t}</div>`;}).join('');el.scrollTop=el.scrollHeight;}
-function updBtn(){const mt=myTurn();document.getElementById('btnDraw').disabled=!mt||ph()!=='attack'||G.playedThisTurn||processing;document.getElementById('btnPlay').disabled=!mt||selCard<0||G.playedThisTurn||processing;document.getElementById('btnEnd').disabled=!mt||processing;}
+function updBtn(){
+  const mt=myTurn();
+  document.getElementById('btnDraw').disabled=!mt||ph()!=='attack'||G.playedThisTurn||processing;
+  document.getElementById('btnPlay').disabled=!mt||selCard<0||G.playedThisTurn||processing;
+  // ★ ターン終了はprocessingに関係なく自分のターンなら押せる（詰み防止）
+  document.getElementById('btnEnd').disabled=!mt;
+}
 window.showTT=function(e,i){const me=G?.players?.[mySlot];if(!me)return;const card=me.hand?.[i];if(!card)return;document.getElementById('ttN').textContent=card.name||'?';document.getElementById('ttS').textContent=`コスト:${Math.max(1,wCost(card)-(me._cB||0))} ATK:${wAtk(card)} DEF:${card.def||0} [${getColors(card).map(c=>CN[c]||c).join('/')}]`;document.getElementById('ttSk').textContent=cskills(card).join('\n')||'スキルなし';document.getElementById('ttF').textContent=card.flavor||'';const t=document.getElementById('tooltip');t.style.display='block';const cx=e.touches?e.touches[0].clientX:e.clientX;const cy=e.touches?e.touches[0].clientY:e.clientY;t.style.left=Math.min(cx+12,innerWidth-198)+'px';t.style.top=Math.max(cy-130,5)+'px';};
 window.hideTT=function(){document.getElementById('tooltip').style.display='none';};
 
