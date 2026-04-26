@@ -304,28 +304,48 @@ function rehydrate(c){if(c?.illust==='[img]'&&c.id&&poolMap[c.id])c.illust=poolM
 // 文字列キー形式 → 数値キーのオブジェクトに戻す
 function normalizeState(S){
   if(!S)return S;
-  // players: {'s1':{...},'s2':{...}} → {1:{...},2:{...}}
-  if(S.players&&!Array.isArray(S.players)){
-    const keys=Object.keys(S.players);
-    if(keys.length&&keys[0].startsWith('s')){
-      const norm={};
-      for(const[k,v]of Object.entries(S.players))norm[parseInt(k.slice(1))]=v;
-      S.players=norm;
+
+  // ── players の正規化 ──
+  // 'slot_1','slot_2'キー → {1:{...},2:{...}}
+  // 's1','s2'キー（旧形式）→ {1:{...},2:{...}}
+  // 配列形式 → {1:{...},2:{...}}
+  // 数値文字列キー → そのまま数値化
+  const norm={};
+  if(Array.isArray(S.players)){
+    S.players.forEach((p,i)=>{if(p&&i>0)norm[i]=p;});
+  } else if(S.players){
+    for(const[k,v]of Object.entries(S.players)){
+      if(!v)continue;
+      let num;
+      if(k.startsWith('slot_'))num=parseInt(k.slice(5));
+      else if(k.startsWith('s'))num=parseInt(k.slice(1));
+      else num=parseInt(k);
+      if(!isNaN(num)&&num>0)norm[num]=v;
     }
   }
-  // seq: {'i0':{...},'i1':{...}} → [{...},{...}]
-  if(S.seq&&!Array.isArray(S.seq)){
-    const len=S.seqLen||Object.keys(S.seq).length;
+  S.players=norm;
+
+  // ── seq の正規化 ──
+  // 'seq_0','seq_1'キー → 配列
+  // 'i0','i1'キー（旧形式）→ 配列
+  // 配列 → そのまま
+  if(!Array.isArray(S.seq)){
+    const len=S.seqLen||Object.keys(S.seq||{}).length;
     const arr=[];
-    for(let i=0;i<len;i++)arr.push(S.seq['i'+i]);
+    for(let i=0;i<len;i++){
+      const item=S.seq?.['seq_'+i]||S.seq?.['i'+i];
+      if(item)arr.push(item);
+    }
     S.seq=arr;
   }
-  // 各プレイヤーの手札カードのcolorsも正規化
+
+  // ── 手札カードの colors 正規化 ──
   for(const p of Object.values(S.players||{})){
     for(const card of(p.hand||[])){
       if(card.colors&&typeof card.colors==='object'&&!Array.isArray(card.colors)){
         card.colors=Object.values(card.colors).filter(v=>typeof v==='string');
       }
+      if(!card.colors||!card.colors.length)card.colors=[card.color||'red'];
     }
   }
   return S;
@@ -389,16 +409,33 @@ function buildState(n){if(!pool.length)return null;let order=Array.from({length:
 async function save(S){
   try{
     const slim=clone(S);
-    // ★ Firebaseは数値キーのオブジェクトを配列に変換するため文字列キーに変換
-    // players: {1:{...},2:{...}} → {'p1':{...},'p2':{...}}
-    const playersObj={};
-    for(const[k,v]of Object.entries(slim.players||{}))playersObj['s'+k]=v;
-    slim.players=playersObj;
-    // seq: [{player:1,...},...] → {'i0':{...},'i1':{...},...}
-    const seqObj={};
-    (slim.seq||[]).forEach((s,i)=>seqObj['i'+i]=s);
-    slim.seq=seqObj;
-    slim.seqLen=(S.seq||[]).length;// 長さを別途保存
+
+    // ★ playersを正規化してから文字列キーへ変換
+    // S.playersが配列の場合も数値キーオブジェクトに正規化してから変換
+    let playersNorm={};
+    if(Array.isArray(slim.players)){
+      // 配列: [null, P1, P2] → {1:P1, 2:P2}
+      slim.players.forEach((p,i)=>{if(p&&i>0)playersNorm[i]=p;});
+    } else {
+      // オブジェクト: キーが's1'等なら数値に戻してから再変換
+      for(const[k,v]of Object.entries(slim.players||{})){
+        if(!v)continue;
+        const num=k.startsWith('s')?parseInt(k.slice(1)):parseInt(k);
+        if(!isNaN(num)&&num>0)playersNorm[num]=v;
+      }
+    }
+    // playersを 'slot_1', 'slot_2' キーで保存（Firebaseの配列変換を確実に防ぐ）
+    const playersOut={};
+    for(const[k,v]of Object.entries(playersNorm))playersOut['slot_'+k]=v;
+    slim.players=playersOut;
+
+    // seqを配列から 'seq_0','seq_1'... キーのオブジェクトに変換
+    const seqArr=Array.isArray(slim.seq)?slim.seq:Object.values(slim.seq||{});
+    const seqOut={};
+    seqArr.forEach((s,i)=>{if(s)seqOut['seq_'+i]=s;});
+    slim.seq=seqOut;
+    slim.seqLen=seqArr.length;
+
     // 画像データを除去
     const strip=c=>{if(c?.illust?.startsWith('data:'))c.illust='[img]';};
     for(const p of Object.values(slim.players||{}))(p.hand||[]).forEach(strip);
