@@ -339,15 +339,24 @@ function normalizeState(S){
     S.seq=arr;
   }
 
-  // ── 手札カードの colors 正規化 ──
-  for(const p of Object.values(S.players||{})){
-    for(const card of(p.hand||[])){
-      if(card.colors&&typeof card.colors==='object'&&!Array.isArray(card.colors)){
-        card.colors=Object.values(card.colors).filter(v=>typeof v==='string');
-      }
-      if(!card.colors||!card.colors.length)card.colors=[card.color||'red'];
+  // ── カードの colors 正規化（共通） ──
+  function fixCardColors(card){
+    if(!card)return;
+    if(card.colors&&typeof card.colors==='object'&&!Array.isArray(card.colors)){
+      card.colors=Object.values(card.colors).filter(v=>typeof v==='string');
+    }
+    if(!card.colors||!Array.isArray(card.colors)||!card.colors.length){
+      card.colors=[card.color||'red'];
     }
   }
+  // 手札
+  for(const p of Object.values(S.players||{})){
+    for(const card of(p.hand||[]))fixCardColors(card);
+  }
+  // フィールド上のカード
+  fixCardColors(S.discardCard);
+  fixCardColors(S.atkCardPlayed);
+  fixCardColors(S.defCardPlayed);
   return S;
 }
 
@@ -441,7 +450,11 @@ async function save(S){
     for(const p of Object.values(slim.players||{}))(p.hand||[]).forEach(strip);
     strip(slim.atkCardPlayed);strip(slim.defCardPlayed);strip(slim.discardCard);
     await set(gameRef,slim);
-  }catch(e){console.error('save fail:',e.message);}
+  }catch(e){
+    console.error('save fail:',e.message);
+    // 1回だけリトライ
+    try{await set(gameRef,slim);}catch(e2){console.error('save retry fail:',e2.message);}
+  }
 }
 
 // ══════════════════════════════════════════
@@ -467,9 +480,18 @@ function onGameRef(snap){
   }
 
   if(!ng)return;
+
+  // 古いデータを無視（turnCountが現在より小さい場合）
+  if(G&&(ng.turnCount||0)<(G.turnCount||0)){
+    console.log('[SYNC] stale data ignored, ng.tc='+ng.turnCount+' G.tc='+G.turnCount);
+    return;
+  }
+
   const changed=ng.seqIdx!==G?.seqIdx||ng.turnCount!==G?.turnCount;
   if(changed)selCard=-1;
   G=rehydrateState(ng);
+  const _c=G.seq?.[G.seqIdx];
+  console.log('[SYNC]','tc='+G.turnCount,'seq='+G.seqIdx,'P'+_c?.player+_c?.phase?.[0],'me='+mySlot,'myTurn='+myTurn(),'played='+G.playedThisTurn);
   renderAll();
   checkWin();
 }
@@ -536,13 +558,12 @@ window.playCard=async function(){
     const dr=drawCard();if(dr){p.hand.push(dr);newCards.add('n'+(p.hand.length-1));S.log.push(`P${mySlot}→1枚ドロー`);}
     vfx(pc);selCard=-1;G=S;renderAll();checkWin();
     await save(S);
-    const snapSi=S.seqIdx,snapTc=S.turnCount;
+    const snapTc=S.turnCount,snapSi=S.seqIdx;
     setTimeout(async()=>{
-      if(!G||G.seqIdx!==snapSi||G.turnCount!==snapTc)return;
+      // turnCountとseqIdxが変わっていなければ自動ターン終了
+      if(!G||G.turnCount!==snapTc||G.seqIdx!==snapSi)return;
       if(!myTurn()||!G.playedThisTurn)return;
-      // processingが残っていてもautoEndTurnは実行（詰み防止）
-      const wasProcessing=processing;
-      processing=false;
+      processing=false;// 念のためprocessingをリセット
       lock();
       try{await endTurnInt();}
       catch(e){console.warn('autoEndTurn error:',e);}
@@ -567,7 +588,7 @@ function ill(card){const i=card?.illust;if(i&&i!=='[img]'&&(i.startsWith('http')
 function gc2(card,sel,stat){if(!card)return'';const cols=getColors(card);const mc=mainC(card);const av=wAtk(card);const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');const sk=cskills(card);return`<div class="gc${sel?' sel':''}${stat?' static-card':''}" style="border-color:${mc.border};box-shadow:${sel?'0 0 12px '+mc.glow:stat?'0 0 7px '+mc.glow:'none'}">${sk.length?'<div class="gc-sdot"></div>':''}<div class="gc-cs">${cs}</div><div class="gc-head"><div class="gc-cost" style="background:${mc.cost}">${card.cost||1}</div><div class="gc-name">${card.name||'?'}</div></div><div class="gc-art">${ill(card)}</div><div class="gc-stats"><span style="color:${av!==(card.atk||0)?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div><div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div></div>`;}
 function renderAll(){if(!G)return;rStat();rBanner();rHint();rWx();rOpps();rBF();renderHand();rLog();updBtn();}
 function rStat(){const me=G.players[mySlot];if(!me)return;document.getElementById('myNameDisp').textContent=(pNames[mySlot]||myName)+' 👤';document.getElementById('myHpBar').style.width=Math.max(0,Math.min(100,(me.hp/me.maxHp)*100))+'%';document.getElementById('myHpTxt').textContent=`${me.hp}/${me.maxHp}`;const cost=me.cost||0;document.getElementById('myCostNum').textContent=cost;const col=cost>=10?'rgba(241,196,15,.85)':cost>=5?'rgba(201,168,76,.65)':'rgba(201,168,76,.45)';const circ=document.getElementById('myCostCircle');circ.style.borderColor=col;circ.style.boxShadow=cost>=5?`0 0 10px ${col}`:'none';}
-function rBanner(){const c=cur();const tb=document.getElementById('turnBadge');const bn=document.getElementById('turnBanner');const hud=document.getElementById('hudTurn');if(hud)hud.textContent=`T${(G.turnCount||0)+1}[seq:${G.seqIdx} P${c.player}${c.phase[0]} me:${mySlot} h:${amHost?1:0}]`;if(myTurn()&&ph()==='attack'){tb.className='tbadge tb-a';tb.textContent='あなたの攻撃';bn.className='turn-banner attack';document.getElementById('turnIcon').textContent='⚔️';document.getElementById('turnBannerTxt').textContent='攻撃ターン — カードを選んで「出す」';}else if(myTurn()&&ph()==='defend'){tb.className='tbadge tb-d';tb.textContent='あなたの防御';bn.className='turn-banner defend';document.getElementById('turnIcon').textContent='🛡️';document.getElementById('turnBannerTxt').textContent='防御ターン — カードを出すかターン終了';}else{const nm=pNames[c.player]||`P${c.player}`;tb.className='tbadge tb-w';tb.textContent=`${nm}のターン`;bn.className='turn-banner wait';document.getElementById('turnIcon').textContent='⏳';document.getElementById('turnBannerTxt').textContent=`${nm} のターン — お待ちください`;}}
+function rBanner(){const c=cur();const tb=document.getElementById('turnBadge');const bn=document.getElementById('turnBanner');const hud=document.getElementById('hudTurn');if(hud)hud.textContent=`T${(G.turnCount||0)+1}[seq:${G.seqIdx} P${c.player}${c.phase[0]} me:${mySlot} played:${G.playedThisTurn?1:0} h:${amHost?1:0}]`;if(myTurn()&&ph()==='attack'){tb.className='tbadge tb-a';tb.textContent='あなたの攻撃';bn.className='turn-banner attack';document.getElementById('turnIcon').textContent='⚔️';document.getElementById('turnBannerTxt').textContent='攻撃ターン — カードを選んで「出す」';}else if(myTurn()&&ph()==='defend'){tb.className='tbadge tb-d';tb.textContent='あなたの防御';bn.className='turn-banner defend';document.getElementById('turnIcon').textContent='🛡️';document.getElementById('turnBannerTxt').textContent='防御ターン — カードを出すかターン終了';}else{const nm=pNames[c.player]||`P${c.player}`;tb.className='tbadge tb-w';tb.textContent=`${nm}のターン`;bn.className='turn-banner wait';document.getElementById('turnIcon').textContent='⏳';document.getElementById('turnBannerTxt').textContent=`${nm} のターン — お待ちください`;}}
 function rHint(){const d=G.discardCard,ak=G.atkCardPlayed;document.getElementById('shint').textContent=(d?`捨て札:「${d.name}」[${getColors(d).map(x=>CN[x]||x).join('/')} C${d.cost}]`:'最初は何でも出せます')+(ak?` | 攻撃:「${ak.name}」ATK:${wAtk(ak)}`:'');}
 function rWx(){const w=wData(G.weather.current);document.getElementById('wIcon').textContent=w.icon;document.getElementById('wName').textContent=w.name;document.getElementById('wEff').textContent=' '+w.eff;document.getElementById('wChg').textContent=`変化まで${2*G.numP-(G.weather.defendsDone||0)}防御`;}
 function rOpps(){const el=document.getElementById('oppsPanel');el.innerHTML='';const c=cur();for(let i=1;i<=G.numP;i++){if(i===mySlot)continue;const p=G.players[i];if(!p)continue;const dead=p.alive===false||(p.hp||0)<=0;const isA=!dead&&c.player===i&&c.phase==='attack';const isD=!dead&&c.player===i&&c.phase==='defend';const pct=Math.max(0,Math.min(100,(p.hp/p.maxHp)*100));const nm=pNames[i]||`P${i}`;const fcard=(G.atkCardPlayed&&G.lastAtkPlayer===i)?G.atkCardPlayed:(G.defCardPlayed&&isD?G.defCardPlayed:null);const d2=document.createElement('div');d2.className='opp-area'+(dead?' opp-dead':isA?' oa':isD?' od':'');d2.innerHTML=`<div class="opp-info"><div class="opp-name">${nm}</div><div class="rpill ${dead?'rp-dead':isA?'rp-a':isD?'rp-d':'rp-w'}">${dead?'💀脱落':isA?'攻撃中':isD?'防御中':'待機'}</div><div class="opp-hp-row"><span style="font-size:.7rem">❤️</span><div class="opp-hb-out"><div class="opp-hb-in" style="width:${pct}%"></div></div><div class="opp-hp-txt">${p.hp}/${p.maxHp}</div></div><div class="opp-cost-c"><div class="occ-l">cost</div><div class="occ-n">${p.cost||0}</div></div><span style="font-family:'Rajdhani',sans-serif;font-size:.58rem;color:var(--text-dim)">🃏${p.hand?.length||0}</span></div><div style="display:flex;gap:.3rem;flex-wrap:wrap">${!dead&&p.hand?.length?`<div style="display:flex;gap:.22rem;overflow-x:auto">${Array(Math.min(p.hand.length,6)).fill(0).map(()=>`<div class="gc facedown static-card" style="border-color:rgba(201,168,76,.15);width:36px;height:52px"><div class="gc-art" style="height:26px;font-size:.75rem">🃏</div></div>`).join('')}${p.hand.length>6?`<span style="font-size:.52rem;color:var(--text-dim);align-self:center">+${p.hand.length-6}</span>`:''}</div>`:''  }${fcard?`<div style="flex-shrink:0">${gc2(fcard,false,true)}</div>`:''}</div>`;el.appendChild(d2);}}
