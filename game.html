@@ -597,8 +597,8 @@ function renderHand(){const me=G?.players?.[mySlot];const hand=me?.hand||[];cons
 function rLog(){const el=document.getElementById('glog');el.innerHTML=(G.log||[]).slice(-12).map(t=>{let c='le';if(t.includes('ダメ')||t.includes('ガード'))c+=' dmg';else if(t.includes('回復')||t.includes('HP+'))c+=' heal';else if(t.includes('🌟'))c+=' eff';else if(t.includes('天候')||t.includes('🌤'))c+=' wth';else if(t.includes('開始'))c+=' hl';return`<div class="${c}">▸ ${t}</div>`;}).join('');el.scrollTop=el.scrollHeight;}
 function updBtn(){
   const mt=myTurn();
-  document.getElementById('btnDraw').disabled=!mt||ph()!=='attack'||G.playedThisTurn||processing;
-  document.getElementById('btnPlay').disabled=!mt||selCard<0||G.playedThisTurn||processing;
+  document.getElementById('btnDraw').disabled=!mt||ph()!=='attack'||G.playedThisTurn;
+  document.getElementById('btnPlay').disabled=!mt||selCard<0||G.playedThisTurn;
   // ★ ターン終了はprocessingに関係なく自分のターンなら押せる（詰み防止）
   document.getElementById('btnEnd').disabled=!mt;
 }
