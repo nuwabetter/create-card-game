@@ -376,8 +376,29 @@ function unlock(){processing=false;const o=document.getElementById('pOv');if(o)o
 
 const wCost=(card,S)=>(S||G).weather.current==='rain'?Math.max(1,(card.cost||1)-1):(card.cost||1);
 const wAtk=(card,S)=>{S=S||G;return(card.atk||0)+(S.weather.current==='storm'?2:0);};
-function setWx(S,id){S.weather.current=id;S.weather.defendsDone=0;S.log.push(`🌤→${wData(id).icon}${wData(id).name}`);}
-function wxTick(S){S.weather.defendsDone=(S.weather.defendsDone||0)+1;if(S.weather.defendsDone>=2*S.numP){S.weather.defendsDone=0;const a=['sun','rain','storm'].filter(w=>w!==S.weather.current);const nw=a[~~(Math.random()*a.length)]||'sun';S.weather.current=nw;S.log.push(`🌤天候→${wData(nw).icon}${wData(nw).name}`);}}
+function setWx(S,id){
+  S.weather.current=id;S.weather.defendsDone=0;
+  S.log.push(`🌤→${wData(id).icon}${wData(id).name}`);
+  // 天候変化演出（ローカル側のみ）
+  requestAnimationFrame(()=>{
+    const w=wData(id);
+    const col=id==='sun'?'rgba(241,196,15,.3)':id==='rain'?'rgba(52,152,219,.3)':'rgba(155,89,182,.3)';
+    fl(col);
+    // フロートテキスト
+    const cx=innerWidth/2,cy=innerHeight/2;
+    fnum(w.icon+' '+w.name,'#fff',cx,cy-40);
+    // パーティクル
+    for(let i=0;i<20;i++)pt(cx,cy,80+Math.random()*120,6+Math.random()*8,col,.6+Math.random()*.8);
+  });
+}
+function wxTick(S){S.weather.defendsDone=(S.weather.defendsDone||0)+1;if(S.weather.defendsDone>=2*S.numP){S.weather.defendsDone=0;const a=['sun','rain','storm'].filter(w=>w!==S.weather.current);const nw=a[~~(Math.random()*a.length)]||'sun';S.weather.current=nw;S.log.push(`🌤天候→${wData(nw).icon}${wData(nw).name}`);
+    // 天候変化演出
+    requestAnimationFrame(()=>{
+      const w=wData(nw);
+      const col=nw==='sun'?'rgba(241,196,15,.3)':nw==='rain'?'rgba(52,152,219,.3)':'rgba(155,89,182,.3)';
+      fl(col);fnum(w.icon+' '+w.name,'#fff',innerWidth/2,innerHeight/2-40);
+      for(let i=0;i<20;i++)pt(innerWidth/2,innerHeight/2,80+Math.random()*120,6+Math.random()*8,col,.6+Math.random()*.8);
+    });}}
 
 function canPlay(card,S){S=S||G;const me=S.players[mySlot];if(!me)return false;if((me.cost||0)<wCost(card,S))return false;const d=S.discardCard;if(d){
     const mc=getColors(card),dc=getColors(d);
@@ -468,6 +489,9 @@ function onGameRef(snap){
     if(ng){
       gameStarted=true;
       G=rehydrateState(ng);
+      // 手札配布アニメーション
+      const myHand=G.players?.[mySlot]?.hand||[];
+      myHand.forEach((_,i)=>newCards.add('i'+i));
       SL(100,'開始！');
       showGame();
       renderAll();
@@ -543,7 +567,7 @@ window.playCard=async function(){
   try{
     const me=G.players[mySlot];const card=me.hand?.[selCard];if(!card){unlock();return;}
     let pickIdx=-1;
-    const needPick=(card.effects||[]).some(e=>['selfAtkUp','selfDefUp','buffAtk','buffDef'].includes(e.eff||e.type||'')&&['onPlay','onAttack','onDefend','ifHpLow','ifHpHigh','ifChance'].includes(e.trigger));
+    const needPick=(card.effects||[]).some(e=>['selfAtkUp','selfDefUp','buffAtk','buffDef'].includes(e.eff||e.type||''));
     if(needPick&&me.hand.length>1){const other=me.hand.filter((_,i)=>i!==selCard);const pi=await pickCard(other,'強化する手札を選択');pickIdx=pi>=selCard?pi+1:pi;}
     const S=clone(G);const p=S.players[mySlot];
     const pc={...card};
@@ -582,7 +606,15 @@ window.leaveToLobby=function(){if(confirm('ロビーに戻りますか？'))wind
 window.onGoHome=async function(){navigating=true;if(roomRef)try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}window.location.href='index.html';};
 window.onRematch=async function(){document.getElementById('gop').classList.remove('show');gameOverShown=false;if(roomRef)try{await update(roomRef,{action:null,status:'playing'});await remove(gameRef);}catch(e){}if(amHost&&pool.length){const ns=buildState(numP);if(ns)save(ns);}};
 
-function checkWin(){if(!G||G.status!=='playing'||gameOverShown)return;const alive=[];for(let i=1;i<=G.numP;i++)if(G.players[i]?.alive!==false&&(G.players[i]?.hp||0)>0)alive.push(i);if(alive.length>1)return;gameOverShown=true;G.status='over';const win=alive.includes(mySlot)||alive.length===0;const nm=alive.length?alive.map(i=>pNames[i]||'P'+i).join('・'):'引き分け';document.getElementById('gopTitle').textContent=win?'🏆 勝利！':'💀 敗北';document.getElementById('gopTitle').style.color=win?'var(--gold)':'var(--red)';document.getElementById('gopSub').innerHTML=`${nm} の勝利！<br><small style="opacity:.6">${G.log?.[G.log.length-1]||''}</small>`;setTimeout(()=>document.getElementById('gop').classList.add('show'),2000);}
+function checkWin(){
+  if(!G||G.status!=='playing'||gameOverShown)return;
+  // normalizeState後のplayersは数値キーオブジェクト
+  const alive=[];
+  for(let i=1;i<=G.numP;i++){
+    const p=G.players[i]||G.players['slot_'+i];
+    if(p&&p.alive!==false&&(p.hp||0)>0)alive.push(i);
+  }
+  if(alive.length>1)return;gameOverShown=true;G.status='over';const win=alive.includes(mySlot)||alive.length===0;const nm=alive.length?alive.map(i=>pNames[i]||'P'+i).join('・'):'引き分け';document.getElementById('gopTitle').textContent=win?'🏆 勝利！':'💀 敗北';document.getElementById('gopTitle').style.color=win?'var(--gold)':'var(--red)';document.getElementById('gopSub').innerHTML=`${nm} の勝利！<br><small style="opacity:.6">${G.log?.[G.log.length-1]||''}</small>`;setTimeout(()=>document.getElementById('gop').classList.add('show'),2000);}
 
 function ill(card){const i=card?.illust;if(i&&i!=='[img]'&&(i.startsWith('http')||i.startsWith('data:')))return`<img src="${i}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.style.display='none'">`;return(i&&i!=='[img]')?i:'🃏';}
 function gc2(card,sel,stat){if(!card)return'';const cols=getColors(card);const mc=mainC(card);const av=wAtk(card);const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');const sk=cskills(card);return`<div class="gc${sel?' sel':''}${stat?' static-card':''}" style="border-color:${mc.border};box-shadow:${sel?'0 0 12px '+mc.glow:stat?'0 0 7px '+mc.glow:'none'}">${sk.length?'<div class="gc-sdot"></div>':''}<div class="gc-cs">${cs}</div><div class="gc-head"><div class="gc-cost" style="background:${mc.cost}">${card.cost||1}</div><div class="gc-name">${card.name||'?'}</div></div><div class="gc-art">${ill(card)}</div><div class="gc-stats"><span style="color:${av!==(card.atk||0)?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div><div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div></div>`;}
