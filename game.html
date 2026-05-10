@@ -97,7 +97,7 @@ body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-se
 .gc-art{height:30px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:rgba(0,0,0,.15);position:relative;overflow:hidden;flex-shrink:0}
 .gc-art img{width:100%;height:100%;object-fit:contain;background:#12121e}
 .gc-stats{display:flex;justify-content:space-around;padding:2px;background:rgba(0,0,0,.9);flex-shrink:0;font-family:'Rajdhani',sans-serif;font-size:.52rem;font-weight:700}
-.gc-flavor{flex:1;padding:1px 3px;background:rgba(0,0,0,.85);overflow:hidden;display:flex;flex-direction:column;gap:1px}
+.gc-flavor{flex:1;padding:1px 3px;background:rgba(0,0,0,.85);overflow:hidden;display:flex;flex-direction:column;gap:1px}.static-card .gc-flavor{overflow:visible;flex:unset}
 .gc-ft{font-size:.38rem;color:rgba(255,255,255,.32);font-style:italic;line-height:1.3;overflow:hidden}
 .gc-sl{font-size:.38rem;color:#f1c40f;line-height:1.25;overflow:hidden}
 .gc-sdot{position:absolute;top:2px;right:2px;width:4px;height:4px;border-radius:50%;background:#f1c40f;z-index:3}
@@ -185,6 +185,17 @@ body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-se
   100%{opacity:1;transform:translateY(0) scale(1) rotate(0deg)}
 }
 .hand-card.dealing{animation:dealCard .38s cubic-bezier(.34,1.4,.64,1) forwards}
+
+@media(min-width:768px){
+  .hand-card{width:180px!important;height:280px!important}
+  .hand-card .gc-art{height:120px!important;font-size:2.5rem!important}
+  .hand-card .gc-cost{width:28px!important;height:28px!important;font-size:.9rem!important}
+  .hand-card .gc-name{font-size:.72rem!important}
+  .hand-card .gc-stats{font-size:.75rem!important;padding:3px 5px!important}
+  .hand-card .gc-sl{font-size:.6rem!important}
+  .static-card .gc-art{height:60px!important}
+}
+.cdp{position:fixed;z-index:800;background:var(--panel);border:2px solid var(--gold);border-radius:10px;padding:.8rem;width:250px;pointer-events:none;box-shadow:0 8px 32px rgba(0,0,0,.9);display:none}.cdp h3{font-family:'Rajdhani',sans-serif;font-size:1rem;color:var(--gold);margin-bottom:.35rem}.cdp-stats{font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--text-dim);margin-bottom:.3rem}.cdp-sk{font-size:.7rem;color:#f1c40f;line-height:1.6;white-space:pre-wrap}.cdp-fl{font-size:.64rem;color:var(--text-dim);font-style:italic;margin-top:.3rem}
 </style>
 </head>
 <body>
@@ -241,6 +252,7 @@ body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-se
   </div>
 </div>
 <div class="tooltip" id="tooltip"><div class="tt-name" id="ttN"></div><div class="tt-stat" id="ttS"></div><div class="tt-skill" id="ttSk"></div><div class="tt-flavor" id="ttF"></div></div>
+<div class="cdp" id="cdp"><h3 id="cdpName"></h3><div class="cdp-stats" id="cdpStats"></div><div class="cdp-sk" id="cdpSk"></div><div class="cdp-fl" id="cdpFl"></div></div>
 <div class="toast" id="toast"></div>
 
 
@@ -577,7 +589,7 @@ window.playCard=async function(){
     const fc=Math.max(1,wCost(card,S)-(p._cB||0));
     if((p.cost||0)<fc){toast('コスト不足');unlock();return;}
     p.cost-=fc;p._cB=0;p.hand.splice(selCard,1);S.playedThisTurn=true;S.discardCard=clone(pc);
-    if(ph(S)==='attack'){S.atkCardPlayed=clone(pc);S.defCardPlayed=null;S.lastAtkPlayer=mySlot;S.log.push(`P${mySlot}「${pNames[mySlot]||myName}」→攻撃「${pc.name}」ATK:${wAtk(pc,S)}`);applyEff(pc,S,mySlot,'onPlay',pickIdx);applyEff(pc,S,mySlot,'onAttack',pickIdx);}
+    if(ph(S)==='attack'){S.atkCardPlayed=clone(pc);S.defCardPlayed=null;S.lastAtkPlayer=mySlot;S.log.push(`P${mySlot}「${pNames[mySlot]||myName}」→攻撃「${pc.name}」ATK:${wAtk(pc,S)}`);applyEff(pc,S,mySlot,'onPlay',pickIdx);}
     else{S.defCardPlayed=clone(pc);const ak=S.atkCardPlayed;if(ak){const av=wAtk(ak,S),dv=pc.def||0,dmg=Math.max(0,av-dv);if(dmg>0){p.hp=Math.max(0,p.hp-dmg);S.log.push(`⚔「${ak.name}」ATK:${av} vs「${pc.name}」DEF:${dv}→${dmg}ダメ！`);setTimeout(()=>atkFx(ak,dmg,false),150);applyEff(ak,S,S.lastAtkPlayer,'onDamage',pickIdx);applyEff(pc,S,mySlot,'onTakeDmg',pickIdx);}else{S.log.push(`🛡「${ak.name}」ATK:${av} vs「${pc.name}」DEF:${dv}→ブロック！`);setTimeout(()=>atkFx(ak,0,true),150);}}applyEff(pc,S,mySlot,'onPlay',pickIdx);applyEff(pc,S,mySlot,'onDefend',pickIdx);S.atkCardPlayed=null;wxTick(S);}
     const dr=drawCard();if(dr){p.hand.push(dr);newCards.add('n'+(p.hand.length-1));S.log.push(`P${mySlot}→1枚ドロー`);}
     vfx(pc);selCard=-1;G=S;renderAll();checkWin();
@@ -617,8 +629,44 @@ function checkWin(){
   if(alive.length>1)return;gameOverShown=true;G.status='over';const win=alive.includes(mySlot)||alive.length===0;const nm=alive.length?alive.map(i=>pNames[i]||'P'+i).join('・'):'引き分け';document.getElementById('gopTitle').textContent=win?'🏆 勝利！':'💀 敗北';document.getElementById('gopTitle').style.color=win?'var(--gold)':'var(--red)';document.getElementById('gopSub').innerHTML=`${nm} の勝利！<br><small style="opacity:.6">${G.log?.[G.log.length-1]||''}</small>`;setTimeout(()=>document.getElementById('gop').classList.add('show'),2000);}
 
 function ill(card){const i=card?.illust;if(i&&i!=='[img]'&&(i.startsWith('http')||i.startsWith('data:')))return`<img src="${i}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.style.display='none'">`;return(i&&i!=='[img]')?i:'🃏';}
-function gc2(card,sel,stat){if(!card)return'';const cols=getColors(card);const mc=mainC(card);const av=wAtk(card);const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');const sk=cskills(card);return`<div class="gc${sel?' sel':''}${stat?' static-card':''}" style="border-color:${mc.border};box-shadow:${sel?'0 0 12px '+mc.glow:stat?'0 0 7px '+mc.glow:'none'}">${sk.length?'<div class="gc-sdot"></div>':''}<div class="gc-cs">${cs}</div><div class="gc-head"><div class="gc-cost" style="background:${mc.cost}">${card.cost||1}</div><div class="gc-name">${card.name||'?'}</div></div><div class="gc-art">${ill(card)}</div><div class="gc-stats"><span style="color:${av!==(card.atk||0)?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div><div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div></div>`;}
-function renderAll(){if(!G)return;rStat();rBanner();rHint();rWx();rOpps();rBF();renderHand();rLog();updBtn();}
+function showCdp(ev,card){
+  const d=document.getElementById('cdp');if(!d||!card)return;
+  const av=wAtk(card),sk=cskills(card),cols=getColors(card).map(x=>CN[x]||x).join('/');
+  document.getElementById('cdpName').textContent=card.name||'?';
+  document.getElementById('cdpStats').textContent='['+cols+'] コスト:'+(card.cost||1)+' ATK:'+av+' DEF:'+(card.def||0);
+  document.getElementById('cdpSk').textContent=sk.join('
+')||'スキルなし';
+  document.getElementById('cdpFl').textContent=card.flavor||'';
+  d.style.display='block';
+  const dw=258;
+  d.style.left=Math.min((ev.clientX||0)+14,innerWidth-dw-8)+'px';
+  d.style.top=Math.max((ev.clientY||0)-150,8)+'px';
+}
+function hideCdp(){const d=document.getElementById('cdp');if(d)d.style.display='none';}
+function gc2(card,sel,stat){if(!card)return'';const cols=getColors(card);const mc=mainC(card);const av=wAtk(card);const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');const sk=cskills(card);return`<div class="gc${sel?' sel':''}${stat?' static-card':''}" title="${(card.name||'?')+' ['+getColors(card).map(x=>CN[x]||x).join('/')+'] C'+(card.cost||1)+' ATK:'+av+' DEF:'+(card.def||0)+(sk.length?' | '+sk.join(' | '):'')+' '+((card.flavor||'')).slice(0,30)}" style="border-color:${mc.border};box-shadow:${sel?'0 0 12px '+mc.glow:stat?'0 0 7px '+mc.glow:'none'}">${sk.length?'<div class="gc-sdot"></div>':''}<div class="gc-cs">${cs}</div><div class="gc-head"><div class="gc-cost" style="background:${mc.cost}">${card.cost||1}</div><div class="gc-name">${card.name||'?'}</div></div><div class="gc-art">${ill(card)}</div><div class="gc-stats"><span style="color:${av!==(card.atk||0)?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${mc.accent}">🛡${card.def||0}</span></div><div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div></div>`;}
+function renderAll(){
+  if(!G)return;
+  rStat();rBanner();rHint();rWx();rOpps();rBF();renderHand();rLog();updBtn();
+  setTimeout(()=>{
+    document.querySelectorAll('.static-card').forEach(el=>{
+      if(el._cdpDone)return;el._cdpDone=true;
+      el.addEventListener('mouseenter',ev=>{
+        const t=el.getAttribute('title')||'';if(!t)return;
+        const d=document.getElementById('cdp');if(!d)return;
+        const parts=t.split(' | ');
+        document.getElementById('cdpName').textContent=parts[0]||'';
+        document.getElementById('cdpStats').textContent=parts[1]||'';
+        document.getElementById('cdpSk').textContent=parts.slice(2).join('
+')||'';
+        document.getElementById('cdpFl').textContent='';
+        d.style.display='block';
+        d.style.left=Math.min(ev.clientX+14,innerWidth-268)+'px';
+        d.style.top=Math.max(ev.clientY-160,8)+'px';
+      });
+      el.addEventListener('mouseleave',()=>hideCdp());
+    });
+  },0);
+}
 function rStat(){const me=G.players[mySlot];if(!me)return;document.getElementById('myNameDisp').textContent=(pNames[mySlot]||myName)+' 👤';document.getElementById('myHpBar').style.width=Math.max(0,Math.min(100,(me.hp/me.maxHp)*100))+'%';document.getElementById('myHpTxt').textContent=`${me.hp}/${me.maxHp}`;const cost=me.cost||0;document.getElementById('myCostNum').textContent=cost;const col=cost>=10?'rgba(241,196,15,.85)':cost>=5?'rgba(201,168,76,.65)':'rgba(201,168,76,.45)';const circ=document.getElementById('myCostCircle');circ.style.borderColor=col;circ.style.boxShadow=cost>=5?`0 0 10px ${col}`:'none';}
 function rBanner(){const c=cur();const tb=document.getElementById('turnBadge');const bn=document.getElementById('turnBanner');const hud=document.getElementById('hudTurn');if(hud)hud.textContent=`T${(G.turnCount||0)+1}[seq:${G.seqIdx} P${c.player}${c.phase[0]} me:${mySlot} played:${G.playedThisTurn?1:0} h:${amHost?1:0}]`;if(myTurn()&&ph()==='attack'){tb.className='tbadge tb-a';tb.textContent='あなたの攻撃';bn.className='turn-banner attack';document.getElementById('turnIcon').textContent='⚔️';document.getElementById('turnBannerTxt').textContent='攻撃ターン — カードを選んで「出す」';}else if(myTurn()&&ph()==='defend'){tb.className='tbadge tb-d';tb.textContent='あなたの防御';bn.className='turn-banner defend';document.getElementById('turnIcon').textContent='🛡️';document.getElementById('turnBannerTxt').textContent='防御ターン — カードを出すかターン終了';}else{const nm=pNames[c.player]||`P${c.player}`;tb.className='tbadge tb-w';tb.textContent=`${nm}のターン`;bn.className='turn-banner wait';document.getElementById('turnIcon').textContent='⏳';document.getElementById('turnBannerTxt').textContent=`${nm} のターン — お待ちください`;}}
 function rHint(){const d=G.discardCard,ak=G.atkCardPlayed;document.getElementById('shint').textContent=(d?`捨て札:「${d.name}」[${getColors(d).map(x=>CN[x]||x).join('/')} C${d.cost}]`:'最初は何でも出せます')+(ak?` | 攻撃:「${ak.name}」ATK:${wAtk(ak)}`:'');}
