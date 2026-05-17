@@ -413,26 +413,72 @@ function wxTick(S){S.weather.defendsDone=(S.weather.defendsDone||0)+1;if(S.weath
       for(let i=0;i<20;i++)pt(innerWidth/2,innerHeight/2,80+Math.random()*120,6+Math.random()*8,col,.6+Math.random()*.8);
     });}}
 
-function canPlay(card,S){S=S||G;const me=S.players[mySlot];if(!me)return false;if((me.cost||0)<wCost(card,S))return false;const d=S.discardCard;if(d){
+function getEffects(card){return card?.effects?.length?card.effects:(card?.effect&&(card.effect.trigger||card.effect.type)?[{trigger:card.effect.trigger,eff:card.effect.type||'',effVal:card.effect.value,condVal:3}]:[]);}
+const COND_TRIGS=['ifHpLow','ifHpHigh','ifChance','ifWeatherSun','ifWeatherRain','ifWeatherStorm','ifTurnGte'];
+function conditionPasses(cond,S,slot,opts={}){
+  const tr=cond.playCond||cond.trigger||'',cv=+cond.condVal||3,p=S.players?.[slot];
+  if(!tr)return true;
+  if(tr==='ifHpLow')return(p?.hp||0)<=cv;
+  if(tr==='ifHpHigh')return(p?.hp||0)>=cv;
+  if(tr==='ifChance')return opts.rollChance===false?true:Math.random()*100<=cv;
+  if(tr==='ifWeatherSun')return S.weather?.current==='sun';
+  if(tr==='ifWeatherRain')return S.weather?.current==='rain';
+  if(tr==='ifWeatherStorm')return S.weather?.current==='storm';
+  if(tr==='ifTurnGte')return(S.turnCount||0)>=cv;
+  return true;
+}
+function effectMatches(e,S,slot,trig,opts={}){
+  const tr=e.trigger||'';
+  if(tr==='playCondition')return false;
+  if(!tr)return trig==='onPlay';
+  if(COND_TRIGS.includes(tr))return trig==='onPlay'&&conditionPasses(e,S,slot,opts);
+  return tr===trig;
+}
+function effectTargetSlot(S,slot,trig){
+  if(S.numP===2)return slot===1?2:1;
+  const c=S.seq?.[S.seqIdx%S.seq.length];
+  if(c?.phase==='defend'){
+    if(slot===S.lastAtkPlayer)return c.player;
+    if(slot===c.player&&S.lastAtkPlayer)return S.lastAtkPlayer;
+  }
+  if(c?.phase==='attack')return S.seq?.[(S.seqIdx+1)%S.seq.length]?.player;
+  for(let i=1;i<=S.numP;i++)if(i!==slot&&S.players[i]?.alive!==false)return i;
+  return null;
+}
+function canPlay(card,S,opts={}){S=S||G;const me=S.players[mySlot];if(!me)return false;if((me.cost||0)<wCost(card,S))return false;const d=S.discardCard;if(d){
     const mc=getColors(card),dc=getColors(d);
     const sameColor=mc.some(col=>dc.includes(col));
     const sameCost=(card.cost||1)===(d.cost||1);
     if(!sameColor&&!sameCost)return false;
-  }for(const e of(card.effects||[])){if(e.trigger!=='playCondition')continue;const pc=e.playCond||'',cv=+e.condVal||3;if(pc==='ifHpLow'&&(me.hp||0)>cv)return false;if(pc==='ifHpHigh'&&(me.hp||0)<cv)return false;if(pc==='ifChance'&&Math.random()*100>cv)return false;if(pc==='ifWeatherSun'&&S.weather.current!=='sun')return false;if(pc==='ifWeatherRain'&&S.weather.current!=='rain')return false;if(pc==='ifWeatherStorm'&&S.weather.current!=='storm')return false;}return true;}
+  }for(const e of getEffects(card)){if(e.trigger!=='playCondition')continue;if(!conditionPasses(e,S,mySlot,{rollChance:opts.rollChance===true}))return false;}return true;}
 
 const ED={draw:n=>`${n}枚ドロー`,selfHeal:n=>`自HP+${n}`,selfDamage:n=>`自-${n}ダメ`,selfAtkUp:n=>`手札ATK+${n}`,selfDefUp:n=>`手札DEF+${n}`,selfCardAtkUp:n=>`カードATK+${n}`,selfCardDefUp:n=>`カードDEF+${n}`,oppDamage:n=>`相+${n}ダメ`,selfCostDown:n=>`次コスト-${n}`,selfCostUp:n=>`自コスト+${n}`,oppCostDown:n=>`相コスト-${n}`,oppAtkDown:n=>`相ATK-${n}`,oppDefDown:n=>`相DEF-${n}`,weatherSun:()=>'→☀️',weatherRain:()=>'→🌧️',weatherStorm:()=>'→⛈️',weatherChange:()=>'天候変化',buffAtk:n=>`手札ATK+${n}`,buffDef:n=>`手札DEF+${n}`,heal:n=>`自HP+${n}`,damage:n=>`相+${n}ダメ`,costReduce:n=>`次コスト-${n}`,costGain:n=>`自コスト+${n}`};
 const TS={onAttack:'攻撃時',onDefend:'防御時',onPlay:'出した時',onDamage:'ダメ与',onTakeDmg:'被ダメ',ifHpLow:'HP≤n',ifHpHigh:'HP≥n',ifChance:'n%',ifWeatherSun:'晴れ',ifWeatherRain:'雨',ifWeatherStorm:'嵐',ifTurnGte:'T≥n',playCondition:'★出し条件'};
-const PS={ifHpLow:'HP≤n',ifHpHigh:'HP≥n',ifChance:'n%',ifWeatherSun:'晴れ時',ifWeatherRain:'雨時',ifWeatherStorm:'嵐時'};
+const PS={ifHpLow:'HP≤n',ifHpHigh:'HP≥n',ifChance:'n%',ifWeatherSun:'晴れ時',ifWeatherRain:'雨時',ifWeatherStorm:'嵐時',ifTurnGte:'T≥n'};
 function skillLine(e){if(e.trigger==='playCondition')return`★出し条件[${(PS[e.playCond]||'?').replace(/n/g,e.condVal||'?')}]`;const tr=e.trigger||'',ek=e.eff||e.type||'',ev=e.effVal||e.value||1,cv=e.condVal||ev;const t=(TS[tr]||tr).replace(/n/g,cv);const ef=ED[ek]?ED[ek](ev):'';if(!t&&!ef)return'';return`【${t||'常時'}】${ef}`;}
-function cskills(card){const ef=card.effects?.length?card.effects:(card.effect&&(card.effect.trigger||card.effect.type)?[{trigger:card.effect.trigger,eff:card.effect.type||'',effVal:card.effect.value}]:[]);return ef.map(e=>skillLine(e)).filter(Boolean);}
+function cskills(card){return getEffects(card).map(e=>skillLine(e)).filter(Boolean);}
+
+function needsHandPick(card,S){
+  const phaseTrig=ph(S)==='attack'?'onAttack':'onDefend';
+  return getEffects(card).some(e=>['selfAtkUp','selfDefUp','buffAtk','buffDef'].includes(e.eff||e.type||'')&&(effectMatches(e,S,mySlot,'onPlay',{rollChance:false})||effectMatches(e,S,mySlot,phaseTrig,{rollChance:false})));
+}
+function handPickIndex(p,pickIdx){
+  if(pickIdx>=0&&p.hand?.[pickIdx])return pickIdx;
+  const len=p.hand?.length||0;
+  return len?Math.floor(Math.random()*len):-1;
+}
+function applySelfCardMods(source,played,S,slot,trig){
+  for(const e of getEffects(source)){
+    if(!effectMatches(e,S,slot,trig))continue;
+    const ek=e.eff||e.type||'',ev=+e.effVal||+e.value||1;
+    if(ek==='selfCardAtkUp'){played.atk=(played.atk||0)+ev;S.log.push(`🌟${played.name}→ATK+${ev}`);}
+    if(ek==='selfCardDefUp'){played.def=(played.def||0)+ev;S.log.push(`🌟${played.name}→DEF+${ev}`);}
+  }
+}
 
 function applyEff(card,S,slot,trig,pickIdx){
   if(!card)return;
-  const ef=card.effects?.length?card.effects:(card.effect&&(card.effect.trigger||card.effect.type)?[{trigger:card.effect.trigger,eff:card.effect.type||'',effVal:card.effect.value,condVal:3}]:[]);
-  const COND=['ifHpLow','ifHpHigh','ifChance','ifWeatherSun','ifWeatherRain','ifWeatherStorm','ifTurnGte'];
-  const PLAY=['onPlay','onAttack','onDefend'];
-  const opp=sl=>{if(S.numP===2)return sl===1?2:1;const ni=(S.seqIdx+1)%S.seq.length;return S.seq[ni].player;};
-  for(const e of ef){const tr=e.trigger||'';if(tr==='playCondition')continue;const ek=e.eff||e.type||'',ev=+e.effVal||+e.value||1,cv=+e.condVal||ev;if(COND.includes(tr)){if(!PLAY.includes(trig))continue;if(tr==='ifHpLow'&&(S.players[slot]?.hp||0)>cv)continue;if(tr==='ifHpHigh'&&(S.players[slot]?.hp||0)<cv)continue;if(tr==='ifChance'&&Math.random()*100>cv)continue;if(tr==='ifWeatherSun'&&S.weather.current!=='sun')continue;if(tr==='ifWeatherRain'&&S.weather.current!=='rain')continue;if(tr==='ifWeatherStorm'&&S.weather.current!=='storm')continue;if(tr==='ifTurnGte'&&(S.turnCount||0)<cv)continue;}else if(tr!==trig)continue;const p=S.players[slot];if(!p)continue;const os=opp(slot);const op=os?S.players[os]:null;switch(ek){case'draw':for(let i=0;i<ev;i++){const d=drawCard();if(d){p.hand.push(d);newCards.add('n'+(p.hand.length-1));}}S.log.push(`🌟${card.name}→${ev}枚ドロー`);break;case'selfHeal':case'heal':p.hp=Math.min(p.maxHp,(p.hp||0)+ev);S.log.push(`🌟${card.name}→HP+${ev}`);break;case'selfDamage':p.hp=Math.max(0,(p.hp||0)-ev);S.log.push(`🌟${card.name}→自-${ev}`);break;case'selfAtkUp':case'buffAtk':{const i=pickIdx??0;if(p.hand[i]){p.hand[i].atk=(p.hand[i].atk||0)+ev;S.log.push(`🌟ATK+${ev}`);}}break;case'selfDefUp':case'buffDef':{const i=pickIdx??0;if(p.hand[i]){p.hand[i].def=(p.hand[i].def||0)+ev;S.log.push(`🌟DEF+${ev}`);}}break;case'oppDamage':case'damage':if(op){op.hp=Math.max(0,(op.hp||0)-ev);S.log.push(`🌟${card.name}→相-${ev}`);}break;case'selfCostDown':case'costReduce':p._cB=(p._cB||0)+ev;S.log.push(`🌟次コスト-${ev}`);break;case'selfCostUp':case'costGain':p.cost=(p.cost||0)+ev;break;case'oppCostDown':if(op)op.cost=Math.max(0,(op.cost||0)-ev);break;case'oppAtkDown':if(op)op._nAtkD=(op._nAtkD||0)+ev;break;case'oppDefDown':if(op)op._nDefD=(op._nDefD||0)+ev;break;case'weatherSun':setWx(S,'sun');break;case'weatherRain':setWx(S,'rain');break;case'weatherStorm':setWx(S,'storm');break;case'weatherChange':{const a=['sun','rain','storm'].filter(w=>w!==S.weather.current);setWx(S,a[~~(Math.random()*a.length)]||'sun');}break;}}
+  for(const e of getEffects(card)){if(!effectMatches(e,S,slot,trig))continue;const ek=e.eff||e.type||'',ev=+e.effVal||+e.value||1;const p=S.players[slot];if(!p)continue;const os=effectTargetSlot(S,slot,trig);const op=os?S.players[os]:null;switch(ek){case'draw':for(let i=0;i<ev;i++){const d=drawCard();if(d){p.hand.push(d);newCards.add('n'+(p.hand.length-1));}}S.log.push(`🌟${card.name}→${ev}枚ドロー`);break;case'selfHeal':case'heal':p.hp=Math.min(p.maxHp,(p.hp||0)+ev);S.log.push(`🌟${card.name}→HP+${ev}`);break;case'selfDamage':p.hp=Math.max(0,(p.hp||0)-ev);S.log.push(`🌟${card.name}→自-${ev}`);break;case'selfAtkUp':case'buffAtk':{const i=handPickIndex(p,pickIdx);if(i>=0){p.hand[i].atk=(p.hand[i].atk||0)+ev;S.log.push(`🌟手札「${p.hand[i].name||'?'}」ATK+${ev}`);}}break;case'selfDefUp':case'buffDef':{const i=handPickIndex(p,pickIdx);if(i>=0){p.hand[i].def=(p.hand[i].def||0)+ev;S.log.push(`🌟手札「${p.hand[i].name||'?'}」DEF+${ev}`);}}break;case'selfCardAtkUp':case'selfCardDefUp':break;case'oppDamage':case'damage':if(op){op.hp=Math.max(0,(op.hp||0)-ev);S.log.push(`🌟${card.name}→P${os}-${ev}`);}break;case'selfCostDown':case'costReduce':p._cB=(p._cB||0)+ev;S.log.push(`🌟次コスト-${ev}`);break;case'selfCostUp':case'costGain':p.cost=(p.cost||0)+ev;break;case'oppCostDown':if(op)op.cost=Math.max(0,(op.cost||0)-ev);break;case'oppAtkDown':if(op)op._nAtkD=(op._nAtkD||0)+ev;break;case'oppDefDown':if(op)op._nDefD=(op._nDefD||0)+ev;break;case'weatherSun':setWx(S,'sun');break;case'weatherRain':setWx(S,'rain');break;case'weatherStorm':setWx(S,'storm');break;case'weatherChange':{const a=['sun','rain','storm'].filter(w=>w!==S.weather.current);setWx(S,a[~~(Math.random()*a.length)]||'sun');}break;}}
 }
 
 function gcenter(){const bf=document.querySelector('.battlefield');if(!bf)return{x:innerWidth/2,y:innerHeight/2};const r=bf.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};}
@@ -593,19 +639,22 @@ window.playCard=async function(){
   lock();
   try{
     const me=G.players[mySlot];const card=me.hand?.[selCard];if(!card){unlock();return;}
+    const S=clone(G);
+    if(!canPlay(card,S,{rollChance:true})){toast('出し条件を満たせませんでした');unlock();return;}
     let pickIdx=-1;
-    const needPick=(card.effects||[]).some(e=>['selfAtkUp','selfDefUp','buffAtk','buffDef'].includes(e.eff||e.type||''));
+    const needPick=needsHandPick(card,S);
     if(needPick&&me.hand.length>1){const other=me.hand.filter((_,i)=>i!==selCard);const pi=await pickCard(other,'強化する手札を選択');pickIdx=pi>=selCard?pi+1:pi;}
-    const S=clone(G);const p=S.players[mySlot];
+    const p=S.players[mySlot];
     const pc={...card};
     if(p._nAtkD){pc.atk=Math.max(0,(pc.atk||0)-p._nAtkD);p._nAtkD=0;}
     if(p._nDefD){pc.def=Math.max(0,(pc.def||0)-p._nDefD);p._nDefD=0;}
-    for(const e of(card.effects||[])){if(e.eff==='selfCardAtkUp')pc.atk=(pc.atk||0)+(e.effVal||1);if(e.eff==='selfCardDefUp')pc.def=(pc.def||0)+(e.effVal||1);}
+    applySelfCardMods(card,pc,S,mySlot,'onPlay');
+    applySelfCardMods(card,pc,S,mySlot,ph(S)==='attack'?'onAttack':'onDefend');
     const fc=Math.max(1,wCost(card,S)-(p._cB||0));
     if((p.cost||0)<fc){toast('コスト不足');unlock();return;}
-    p.cost-=fc;p._cB=0;p.hand.splice(selCard,1);S.playedThisTurn=true;S.discardCard=clone(pc);
-    if(ph(S)==='attack'){S.atkCardPlayed=clone(pc);S.defCardPlayed=null;S.lastAtkPlayer=mySlot;S.log.push(`P${mySlot}「${pNames[mySlot]||myName}」→攻撃「${pc.name}」ATK:${wAtk(pc,S)}`);applyEff(pc,S,mySlot,'onPlay',pickIdx);}
-    else{S.defCardPlayed=clone(pc);const ak=S.atkCardPlayed;if(ak){const av=wAtk(ak,S),dv=pc.def||0,dmg=Math.max(0,av-dv);if(dmg>0){p.hp=Math.max(0,p.hp-dmg);S.log.push(`⚔「${ak.name}」ATK:${av} vs「${pc.name}」DEF:${dv}→${dmg}ダメ！`);setTimeout(()=>atkFx(ak,dmg,false),150);applyEff(ak,S,S.lastAtkPlayer,'onDamage',pickIdx);applyEff(pc,S,mySlot,'onTakeDmg',pickIdx);}else{S.log.push(`🛡「${ak.name}」ATK:${av} vs「${pc.name}」DEF:${dv}→ブロック！`);setTimeout(()=>atkFx(ak,0,true),150);}}applyEff(pc,S,mySlot,'onPlay',pickIdx);applyEff(pc,S,mySlot,'onDefend',pickIdx);S.atkCardPlayed=null;wxTick(S);}
+    p.cost-=fc;p._cB=0;p.hand.splice(selCard,1);const effPickIdx=pickIdx>selCard?pickIdx-1:pickIdx;S.playedThisTurn=true;S.discardCard=clone(pc);
+    if(ph(S)==='attack'){S.atkCardPlayed=clone(pc);S.defCardPlayed=null;S.lastAtkPlayer=mySlot;S.log.push(`P${mySlot}「${pNames[mySlot]||myName}」→攻撃「${pc.name}」ATK:${wAtk(pc,S)}`);applyEff(pc,S,mySlot,'onPlay',effPickIdx);applyEff(pc,S,mySlot,'onAttack',effPickIdx);}
+    else{S.defCardPlayed=clone(pc);const ak=S.atkCardPlayed;if(ak){const av=wAtk(ak,S),dv=pc.def||0,dmg=Math.max(0,av-dv);if(dmg>0){p.hp=Math.max(0,p.hp-dmg);S.log.push(`⚔「${ak.name}」ATK:${av} vs「${pc.name}」DEF:${dv}→${dmg}ダメ！`);setTimeout(()=>atkFx(ak,dmg,false),150);applyEff(ak,S,S.lastAtkPlayer,'onDamage',-1);applyEff(pc,S,mySlot,'onTakeDmg',effPickIdx);}else{S.log.push(`🛡「${ak.name}」ATK:${av} vs「${pc.name}」DEF:${dv}→ブロック！`);setTimeout(()=>atkFx(ak,0,true),150);}}applyEff(pc,S,mySlot,'onPlay',effPickIdx);applyEff(pc,S,mySlot,'onDefend',effPickIdx);S.atkCardPlayed=null;wxTick(S);}
     const dr=drawCard();if(dr){p.hand.push(dr);newCards.add('n'+(p.hand.length-1));S.log.push(`P${mySlot}→1枚ドロー`);}
     vfx(pc);selCard=-1;G=S;renderAll();checkWin();
     await save(S);

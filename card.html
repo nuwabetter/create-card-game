@@ -254,6 +254,7 @@ const PCONDS=[
   {v:'ifHpLow',l:'自HPがn以下',n:true},{v:'ifHpHigh',l:'自HPがn以上',n:true},
   {v:'ifChance',l:'n%の確率',n:true},{v:'ifWeatherSun',l:'晴れ時',n:false},
   {v:'ifWeatherRain',l:'雨時',n:false},{v:'ifWeatherStorm',l:'嵐時',n:false},
+  {v:'ifTurnGte',l:'ターンn以上',n:true},
 ];
 const EFFS=[
   {v:'',l:'（効果なし）'},{v:'draw',l:'n枚ドロー'},{v:'selfHeal',l:'自HP+n回復'},
@@ -410,12 +411,12 @@ function renderEffects(){
       <button class="del-btn" onclick="removeEff('${e.id}')">✕ 削除</button>
       <div class="eff-row">
         <div><label>① 発動条件</label><select onchange="effChg('${e.id}','trigger',this.value)">${trigOpts}</select></div>
-        <div><label>② 効果</label><select onchange="effChg('${e.id}','eff',this.value)">${effOpts}</select></div>
+        ${!hasCond?`<div><label>② 効果</label><select onchange="effChg('${e.id}','eff',this.value)">${effOpts}</select></div>`:''}
       </div>
       ${td.n&&!hasCond?`<div style="margin-bottom:.4rem"><label>条件のn値</label><input type="number" value="${e.condVal||3}" min="1" max="100" onchange="effChg('${e.id}','condVal',this.value)" oninput="effChg('${e.id}','condVal',this.value)"></div>`:''}
       ${condUI}
       ${!hasCond?`<div><label>効果量</label><input type="number" value="${e.effVal||1}" min="1" max="99" onchange="effChg('${e.id}','effVal',this.value)" oninput="effChg('${e.id}','effVal',this.value)"></div>`:''}
-      <div class="eff-prev">${buildSkillText(e)}</div>
+      <div class="eff-prev" id="ep_${e.id}">${buildSkillText(e)}</div>
     </div>`;
   }).join('');
 }
@@ -424,6 +425,8 @@ window.removeEff=function(id){effects=effects.filter(e=>e.id!==id);renderEffects
 window.effChg=function(id,field,val){
   const e=effects.find(x=>x.id===id);if(!e)return;
   e[field]=(field==='condVal'||field==='effVal')?parseInt(val)||1:val;
+  if(field==='trigger'&&val==='playCondition')e.eff='';
+  if(field==='trigger'&&val!=='playCondition')e.playCond='';
   if(field==='trigger'||field==='playCond')renderEffects();
   else{const ep=document.getElementById('ep_'+id);if(ep)ep.textContent=buildSkillText(e);}
   updatePrev();
@@ -463,7 +466,8 @@ window.saveCard=async function(){
   const illust=imgSrc||curIll;
   // Size check for data URLs
   if(illust&&illust.startsWith('data:')){const kb=Math.round(illust.length*.75/1024);if(kb>400){showToast(`画像が大きすぎます(${kb}KB)。自動圧縮されますが再度ファイルを選択してください`);return;}}
-  const card={id,name,colors,color:colors[0],cost:parseInt(document.getElementById('cardCost').value)||1,atk:parseInt(document.getElementById('cardAtk').value)||0,def:parseInt(document.getElementById('cardDef').value)||0,flavor:document.getElementById('cardFlavor').value||'',illust,effects:effects.filter(e=>e.eff||e.trigger||e.playCond),vfx:[...selVfx],author:myName,createdAt:editId?allCards.find(c=>c.id===editId)?.createdAt||Date.now():Date.now()};
+  const normalizedEffects=effects.map(e=>({trigger:e.trigger||'',eff:e.trigger==='playCondition'?'':(e.eff||''),condVal:parseInt(e.condVal)||3,effVal:parseInt(e.effVal)||1,playCond:e.trigger==='playCondition'?(e.playCond||''):''})).filter(e=>e.trigger==='playCondition'?e.playCond:e.eff);
+  const card={id,name,colors,color:colors[0],cost:parseInt(document.getElementById('cardCost').value)||1,atk:parseInt(document.getElementById('cardAtk').value)||0,def:parseInt(document.getElementById('cardDef').value)||0,flavor:document.getElementById('cardFlavor').value||'',illust,effects:normalizedEffects,vfx:[...selVfx],author:myName,createdAt:editId?allCards.find(c=>c.id===editId)?.createdAt||Date.now():Date.now()};
   try{await set(ref(db,`sharedCards/${id}`),card);showToast(editId?`「${name}」更新！`:`「${name}」保存！`);if(editId)cancelEdit();else resetForm();}
   catch(e){showToast('保存失敗: '+e.message);console.error(e);}
 };
