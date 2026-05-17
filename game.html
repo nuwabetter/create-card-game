@@ -461,7 +461,12 @@ function cskills(card){return getEffects(card).map(e=>skillLine(e)).filter(Boole
 
 function needsHandPick(card,S){
   const phaseTrig=ph(S)==='attack'?'onAttack':'onDefend';
-  return getEffects(card).some(e=>['selfAtkUp','selfDefUp','buffAtk','buffDef'].includes(e.eff||e.type||'')&&(effectMatches(e,S,mySlot,'onPlay',{rollChance:false})||effectMatches(e,S,mySlot,phaseTrig,{rollChance:false})));
+  return getEffects(card).some(e=>{
+    if(!['selfAtkUp','selfDefUp','buffAtk','buffDef'].includes(e.eff||e.type||''))return false;
+    const tr=e.trigger||'';
+    if(COND_TRIGS.includes(tr))return conditionPasses(e,S,mySlot,{rollChance:false});
+    return effectMatches(e,S,mySlot,'onPlay',{rollChance:false})||effectMatches(e,S,mySlot,phaseTrig,{rollChance:false});
+  });
 }
 function handPickIndex(p,pickIdx){
   if(pickIdx>=0&&p.hand?.[pickIdx])return pickIdx;
@@ -573,6 +578,7 @@ function onGameRef(snap){
       SL(100,'開始！');
       showGame();
       renderAll();
+      if(G.status==='over')showGameOver(G);
     } else if(amHost){
       ensureGameState();
     }
@@ -593,7 +599,8 @@ function onGameRef(snap){
   const _c=G.seq?.[G.seqIdx];
   console.log('[SYNC]','tc='+G.turnCount,'seq='+G.seqIdx,'P'+_c?.player+_c?.phase?.[0],'me='+mySlot,'myTurn='+myTurn(),'played='+G.playedThisTurn);
   renderAll();
-  checkWin();
+  if(G.status==='over')showGameOver(G);
+  else checkWin();
 }
 
 function init(){
@@ -684,14 +691,30 @@ window.onGoHome=async function(){navigating=true;if(roomRef)try{await update(roo
 window.onRematch=async function(){document.getElementById('gop').classList.remove('show');gameOverShown=false;gameStarted=false;if(roomRef)try{await update(roomRef,{action:null,status:'playing'});await remove(gameRef);}catch(e){}if(amHost)ensureGameState();};
 
 function checkWin(){
-  if(!G||G.status!=='playing'||gameOverShown)return;
+  if(!G||G.status!=='playing')return false;
   // normalizeState後のplayersは数値キーオブジェクト
   const alive=[];
   for(let i=1;i<=G.numP;i++){
     const p=G.players[i]||G.players['slot_'+i];
+    if(p&&(p.hp||0)<=0&&p.alive!==false){p.alive=false;G.log=G.log||[];G.log.push(`💀P${i}「${pNames[i]||'P'+i}」脱落！`);}
     if(p&&p.alive!==false&&(p.hp||0)>0)alive.push(i);
   }
-  if(alive.length>1)return;gameOverShown=true;G.status='over';const win=alive.includes(mySlot)||alive.length===0;const nm=alive.length?alive.map(i=>pNames[i]||'P'+i).join('・'):'引き分け';document.getElementById('gopTitle').textContent=win?'🏆 勝利！':'💀 敗北';document.getElementById('gopTitle').style.color=win?'var(--gold)':'var(--red)';document.getElementById('gopSub').innerHTML=`${nm} の勝利！<br><small style="opacity:.6">${G.log?.[G.log.length-1]||''}</small>`;setTimeout(()=>document.getElementById('gop').classList.add('show'),2000);}
+  if(alive.length>1)return false;
+  G.status='over';G.winnerSlots=alive;G.endedAt=G.endedAt||Date.now();
+  showGameOver(G);
+  return true;
+}
+function showGameOver(S){
+  if(!S||gameOverShown)return;
+  gameOverShown=true;
+  const alive=S.winnerSlots||[];
+  const win=alive.includes(mySlot)||alive.length===0;
+  const nm=alive.length?alive.map(i=>pNames[i]||'P'+i).join('・'):'引き分け';
+  document.getElementById('gopTitle').textContent=win?'🏆 勝利！':'💀 敗北';
+  document.getElementById('gopTitle').style.color=win?'var(--gold)':'var(--red)';
+  document.getElementById('gopSub').innerHTML=`${nm} の勝利！<br><small style="opacity:.6">${S.log?.[S.log.length-1]||''}</small>`;
+  setTimeout(()=>document.getElementById('gop').classList.add('show'),600);
+}
 
 function ill(card){const i=card?.illust;if(i&&i!=='[img]'&&(i.startsWith('http')||i.startsWith('data:')))return`<img src="${i}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.style.display='none'">`;return(i&&i!=='[img]')?i:'🃏';}
 function showCdp(ev,card){
