@@ -285,6 +285,12 @@ const VFX=[{id:'bigIllust',icon:'🖼️',name:'イラスト'},{id:'fire',icon:'
 const myName=localStorage.getItem('myName')||'名無し';
 document.getElementById('authorLbl').textContent='作成者: '+myName;
 let colors=['red'],imgSrc='',curIll='🗡️',effects=[],selVfx=new Set(),editId=null,eid=0,allCards=[];
+function getColors(card){
+  if(Array.isArray(card.colors)&&card.colors.length)return card.colors;
+  if(card.colors&&typeof card.colors==='object')return Object.values(card.colors).filter(v=>typeof v==='string');
+  if(typeof card.colors==='string'&&card.colors)return[card.colors];
+  return[card.color||'red'];
+}
 
 // ── Firebase connection check ──
 onValue(ref(db,'.info/connected'),s=>{
@@ -465,7 +471,7 @@ window.editCard=function(id){
   const card=allCards.find(c=>c.id===id);if(!card)return;
   editId=id;
   document.getElementById('cardName').value=card.name||'';document.getElementById('cardCost').value=card.cost||1;document.getElementById('cardAtk').value=card.atk||0;document.getElementById('cardDef').value=card.def||0;document.getElementById('cardFlavor').value=card.flavor||'';
-  colors=Array.isArray(card.colors)?[...card.colors]:[card.color||'red'];
+  colors=[...getColors(card)];
   document.querySelectorAll('.cb').forEach(b=>b.classList.toggle('on',colors.includes(b.dataset.col)));
   imgSrc='';document.getElementById('urlInput').value='';
   if(card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))){imgSrc=card.illust;setImgUI(imgSrc);document.querySelectorAll('.ib').forEach(b=>b.classList.remove('on'));}
@@ -493,7 +499,7 @@ function renderDeck(){
   const el=document.getElementById('deckCards');document.getElementById('deckCnt').textContent=allCards.length+'枚';
   if(!allCards.length){el.innerHTML='<div class="empty-deck">まだカードがありません</div>';return;}
   el.innerHTML=allCards.map(card=>{
-    const cols=Array.isArray(card.colors)?card.colors:[card.color||'red'];
+    const cols=getColors(card);
     const mc=CM[cols[0]]||CM.red;
     const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.outerHTML='🃏'">`:(card.illust||'🃏');
     const cs=cols.map(c=>`<div class="mini-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');

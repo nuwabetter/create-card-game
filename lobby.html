@@ -148,6 +148,38 @@ let roomData=null,allCards=[],selectedCards=new Set(),navigating=false;
 
 function isHost(){return roomData&&roomData.hostId===myId;}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3500);}
+function getPlayers(room=roomData){
+  return Object.values(room?.players||{})
+    .filter(p=>p&&p.id)
+    .sort((a,b)=>(a.slot||99)-(b.slot||99)||(a.joinedAt||0)-(b.joinedAt||0));
+}
+function compactPlayers(players){
+  const normalized={};
+  const names={};
+  const playerSlots={};
+  players.forEach((p,i)=>{
+    const slot=i+1;
+    const next={...p,slot};
+    normalized[p.id]=next;
+    names[slot]=p.name||`P${slot}`;
+    playerSlots[p.id]=slot;
+  });
+  return{players:normalized,names,playerSlots,list:Object.values(normalized)};
+}
+async function ensureHost(room){
+  const players=getPlayers(room);
+  if(!players.length||players.some(p=>p.id===room.hostId))return;
+  const nextHost=players[0];
+  if(nextHost.id===myId){
+    try{await update(ref(db,`rooms/${roomCode}`),{hostId:myId});}catch(e){console.warn('host handoff failed:',e);}
+  }
+}
+function goByRoom(room){
+  if(!room?.gameInfo)return;
+  const players=getPlayers(room);
+  if(room.hostId===myId)goHost(room.gameInfo,players);
+  else goGuest(room.gameInfo);
+}
 
 // ══ 試合遷移 ══
 // ホスト用: isHost=trueでgame.htmlへ
@@ -191,13 +223,15 @@ function goGuest(gameInfo){
 window.startGame=async function(){
   if(!isHost()){toast('ホストのみ試合を開始できます');return;}
   if(navigating)return;
-  const players=Object.values(roomData?.players||{});
+  const players=getPlayers();
   if(players.length<2){toast('2人以上必要です');return;}
+  if(players.length>4){toast('参加人数が多すぎます');return;}
 
   const ids=[...selectedCards];
   const activeIds=(ids.length===0||ids.length===allCards.length)?null:ids;
-  const names={};players.forEach(p=>{names[p.slot]=p.name;});
-  const playerSlots=Object.fromEntries(players.map(p=>[p.id,p.slot]));
+  const compact=compactPlayers(players);
+  const names=compact.names;
+  const playerSlots=compact.playerSlots;
 
   const gameInfo={activeCardIds:activeIds,numPlayers:players.length,playerNames:names,playerSlots,startedAt:Date.now()};
 
@@ -205,10 +239,10 @@ window.startGame=async function(){
   document.getElementById('spinMsg').textContent='試合を開始中...';
 
   try{
-    // ★ Firebaseに書き込んでから遷移（非ホストがonValueで受け取れるように）
-    await update(ref(db,`rooms/${roomCode}`),{status:'playing',gameInfo});
+    // Firebaseに書き込んでから遷移（非ホストがonValueで受け取れるように）
+    await update(ref(db,`rooms/${roomCode}`),{status:'playing',action:null,players:compact.players,gameInfo});
     // 書き込み成功後に遷移
-    goHost(gameInfo,players);
+    goHost(gameInfo,compact.list);
   }catch(e){
     console.error('startGame fail:',e);
     toast('試合開始に失敗しました: '+e.message);
@@ -230,9 +264,8 @@ window.startGame=async function(){
 get(ref(db,`rooms/${roomCode}`)).then(snap=>{
   if(!snap.exists())return;
   const room=snap.val();
-  // ゲーム中かつ非ホストの場合は即遷移
-  if(room.status==='playing'&&room.hostId!==myId&&room.gameInfo){
-    goGuest(room.gameInfo);
+  if(room.status==='playing'&&room.gameInfo){
+    goByRoom(room);
   }
 }).catch(()=>{});
 
@@ -243,6 +276,7 @@ onValue(ref(db,`rooms/${roomCode}`),snap=>{
     return;
   }
   roomData=snap.val();
+  ensureHost(roomData);
   renderRoom();
   checkAndGo();
 });
@@ -251,8 +285,8 @@ onValue(ref(db,`rooms/${roomCode}`),snap=>{
 function checkAndGo(){
   if(navigating)return;
   if(!roomData)return;
-  if(roomData.status==='playing'&&roomData.hostId!==myId&&roomData.gameInfo){
-    goGuest(roomData.gameInfo);
+  if(roomData.status==='playing'&&roomData.gameInfo){
+    goByRoom(roomData);
   }
 }
 
@@ -263,9 +297,9 @@ setInterval(()=>{
   get(ref(db,`rooms/${roomCode}`)).then(snap=>{
     if(!snap.exists())return;
     const d=snap.val();
-    if(d.status==='playing'&&d.hostId!==myId&&d.gameInfo){
+    if(d.status==='playing'&&d.gameInfo){
       roomData=d;
-      goGuest(d.gameInfo);
+      goByRoom(d);
     }
   }).catch(()=>{});
 },3000);
@@ -308,7 +342,12 @@ function renderRoom(){
   document.getElementById('dissolveBtn').style.display=iAm?'inline-flex':'none';
 }
 
-function getColors(card){return Array.isArray(card.colors)?card.colors:[card.color||'red'];}
+function getColors(card){
+  if(Array.isArray(card.colors)&&card.colors.length)return card.colors;
+  if(card.colors&&typeof card.colors==='object')return Object.values(card.colors).filter(v=>typeof v==='string');
+  if(typeof card.colors==='string'&&card.colors)return[card.colors];
+  return[card.color||'red'];
+}
 function renderCards(){
   const g=document.getElementById('cardGrid');
   if(!allCards.length){g.innerHTML='<div style="color:var(--text-dim);font-size:.75rem;padding:.5rem">カードがありません</div>';document.getElementById('selCount').textContent='0枚';return;}

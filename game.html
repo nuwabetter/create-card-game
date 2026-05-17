@@ -258,7 +258,7 @@ body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-se
 
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import{getDatabase,ref,set,onValue,remove,update}from"https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import{getDatabase,ref,get,set,onValue,remove,update}from"https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const FB={apiKey:"AIzaSyBsASKwkmpRx_vi7JBqC-fvBl3LOgoOtbo",authDomain:"newcard-8fd59.firebaseapp.com",databaseURL:"https://newcard-8fd59-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"newcard-8fd59",storageBucket:"newcard-8fd59.firebasestorage.app",messagingSenderId:"822236707244",appId:"1:822236707244:web:f2a82f612226d7ac3f6209"};
 const db=getDatabase(initializeApp(FB));
@@ -283,6 +283,7 @@ const WEATHERS=[{id:'sun',icon:'☀️',name:'晴れ',eff:'天候効果なし'},
 let G=null,pool=[],poolMap={};
 let processing=false,selCard=-1,navigating=false,gameOverShown=false;
 let gameStarted=false;
+let creatingState=false;
 const newCards=new Set();
 
 const wData=id=>WEATHERS.find(w=>w.id===id)||WEATHERS[0];
@@ -448,9 +449,27 @@ function pickCard(hand,title){return new Promise(res=>{if(!hand?.length){res(-1)
 function genDefault(){const cols=[['red'],['blue'],['yellow'],['green'],['red','blue'],['yellow','green']];const nms=['騎士','魔法使い','竜','妖精','戦士','弓使い','僧侶','忍者','海賊','錬金術師','天使','悪魔','剣士','盗賊','召喚士','聖騎士','魔剣士','竜騎士','幻術師','召喚魔法'];const ils=['⚔️','🔮','🐉','🦋','🛡️','🏹','✨','🌸','🗡️','🧪','👼','😈','⚡','🗺️','📖','🏰','🌙','🦅','🌀','🔥'];return nms.map((nm,i)=>({id:'def'+i,name:nm,colors:cols[i%cols.length],color:cols[i%cols.length][0],cost:1+~~(i/4),atk:2+(i%5),def:1+(i%4),illust:ils[i],flavor:'',effects:[],vfx:[]}));}
 function buildState(n){if(!pool.length)return null;let order=Array.from({length:n},(_,i)=>i+1);for(let i=order.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}const seq=[];for(let oi=0;oi<order.length;oi++){seq.push({player:order[oi],phase:'attack'});seq.push({player:order[(oi+1)%order.length],phase:'defend'});}const players={};for(let oi=0;oi<order.length;oi++){const slot=order[oi];const hand=Array.from({length:oi===0?7:8},()=>drawCard()).filter(Boolean);if(slot===mySlot)hand.forEach((_,i)=>newCards.add('i'+i));players[slot]={hp:20,maxHp:20,cost:4,_cB:0,_nAtkD:0,_nDefD:0,hand,alive:true};}const fp=seq[0].player;return{status:'playing',numP:n,seqIdx:0,seq,players,discardCard:null,atkCardPlayed:null,defCardPlayed:null,playedThisTurn:false,turnCount:0,weather:{current:'sun',changeCount:0,defendsDone:0},log:[`ゲーム開始！先行:P${fp}「${pNames[fp]||'P'+fp}」`]};}
 
-async function save(S){
+async function ensureGameState(){
+  if(!amHost||gameStarted||creatingState)return;
+  creatingState=true;
   try{
-    const slim=clone(S);
+    const existing=await get(gameRef);
+    if(existing.exists())return;
+    if(!pool.length)applyPool(genDefault());
+    const ns=buildState(numP);
+    if(ns)await save(ns);
+  }catch(e){
+    console.error('ensureGameState fail:',e);
+    toast('試合データの作成に失敗しました');
+  }finally{
+    creatingState=false;
+  }
+}
+
+async function save(S){
+  let slim;
+  try{
+    slim=clone(S);
 
     // ★ playersを正規化してから文字列キーへ変換
     // S.playersが配列の場合も数値キーオブジェクトに正規化してから変換
@@ -486,7 +505,7 @@ async function save(S){
   }catch(e){
     console.error('save fail:',e.message);
     // 1回だけリトライ
-    try{await set(gameRef,slim);}catch(e2){console.error('save retry fail:',e2.message);}
+    if(slim)try{await set(gameRef,slim);}catch(e2){console.error('save retry fail:',e2.message);}
   }
 }
 
@@ -508,9 +527,7 @@ function onGameRef(snap){
       showGame();
       renderAll();
     } else if(amHost){
-      if(!pool.length)applyPool(genDefault());
-      const ns=buildState(numP);
-      if(ns)save(ns);
+      ensureGameState();
     }
     return;
   }
@@ -551,9 +568,7 @@ function init(){
     const delay=cachedCards.length?300:2000;
     setTimeout(async()=>{
       if(gameStarted)return;
-      if(!pool.length)applyPool(genDefault());
-      const ns=buildState(numP);
-      if(ns)await save(ns);
+      await ensureGameState();
     },delay);
   } else {
     SL(60,'ホストの試合開始を待っています...');
@@ -610,13 +625,13 @@ window.playCard=async function(){
 };
 
 window.extraDraw=async function(){if(processing||!myTurn()||ph()!=='attack'||G.playedThisTurn)return;lock();try{const S=clone(G);const p=S.players[mySlot];if((p.hp||0)<=2){toast('HP2消費できません');return;}const card=drawW(p.hand);if(!card){toast('プールが空です');return;}p.hp-=2;p.hand.push(card);newCards.add('n'+(p.hand.length-1));S.log.push(`P${mySlot}→HP-2でドロー`);G=S;renderAll();await save(S);toast('ドロー！');}finally{unlock();}};
-window.endTurn=async function(){if(processing||!myTurn())return;lock();try{await endTurnInt();}finally{unlock();}};
+window.endTurn=async function(){if(!myTurn())return;if(processing)unlock();lock();try{await endTurnInt();}finally{unlock();}};
 async function endTurnInt(){if(!myTurn())return;const S=clone(G);const c=S.seq[S.seqIdx%S.seq.length];if(c.phase==='defend'&&!S.playedThisTurn){const ak=S.atkCardPlayed;if(ak){const av=wAtk(ak,S);if(av>0){S.players[c.player].hp=Math.max(0,(S.players[c.player].hp||0)-av);S.log.push(`P${c.player}がガードせず${av}ダメ！`);setTimeout(()=>atkFx(ak,av,false),50);applyEff(ak,S,S.lastAtkPlayer,'onDamage',-1);}}}if(c.phase==='defend'){S.atkCardPlayed=null;S.defCardPlayed=null;wxTick(S);}for(let i=1;i<=S.numP;i++){if(S.players[i]&&(S.players[i].hp||0)<=0&&S.players[i].alive!==false){S.players[i].alive=false;S.log.push(`💀P${i}「${pNames[i]||'P'+i}」脱落！`);}}let nx=(S.seqIdx+1)%S.seq.length;for(let sf=0;sf<S.seq.length*2;sf++){if(S.players[S.seq[nx%S.seq.length].player]?.alive!==false)break;nx=(nx+1)%S.seq.length;}S.seqIdx=nx%S.seq.length;S.playedThisTurn=false;S.turnCount=(S.turnCount||0)+1;const next=S.seq[S.seqIdx%S.seq.length];const np=S.players[next.player];if(np){np.cost=(np.cost||0)+3;S.log.push(`P${next.player}「${pNames[next.player]||'P'+next.player}」の${next.phase==='attack'?'攻撃':'防御'}ターン（コスト+3）`);}selCard=-1;G=S;renderAll();checkWin();await save(S);}
 
 window.forceEnd=async function(){if(!confirm('試合を強制終了しますか？'))return;navigating=true;try{await remove(gameRef);}catch(e){}if(roomRef)try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}window.location.href='index.html';};
 window.leaveToLobby=function(){if(confirm('ロビーに戻りますか？'))window.location.href=roomCode?'lobby.html?room='+roomCode:'index.html';};
 window.onGoHome=async function(){navigating=true;if(roomRef)try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}window.location.href='index.html';};
-window.onRematch=async function(){document.getElementById('gop').classList.remove('show');gameOverShown=false;if(roomRef)try{await update(roomRef,{action:null,status:'playing'});await remove(gameRef);}catch(e){}if(amHost&&pool.length){const ns=buildState(numP);if(ns)save(ns);}};
+window.onRematch=async function(){document.getElementById('gop').classList.remove('show');gameOverShown=false;gameStarted=false;if(roomRef)try{await update(roomRef,{action:null,status:'playing'});await remove(gameRef);}catch(e){}if(amHost)ensureGameState();};
 
 function checkWin(){
   if(!G||G.status!=='playing'||gameOverShown)return;
@@ -634,8 +649,7 @@ function showCdp(ev,card){
   const av=wAtk(card),sk=cskills(card),cols=getColors(card).map(x=>CN[x]||x).join('/');
   document.getElementById('cdpName').textContent=card.name||'?';
   document.getElementById('cdpStats').textContent='['+cols+'] コスト:'+(card.cost||1)+' ATK:'+av+' DEF:'+(card.def||0);
-  document.getElementById('cdpSk').textContent=sk.join('
-')||'スキルなし';
+  document.getElementById('cdpSk').textContent=sk.join('\n')||'スキルなし';
   document.getElementById('cdpFl').textContent=card.flavor||'';
   d.style.display='block';
   const dw=258;
@@ -656,8 +670,7 @@ function renderAll(){
         const parts=t.split(' | ');
         document.getElementById('cdpName').textContent=parts[0]||'';
         document.getElementById('cdpStats').textContent=parts[1]||'';
-        document.getElementById('cdpSk').textContent=parts.slice(2).join('
-')||'';
+        document.getElementById('cdpSk').textContent=parts.slice(2).join('\n')||'';
         document.getElementById('cdpFl').textContent='';
         d.style.display='block';
         d.style.left=Math.min(ev.clientX+14,innerWidth-268)+'px';
