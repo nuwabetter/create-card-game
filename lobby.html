@@ -69,6 +69,42 @@ body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-se
 .spin-msg{font-family:'Rajdhani',sans-serif;font-size:.95rem;letter-spacing:.15em;color:var(--text-dim);text-align:center;padding:0 1.5rem}
 .toast{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(130px);background:var(--panel);border:1px solid var(--gold);border-radius:8px;padding:.6rem 1.1rem;font-family:'Rajdhani',sans-serif;font-size:.82rem;color:var(--gold);z-index:600;transition:transform .4s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:90vw;text-align:center}
 .toast.show{transform:translateX(-50%) translateY(0)}
+/* Bright readable theme */
+:root{--gold:#b88425;--gold-light:#f3d27a;--gold-dim:#87642b;--deep:#f6f2e8;--panel:#fffdf8;--panel2:#f1eadc;--text:#2f2a24;--text-dim:#766d5f;--border:rgba(139,105,36,.24);--red:#d94a3a;--green:#218b55;--blue:#2f80c2}
+body{background:linear-gradient(145deg,#fff8e8 0%,#eef7fb 55%,#f7f1e5 100%);color:var(--text)}
+.back,.ptitle,.discard-lbl{color:var(--gold-dim)}
+.hdr-title,.slot-name,.rc-code{color:#9f6f20}
+.room-code-badge,.room-copy,.status-msg{background:rgba(255,250,240,.82);border-color:rgba(139,105,36,.28);box-shadow:0 8px 22px rgba(89,68,34,.08)}
+.panel{background:rgba(255,253,248,.96);box-shadow:0 12px 34px rgba(89,68,34,.1),0 1px 0 rgba(255,255,255,.8) inset}
+.slot{background:#fffaf0;border-color:rgba(139,105,36,.22)}
+.slot.filled{border-color:rgba(33,139,85,.7);background:#f3fff8}
+.slot.me,.slot.host-slot{border-color:var(--gold);background:#fff8e4}
+.slot-badge{background:rgba(216,169,71,.18);color:#8b6322;border-color:rgba(139,105,36,.28)}
+.cst-thumb{background:#fff;border-color:rgba(139,105,36,.25);box-shadow:0 6px 14px rgba(89,68,34,.1)}
+.cst-art,.cst-art img{background:#fffaf0}
+.cst-info{background:#fff8e4}
+.cst-name{color:#3b3328}
+.btn-gold{background:linear-gradient(135deg,#f5d77a,#c8912f);color:#2d210c;box-shadow:0 8px 18px rgba(184,132,37,.22)}
+.btn-red{background:linear-gradient(135deg,#ec7569,#c43a2e)}
+.btn-gray{background:#eef4f7;color:#63717a;border-color:#d8e5ec}
+.btn-outline{color:#8b6322;border-color:rgba(139,105,36,.36);background:#fffaf0}
+.green-msg{color:#176e42;background:#effcf5;border-color:rgba(33,139,85,.32)}
+.spin-ov{background:rgba(255,250,239,.86)}
+.spin-msg{color:var(--text-dim)}
+.toast{background:#fffdf8;color:#8b6322;box-shadow:0 12px 28px rgba(89,68,34,.16)}
+/* Colorful polish */
+body{background:linear-gradient(135deg,rgba(255,236,191,.82) 0%,rgba(239,248,255,.9) 34%,rgba(246,239,255,.86) 67%,rgba(236,255,242,.9) 100%)}
+.hdr{background:rgba(255,253,248,.72);border:1px solid rgba(80,132,190,.18);border-radius:12px;padding:.55rem .7rem;box-shadow:0 10px 26px rgba(80,105,140,.08)}
+.panel{border-color:rgba(80,132,190,.24);position:relative;overflow:hidden}
+.panel::before{content:'';position:absolute;inset:0 0 auto;height:4px;background:linear-gradient(90deg,#ef5f5f,#f4c75f,#43b979,#4e9ee8,#b06be8)}
+.ptitle{border-bottom-color:rgba(80,132,190,.18)}
+.room-code-badge{background:linear-gradient(135deg,#fff0c9,#fffdf8)}
+.room-copy{background:linear-gradient(135deg,#fff2cc,#eef8ff)}
+.status-msg{background:linear-gradient(135deg,#fff8e4,#f5f0ff)}
+.slot:nth-child(4n+1){background:#fff4f0}.slot:nth-child(4n+2){background:#eef8ff}.slot:nth-child(4n+3){background:#f4fff0}.slot:nth-child(4n){background:#f8f1ff}
+.csi.sel .cst-thumb{box-shadow:0 0 0 3px rgba(67,185,121,.22),0 8px 18px rgba(89,68,34,.14)}
+.btn-gold{background:linear-gradient(135deg,#ffe27a,#f0a23b,#e56b6f)}
+.btn-outline{background:linear-gradient(135deg,#fffaf0,#f0f8ff)}
 </style>
 </head>
 <body>
@@ -354,7 +390,7 @@ function renderCards(){
   g.innerHTML=allCards.map(card=>{
     const sel=selectedCards.has(card.id);
     const cols=getColors(card);const c=CM[cols[0]]||CM.red;
-    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#12121e" onerror="this.style.display='none'">`:(card.illust||'🃏');
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#fffdf8" onerror="this.style.display='none'">`:(card.illust||'🃏');
     const cs=cols.map(col=>`<div style="flex:1;height:3px;background:${CM[col]?.accent||'#888'}"></div>`).join('');
     return `<div class="csi${sel?' sel':''}" onclick="toggle('${card.id}')"><div class="chk">✓</div><div class="cst-thumb" style="border-color:${c.border};box-shadow:${sel?'0 0 7px '+c.border:'none'}"><div style="display:flex">${cs}</div><div class="cst-art">${ill}</div><div class="cst-info"><div class="cst-stats"><span style="color:${c.accent}">C${card.cost}</span><span>A${card.atk}</span><span>D${card.def}</span></div><div class="cst-name">${card.name}</div></div></div></div>`;
   }).join('');

@@ -113,6 +113,51 @@ textarea{resize:vertical;min-height:56px;line-height:1.5}
 /* Cond row */
 .cond-row{background:rgba(52,152,219,.05);border:1px solid rgba(52,152,219,.2);border-radius:6px;padding:.55rem;margin-top:.4rem}
 .cond-row label{color:#87ceeb}
+/* Bright readable theme */
+:root{--g:#b88425;--gd:#87642b;--deep:#f6f2e8;--panel:#fffdf8;--p2:#f1eadc;--text:#2f2a24;--dim:#766d5f;--bdr:rgba(139,105,36,.24);--red:#d94a3a;--blue:#2f80c2;--grn:#218b55}
+body{background:linear-gradient(145deg,#fff8e8 0%,#eef7fb 56%,#f7f1e5 100%);color:var(--text)}
+.back,.sec,.pv-lbl,.eff-num{color:var(--gd)}
+.ph-t,.deck-title{color:#9f6f20}
+.panel{background:rgba(255,253,248,.96);box-shadow:0 12px 34px rgba(89,68,34,.1),0 1px 0 rgba(255,255,255,.8) inset}
+input[type=text],input[type=number],textarea,select{background:#fff;color:var(--text);border-color:rgba(139,105,36,.28);box-shadow:0 1px 0 rgba(255,255,255,.8) inset}
+input:focus,textarea:focus,select:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(216,169,71,.16)}
+select option{background:#fff;color:var(--text)}
+.card-prev{background:#fffdf8;box-shadow:0 16px 38px rgba(89,68,34,.18),0 0 18px var(--cglow,rgba(201,168,76,.08))}
+.cp-head{background:#fff8e4}.cp-name{color:#3b3328}.cp-art,.cp-art img{background:#fffdf8}
+.cp-stats{background:#f6eedf}.cp-flavor{background:#fffdf8}
+.cp-ft{color:#6e6253}.cp-sk{color:#9f6f20}
+.cb,.ib,.vb{background:#fffaf0;border-color:rgba(139,105,36,.2)}
+.ib.on,.vb.on{background:#fff4d6}
+.upload{background:#fffaf0;border-color:rgba(139,105,36,.28)}
+.eff-entry{background:#fffaf0;box-shadow:0 6px 16px rgba(89,68,34,.07)}
+.eff-prev,.cmprog{background:#fff8e4}
+.cmprog-bar-out{background:#eadfca}
+.btn-g{background:linear-gradient(135deg,#f5d77a,#c8912f);color:#2d210c;box-shadow:0 8px 18px rgba(184,132,37,.22)}
+.btn-out,.add-btn{background:#fffaf0;color:#8b6322;border-color:rgba(139,105,36,.36)}
+.edit-banner{background:#eef8ff;border-color:#bdd9ee;color:#2f73ab}
+.mini{background:#fffdf8;box-shadow:0 6px 14px rgba(89,68,34,.1)}
+.mini-art,.mini-art img{background:#fffaf0}
+.mini-bot{background:#fff8e4}
+.mini-name{color:#3b3328}
+.toast{background:#fffdf8;color:#8b6322;box-shadow:0 12px 28px rgba(89,68,34,.16)}
+.cond-row{background:#eef8ff;border-color:#bdd9ee}
+.cond-row label{color:#2f73ab}
+/* Colorful polish */
+body{background:linear-gradient(135deg,rgba(255,236,191,.82) 0%,rgba(239,248,255,.9) 34%,rgba(246,239,255,.86) 67%,rgba(236,255,242,.9) 100%)}
+.ph{background:rgba(255,253,248,.72);border:1px solid rgba(80,132,190,.18);border-radius:12px;padding:.55rem .7rem;margin-bottom:1rem;box-shadow:0 10px 26px rgba(80,105,140,.08)}
+.panel{border-color:rgba(80,132,190,.24);position:relative;overflow:hidden}
+.panel::before{content:'';position:absolute;inset:0 0 auto;height:4px;background:linear-gradient(90deg,#ef5f5f,#f4c75f,#43b979,#4e9ee8,#b06be8)}
+.sec{border-bottom-color:rgba(80,132,190,.18)}
+.card-prev{background:linear-gradient(180deg,#fffdf8,#fff8ee)}
+.cp-head{background:linear-gradient(135deg,#fff1d1,#fff8e4)}
+.cp-stats{background:linear-gradient(90deg,#fff2cc,#eef8ff)}
+.cp-flavor{background:linear-gradient(180deg,#fffdf8,#f8fbff)}
+.cb.red{background:#ffe5df}.cb.blue{background:#e8f5ff}.cb.yellow{background:#fff5c9}.cb.green{background:#e9f9ee}
+.ib:nth-child(5n+1){background:#fff5c9}.ib:nth-child(5n+2){background:#e8f5ff}.ib:nth-child(5n+3){background:#ffe9f1}.ib:nth-child(5n+4){background:#e9f9ee}.ib:nth-child(5n){background:#f4eaff}
+.eff-entry:nth-child(4n+1){background:#fff7df}.eff-entry:nth-child(4n+2){background:#eef8ff}.eff-entry:nth-child(4n+3){background:#f4fff0}.eff-entry:nth-child(4n){background:#f8f1ff}
+.btn-g{background:linear-gradient(135deg,#ffe27a,#f0a23b,#e56b6f)}
+.btn-out,.add-btn{background:linear-gradient(135deg,#fffaf0,#f0f8ff)}
+.mini:nth-child(4n+1){background:#fff7df}.mini:nth-child(4n+2){background:#eef8ff}.mini:nth-child(4n+3){background:#f4fff0}.mini:nth-child(4n){background:#f8f1ff}
 </style>
 </head>
 <body>
@@ -505,7 +550,7 @@ function renderDeck(){
   el.innerHTML=allCards.map(card=>{
     const cols=getColors(card);
     const mc=CM[cols[0]]||CM.red;
-    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#111" onerror="this.outerHTML='🃏'">`:(card.illust||'🃏');
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#fffdf8" onerror="this.outerHTML='🃏'">`:(card.illust||'🃏');
     const cs=cols.map(c=>`<div class="mini-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
     return `<div><div class="mini" style="border-color:${mc.border};box-shadow:0 0 6px ${mc.glow}" title="${card.name}"><div class="mini-cs">${cs}</div><div class="mini-acts"><button class="mini-abtn" style="background:rgba(36,113,163,.85)" onclick="editCard('${card.id}')">✏</button><button class="mini-abtn" style="background:rgba(192,57,43,.85)" onclick="deleteCard('${card.id}')">✕</button></div><div class="mini-art">${ill}</div><div class="mini-bot"><div class="mini-stats"><span style="color:${mc.accent}">C${card.cost}</span><span>A${card.atk}</span><span>D${card.def}</span></div><div class="mini-name">${card.name}</div></div></div><div style="font-size:.44rem;color:var(--dim);text-align:center;margin-top:2px;font-family:'Rajdhani',sans-serif">${card.author||''}</div></div>`;
   }).join('');
