@@ -158,6 +158,19 @@ body{background:linear-gradient(135deg,rgba(255,236,191,.82) 0%,rgba(239,248,255
 .btn-g{background:linear-gradient(135deg,#ffe27a,#f0a23b,#e56b6f)}
 .btn-out,.add-btn{background:linear-gradient(135deg,#fffaf0,#f0f8ff)}
 .mini:nth-child(4n+1){background:#fff7df}.mini:nth-child(4n+2){background:#eef8ff}.mini:nth-child(4n+3){background:#f4fff0}.mini:nth-child(4n){background:#f8f1ff}
+/* Dark card bodies */
+.card-prev{background:#090b12;box-shadow:0 16px 38px rgba(34,28,20,.24),0 0 18px var(--cglow,rgba(201,168,76,.16))}
+.cp-head{background:linear-gradient(135deg,#111624,#080a10)}
+.cp-name{color:#fff6db}
+.cp-art,.cp-art img{background:#0d1018}
+.cp-stats{background:#080a10}
+.cp-flavor{background:linear-gradient(180deg,#10131d,#080a10)}
+.cp-ft{color:rgba(255,255,255,.6)}
+.cp-sk{color:#ffd96a}
+.mini{background:#090b12!important;box-shadow:0 7px 18px rgba(16,20,30,.22)}
+.mini-art,.mini-art img{background:#0d1018}
+.mini-bot{background:#080a10}
+.mini-name{color:#fff6db}
 </style>
 </head>
 <body>
@@ -550,7 +563,7 @@ function renderDeck(){
   el.innerHTML=allCards.map(card=>{
     const cols=getColors(card);
     const mc=CM[cols[0]]||CM.red;
-    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#fffdf8" onerror="this.outerHTML='🃏'">`:(card.illust||'🃏');
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#0d1018" onerror="this.outerHTML='🃏'">`:(card.illust||'🃏');
     const cs=cols.map(c=>`<div class="mini-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');
     return `<div><div class="mini" style="border-color:${mc.border};box-shadow:0 0 6px ${mc.glow}" title="${card.name}"><div class="mini-cs">${cs}</div><div class="mini-acts"><button class="mini-abtn" style="background:rgba(36,113,163,.85)" onclick="editCard('${card.id}')">✏</button><button class="mini-abtn" style="background:rgba(192,57,43,.85)" onclick="deleteCard('${card.id}')">✕</button></div><div class="mini-art">${ill}</div><div class="mini-bot"><div class="mini-stats"><span style="color:${mc.accent}">C${card.cost}</span><span>A${card.atk}</span><span>D${card.def}</span></div><div class="mini-name">${card.name}</div></div></div><div style="font-size:.44rem;color:var(--dim);text-align:center;margin-top:2px;font-family:'Rajdhani',sans-serif">${card.author||''}</div></div>`;
   }).join('');

@@ -105,6 +105,11 @@ body{background:linear-gradient(135deg,rgba(255,236,191,.82) 0%,rgba(239,248,255
 .csi.sel .cst-thumb{box-shadow:0 0 0 3px rgba(67,185,121,.22),0 8px 18px rgba(89,68,34,.14)}
 .btn-gold{background:linear-gradient(135deg,#ffe27a,#f0a23b,#e56b6f)}
 .btn-outline{background:linear-gradient(135deg,#fffaf0,#f0f8ff)}
+/* Dark card bodies */
+.cst-thumb{background:#090b12;box-shadow:0 7px 18px rgba(16,20,30,.22)}
+.cst-art,.cst-art img{background:#0d1018}
+.cst-info{background:#080a10}
+.cst-name{color:#fff6db}
 </style>
 </head>
 <body>
@@ -390,7 +395,7 @@ function renderCards(){
   g.innerHTML=allCards.map(card=>{
     const sel=selectedCards.has(card.id);
     const cols=getColors(card);const c=CM[cols[0]]||CM.red;
-    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#fffdf8" onerror="this.style.display='none'">`:(card.illust||'🃏');
+    const ill=card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))?`<img src="${card.illust}" style="width:100%;height:100%;object-fit:contain;background:#0d1018" onerror="this.style.display='none'">`:(card.illust||'🃏');
     const cs=cols.map(col=>`<div style="flex:1;height:3px;background:${CM[col]?.accent||'#888'}"></div>`).join('');
     return `<div class="csi${sel?' sel':''}" onclick="toggle('${card.id}')"><div class="chk">✓</div><div class="cst-thumb" style="border-color:${c.border};box-shadow:${sel?'0 0 7px '+c.border:'none'}"><div style="display:flex">${cs}</div><div class="cst-art">${ill}</div><div class="cst-info"><div class="cst-stats"><span style="color:${c.accent}">C${card.cost}</span><span>A${card.atk}</span><span>D${card.def}</span></div><div class="cst-name">${card.name}</div></div></div></div>`;
   }).join('');
