@@ -161,6 +161,26 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
 .status-msg{background:linear-gradient(135deg,#fffdf9,#f8f5ff)}
 .btn-gold{background:linear-gradient(135deg,#f4d963,#f39b4a,#df6c7a);color:#2f2418}
 .btn-outline{background:linear-gradient(135deg,#fff8e6,#f8f5ff)}
+/* Mobile comfort */
+@media(max-width:520px){
+  .wrap{padding:.7rem .7rem calc(5.2rem + env(safe-area-inset-bottom))}
+  .hdr{gap:.45rem;padding:.5rem .6rem;margin-bottom:.75rem}
+  .hdr-title{font-size:1rem;min-width:0}
+  .room-code-badge{font-size:.95rem;letter-spacing:.14em;padding:.28rem .55rem}
+  .panel{padding:.8rem;border-radius:10px;margin-bottom:.75rem}
+  .room-copy{padding:.55rem .7rem}
+  .rc-code{font-size:1.65rem;letter-spacing:.24em}
+  .status-msg{font-size:.82rem;line-height:1.45}
+  .slots{grid-template-columns:1fr;gap:.5rem}
+  .slot{min-height:66px;padding:.65rem}
+  .csgrid{max-height:260px;gap:.48rem;justify-content:center}
+  .cst-thumb{width:64px;height:92px}
+  .btn{min-height:46px;white-space:normal}
+  .btns-row{position:sticky;bottom:0;background:rgba(255,253,248,.94);padding:.55rem 0 calc(.55rem + env(safe-area-inset-bottom));margin:.4rem -.1rem 0;z-index:20}
+  .btns-row .btn{flex:1 1 100%}
+  .btn-sm{padding:.5rem .7rem;font-size:.78rem}
+  .toast{bottom:max(.8rem,env(safe-area-inset-bottom));white-space:normal}
+}
 </style>
 </head>
 <body>

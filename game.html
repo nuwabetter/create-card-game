@@ -355,6 +355,50 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
 .btn-gold{background:linear-gradient(135deg,#f4d963,#f39b4a,#df6c7a);color:#2f2418}
 .btn-blue{background:linear-gradient(135deg,#55c4de,#5d8de0,#8667d4)}
 .cpov{background:linear-gradient(135deg,rgba(255,253,249,.88),rgba(245,241,251,.88),rgba(216,201,242,.82))}
+/* Mobile comfort */
+@media(max-width:520px){
+  .hud{min-height:38px;padding:.34rem .42rem;gap:.3rem}
+  .hud-title{font-size:.76rem}
+  .hud-back,.hud-turn{font-size:.66rem}
+  .tbadge{font-size:.58rem;padding:.18rem .36rem}
+  .turn-banner{padding:.36rem .42rem;font-size:.78rem;letter-spacing:.06em}
+  .my-status{padding:.3rem .42rem;gap:.34rem}
+  .mys-name{max-width:64px;font-size:.72rem}
+  .cost-circle{width:38px;height:38px}
+  .cost-circle-num{font-size:1.05rem}
+  .wbar{font-size:.63rem;padding:.24rem .42rem}
+  .shint{font-size:.6rem;padding:.24rem .42rem}
+  .gscroll{padding:.28rem .3rem}
+  .opp-area{padding:.36rem .42rem;border-radius:8px}
+  .opp-info{gap:.28rem}
+  .opp-name{font-size:.76rem}
+  .rpill{font-size:.5rem}
+  .battlefield{grid-template-columns:1fr 54px 1fr;gap:.22rem}
+  .field-zone{min-height:86px}
+  .discard-zone{width:54px;min-height:86px}
+  .hand-label{font-size:.56rem}
+  .hand-scroll{gap:.34rem;min-height:222px;padding:.25rem .1rem .42rem;scroll-padding:.2rem}
+  .gc.hand-card{width:128px;height:202px;border-radius:9px}
+  .gc.hand-card .gc-art{height:72px;font-size:2.35rem}
+  .gc.hand-card .gc-cost{width:23px;height:23px;font-size:.74rem}
+  .gc.hand-card .gc-name{font-size:.56rem}
+  .gc.hand-card .gc-ft,.gc.hand-card .gc-sl{font-size:.5rem}
+  .abar{gap:.32rem;padding:.42rem .42rem calc(.42rem + env(safe-area-inset-bottom))}
+  .abar .btn{flex:1 1 calc(50% - .32rem);min-height:44px;padding:.46rem .45rem;font-size:.68rem;letter-spacing:.04em}
+  .btn small{display:none}
+  .tooltip{max-width:78vw;font-size:.68rem}
+  .cpov{padding:.75rem}
+  .cpov-s{max-height:60vh;gap:.45rem}
+  .cpov-item .gc{width:82px!important;height:126px!important}
+  .glog{height:48px;font-size:.6rem}
+  .toast{bottom:calc(5.5rem + env(safe-area-inset-bottom));white-space:normal}
+}
+@media(max-width:380px){
+  .gc.hand-card{width:116px;height:184px}
+  .gc.hand-card .gc-art{height:64px}
+  .hand-scroll{min-height:204px}
+  .abar .btn{font-size:.64rem}
+}
 </style>
 </head>
 <body>
