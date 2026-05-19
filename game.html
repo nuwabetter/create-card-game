@@ -399,6 +399,42 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
   .hand-scroll{min-height:204px}
   .abar .btn{font-size:.64rem}
 }
+/* Battle readability */
+.hud-turn,.hud>.tbadge{display:none}
+.shint{display:none}
+.wbar{margin:.32rem .42rem;border:1px solid rgba(122,92,145,.22);border-radius:10px;padding:.42rem .65rem;background:linear-gradient(90deg,#fffdf9,#f4efff)!important;box-shadow:0 8px 18px rgba(92,70,125,.1);font-size:.78rem}
+.wbar::before{content:'WEATHER';font-family:'Rajdhani',sans-serif;font-size:.54rem;letter-spacing:.14em;color:#7b668f;margin-right:.1rem}
+.wbar #wIcon{font-size:1.05rem}.wbar #wName{font-size:.86rem;color:#6b4a92}.wbar #wEff{font-weight:700;color:#5b5065!important}.wbar .wc{font-size:.64rem;background:#f0e9fb;border:1px solid rgba(122,92,145,.18);border-radius:999px;padding:.12rem .44rem}
+.opp-info{display:grid;grid-template-columns:auto auto minmax(180px,1fr) auto auto;align-items:center}
+.opp-hp-row{background:#fff;border:1px solid rgba(122,92,145,.18);border-radius:999px;padding:.18rem .35rem}
+.opp-hb-out{height:13px;background:#eadff1}
+.opp-hp-txt{font-size:.9rem;color:#2f2635}
+.glog{height:86px;padding:.42rem .55rem;background:linear-gradient(180deg,#fffdf9,#f8f5ff)!important;font-size:.72rem;line-height:1.35}
+.log-entry{display:flex;gap:.42rem;align-items:flex-start;margin:.12rem 0;padding:.28rem .42rem;border-radius:7px;border:1px solid rgba(122,92,145,.12);background:rgba(255,255,255,.68)}
+.log-tag{flex:0 0 auto;min-width:3.3rem;text-align:center;border-radius:999px;padding:.08rem .32rem;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.62rem;letter-spacing:.06em}
+.log-text{color:#3c3444;font-weight:600}
+.log-dmg{background:#fff1f0;border-color:rgba(217,74,58,.18)}.log-dmg .log-tag{background:#e85d59;color:#fff}
+.log-eff{background:#fff9e8;border-color:rgba(212,168,46,.2)}.log-eff .log-tag{background:#d4a82e;color:#2d210c}
+.log-turn{background:#eef6ff;border-color:rgba(47,128,194,.18)}.log-turn .log-tag{background:#4f8ed2;color:#fff}
+.log-weather{background:#f3edff;border-color:rgba(122,92,145,.22)}.log-weather .log-tag{background:#7d5ab6;color:#fff}
+.log-heal{background:#eefaf2;border-color:rgba(33,139,85,.18)}.log-heal .log-tag{background:#2a9b61;color:#fff}
+.log-info .log-tag{background:#756f7a;color:#fff}
+.hit-ring{position:fixed;z-index:590;width:80px;height:80px;margin:-40px 0 0 -40px;border:3px solid currentColor;border-radius:50%;pointer-events:none;animation:hitRing .55s ease-out forwards}
+.hit-slash{position:fixed;z-index:591;width:110px;height:5px;margin:-2px 0 0 -55px;background:currentColor;border-radius:999px;box-shadow:0 0 14px currentColor;pointer-events:none;animation:hitSlash .38s ease-out forwards}
+@keyframes hitRing{0%{opacity:.85;transform:scale(.25)}100%{opacity:0;transform:scale(2.2)}}
+@keyframes hitSlash{0%{opacity:0;transform:rotate(-18deg) scaleX(.2)}20%{opacity:1}100%{opacity:0;transform:rotate(-18deg) scaleX(1.3) translateX(18px)}}
+@media(max-width:520px){
+  .wbar{margin:.28rem .35rem;padding:.38rem .5rem;font-size:.7rem;gap:.32rem;flex-wrap:wrap}
+  .wbar::before{font-size:.48rem}.wbar .wc{margin-left:0;font-size:.58rem}
+  .opp-info{grid-template-columns:1fr auto auto;gap:.28rem}
+  .opp-name{font-size:.88rem}
+  .opp-hp-row{grid-column:1/-1;order:5;width:100%;padding:.25rem .42rem}
+  .opp-hb-out{height:16px}
+  .opp-hp-txt{font-size:1rem;min-width:46px}
+  .opp-cost-c{width:30px;height:30px}
+  .glog{height:92px;font-size:.68rem;padding:.36rem .42rem}
+  .log-entry{padding:.24rem .32rem}.log-tag{min-width:2.8rem;font-size:.56rem}
+}
 </style>
 </head>
 <body>
@@ -509,6 +545,9 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 const SL=(p,m)=>{document.getElementById('loadFill').style.width=p+'%';document.getElementById('loadMsg').textContent=m;};
 const showGame=()=>{document.getElementById('loadScr').style.display='none';document.getElementById('gameApp').style.display='flex';};
 const toast=m=>{const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);};
+const pLabel=slot=>`P${slot}「${pNames[slot]||('P'+slot)}」`;
+const logMsg=(S,type,msg)=>{S.log=S.log||[];S.log.push(`${type}|${msg}`);};
+function nextDefenderSlot(S){if(!S?.seq?.length)return null;return S.seq[(S.seqIdx+1)%S.seq.length]?.player||null;}
 
 function setPool(cards){pool=cards;poolMap={};cards.forEach(c=>{if(c.id)poolMap[c.id]=c;});}
 function applyPool(cards){let p=cards;if(activeIdStr&&activeIdStr!=='all'){try{const s=new Set(JSON.parse(activeIdStr));p=cards.filter(c=>s.has(c.id));}catch(e){}}setPool(p.length?p:cards.length?cards:genDefault());}
@@ -595,7 +634,7 @@ const wAtk=(card,S)=>{S=S||G;return(card.atk||0)+(S.weather.current==='storm'?2:
 const wDef=(card,S)=>{S=S||G;return(card.def||0)+(S.weather.current==='sun'?1:0);};
 function setWx(S,id){
   S.weather.current=id;S.weather.defendsDone=0;
-  S.log.push(`🌤→${wData(id).icon}${wData(id).name}`);
+  logMsg(S,'weather',`天候変更: ${wData(id).icon} ${wData(id).name}（${wData(id).eff}）`);
   // 天候変化演出（ローカル側のみ）
   requestAnimationFrame(()=>{
     const w=wData(id);
@@ -608,7 +647,7 @@ function setWx(S,id){
     for(let i=0;i<20;i++)pt(cx,cy,80+Math.random()*120,6+Math.random()*8,col,.6+Math.random()*.8);
   });
 }
-function wxTick(S){S.weather.defendsDone=(S.weather.defendsDone||0)+1;if(S.weather.defendsDone>=2*S.numP){S.weather.defendsDone=0;const a=['sun','rain','storm'].filter(w=>w!==S.weather.current);const nw=a[~~(Math.random()*a.length)]||'sun';S.weather.current=nw;S.log.push(`🌤天候→${wData(nw).icon}${wData(nw).name}`);
+function wxTick(S){S.weather.defendsDone=(S.weather.defendsDone||0)+1;if(S.weather.defendsDone>=2*S.numP){S.weather.defendsDone=0;const a=['sun','rain','storm'].filter(w=>w!==S.weather.current);const nw=a[~~(Math.random()*a.length)]||'sun';S.weather.current=nw;logMsg(S,'weather',`天候変更: ${wData(nw).icon} ${wData(nw).name}（${wData(nw).eff}）`);
     // 天候変化演出
     requestAnimationFrame(()=>{
       const w=wData(nw);
@@ -680,14 +719,67 @@ function applySelfCardMods(source,played,S,slot,trig){
   for(const e of getEffects(source)){
     if(!effectMatches(e,S,slot,trig))continue;
     const ek=e.eff||e.type||'',ev=+e.effVal||+e.value||1;
-    if(ek==='selfCardAtkUp'){played.atk=(played.atk||0)+ev;S.log.push(`🌟${played.name}→ATK+${ev}`);}
-    if(ek==='selfCardDefUp'){played.def=(played.def||0)+ev;S.log.push(`🌟${played.name}→DEF+${ev}`);}
+    if(ek==='selfCardAtkUp'){played.atk=(played.atk||0)+ev;logMsg(S,'eff',`効果: ${pLabel(slot)}「${source.name||'?'}」で「${played.name||'?'}」ATK +${ev}`);}
+    if(ek==='selfCardDefUp'){played.def=(played.def||0)+ev;logMsg(S,'eff',`効果: ${pLabel(slot)}「${source.name||'?'}」で「${played.name||'?'}」DEF +${ev}`);}
   }
 }
 
 function applyEff(card,S,slot,trig,pickIdx){
   if(!card)return;
-  for(const e of getEffects(card)){if(!effectMatches(e,S,slot,trig))continue;const ek=e.eff||e.type||'',ev=+e.effVal||+e.value||1;const p=S.players[slot];if(!p)continue;const os=effectTargetSlot(S,slot,trig);const op=os?S.players[os]:null;switch(ek){case'draw':for(let i=0;i<ev;i++){const d=drawCard();if(d){p.hand.push(d);newCards.add('n'+(p.hand.length-1));}}S.log.push(`🌟${card.name}→${ev}枚ドロー`);break;case'selfHeal':case'heal':p.hp=Math.min(p.maxHp,(p.hp||0)+ev);S.log.push(`🌟${card.name}→HP+${ev}`);break;case'selfDamage':p.hp=Math.max(0,(p.hp||0)-ev);S.log.push(`🌟${card.name}→自-${ev}`);break;case'selfAtkUp':case'buffAtk':{const i=handPickIndex(p,pickIdx);if(i>=0){p.hand[i].atk=(p.hand[i].atk||0)+ev;S.log.push(`🌟手札「${p.hand[i].name||'?'}」ATK+${ev}`);}}break;case'selfDefUp':case'buffDef':{const i=handPickIndex(p,pickIdx);if(i>=0){p.hand[i].def=(p.hand[i].def||0)+ev;S.log.push(`🌟手札「${p.hand[i].name||'?'}」DEF+${ev}`);}}break;case'selfCardAtkUp':case'selfCardDefUp':break;case'oppDamage':case'damage':if(op){op.hp=Math.max(0,(op.hp||0)-ev);S.log.push(`🌟${card.name}→P${os}-${ev}`);}break;case'selfCostDown':case'costReduce':p._cB=(p._cB||0)+ev;S.log.push(`🌟次コスト-${ev}`);break;case'selfCostUp':case'costGain':p.cost=(p.cost||0)+ev;break;case'oppCostDown':if(op)op.cost=Math.max(0,(op.cost||0)-ev);break;case'oppAtkDown':if(op)op._nAtkD=(op._nAtkD||0)+ev;break;case'oppDefDown':if(op)op._nDefD=(op._nDefD||0)+ev;break;case'weatherSun':setWx(S,'sun');break;case'weatherRain':setWx(S,'rain');break;case'weatherStorm':setWx(S,'storm');break;case'weatherChange':{const a=['sun','rain','storm'].filter(w=>w!==S.weather.current);setWx(S,a[~~(Math.random()*a.length)]||'sun');}break;}}
+  for(const e of getEffects(card)){
+    if(!effectMatches(e,S,slot,trig))continue;
+    const ek=e.eff||e.type||'',ev=+e.effVal||+e.value||1;
+    const p=S.players[slot];if(!p)continue;
+    const os=effectTargetSlot(S,slot,trig),op=os?S.players[os]:null;
+    const actor=pLabel(slot),target=os?pLabel(os):'相手';
+    switch(ek){
+      case'draw':
+        for(let i=0;i<ev;i++){const d=drawCard();if(d){p.hand.push(d);newCards.add('n'+(p.hand.length-1));}}
+        logMsg(S,'eff',`効果: ${actor}「${card.name||'?'}」 ${ev}枚ドロー`);
+        break;
+      case'selfHeal':case'heal':
+        p.hp=Math.min(p.maxHp,(p.hp||0)+ev);
+        logMsg(S,'heal',`回復: ${actor}「${card.name||'?'}」 HP +${ev}`);
+        break;
+      case'selfDamage':
+        p.hp=Math.max(0,(p.hp||0)-ev);
+        logMsg(S,'dmg',`自傷: ${actor}「${card.name||'?'}」 ${ev}ダメージ`);
+        break;
+      case'selfAtkUp':case'buffAtk':{
+        const i=handPickIndex(p,pickIdx);
+        if(i>=0){p.hand[i].atk=(p.hand[i].atk||0)+ev;logMsg(S,'eff',`効果: ${actor}の手札「${p.hand[i].name||'?'}」ATK +${ev}`);}
+        break;
+      }
+      case'selfDefUp':case'buffDef':{
+        const i=handPickIndex(p,pickIdx);
+        if(i>=0){p.hand[i].def=(p.hand[i].def||0)+ev;logMsg(S,'eff',`効果: ${actor}の手札「${p.hand[i].name||'?'}」DEF +${ev}`);}
+        break;
+      }
+      case'selfCardAtkUp':case'selfCardDefUp':break;
+      case'oppDamage':case'damage':
+        if(op){op.hp=Math.max(0,(op.hp||0)-ev);logMsg(S,'dmg',`効果ダメージ: ${actor}「${card.name||'?'}」 → ${target} に ${ev}ダメージ`);}
+        break;
+      case'selfCostDown':case'costReduce':
+        p._cB=(p._cB||0)+ev;logMsg(S,'eff',`効果: ${actor} 次に出すカードのコスト -${ev}`);
+        break;
+      case'selfCostUp':case'costGain':
+        p.cost=(p.cost||0)+ev;logMsg(S,'eff',`効果: ${actor} コスト +${ev}`);
+        break;
+      case'oppCostDown':
+        if(op){op.cost=Math.max(0,(op.cost||0)-ev);logMsg(S,'eff',`効果: ${actor} → ${target} コスト -${ev}`);}
+        break;
+      case'oppAtkDown':
+        if(op){op._nAtkD=(op._nAtkD||0)+ev;logMsg(S,'eff',`効果: ${actor} → ${target} 次ATK -${ev}`);}
+        break;
+      case'oppDefDown':
+        if(op){op._nDefD=(op._nDefD||0)+ev;logMsg(S,'eff',`効果: ${actor} → ${target} 次DEF -${ev}`);}
+        break;
+      case'weatherSun':setWx(S,'sun');break;
+      case'weatherRain':setWx(S,'rain');break;
+      case'weatherStorm':setWx(S,'storm');break;
+      case'weatherChange':{const a=['sun','rain','storm'].filter(w=>w!==S.weather.current);setWx(S,a[~~(Math.random()*a.length)]||'sun');}break;
+    }
+  }
 }
 
 function gcenter(){const bf=document.querySelector('.battlefield');if(!bf)return{x:innerWidth/2,y:innerHeight/2};const r=bf.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};}
@@ -697,12 +789,12 @@ function fnum(txt,col,cx,cy){const e=document.createElement('div');e.style.cssTe
 let biT=null;
 function bigIll(card,mc){if(biT)clearTimeout(biT);document.querySelectorAll('.bi').forEach(e=>e.remove());const ov=document.createElement('div');ov.className='bi';ov.style.cssText=`position:fixed;bottom:calc(54px + 3.5rem);right:.65rem;z-index:690;pointer-events:none;width:84px;height:120px;border-radius:8px;overflow:hidden;border:2px solid ${mc.border};box-shadow:0 10px 26px rgba(89,68,34,.22),0 0 12px ${mc.glow};animation:biIn .28s ease-out forwards`;const a=document.createElement('div');a.style.cssText='width:100%;height:calc(100% - 20px);display:flex;align-items:center;justify-content:center;font-size:3rem;background:#0d1018;overflow:hidden';if(card.illust&&card.illust!=='[img]'&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))){const img=document.createElement('img');img.src=card.illust;img.style.cssText='width:100%;height:100%;object-fit:contain;background:#0d1018';a.appendChild(img);}else a.textContent=(card.illust&&card.illust!=='[img]')?card.illust:'🃏';const nm=document.createElement('div');nm.style.cssText="height:20px;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-size:.6rem;font-weight:700;color:#fff6db;background:#080a10;overflow:hidden;white-space:nowrap;padding:0 3px";nm.textContent=card.name||'';ov.appendChild(a);ov.appendChild(nm);document.body.appendChild(ov);biT=setTimeout(()=>{ov.style.animation='biOut .22s ease-in forwards';setTimeout(()=>ov.remove(),250);},1700);}
 function vfx(card){const vs=new Set(card.vfx||[]);const mc=mainC(card);const{x:cx,y:cy}=gcenter();if(vs.size===0||vs.has('bigIllust'))bigIll(card,mc);fl(mc.fx);for(let i=0;i<16;i++)pt(cx,cy,50+Math.random()*100,5+Math.random()*7,mc.fx,.45+Math.random()*.7);if(vs.has('fire')||(!vs.size&&getColors(card).includes('red')))for(let i=0;i<6;i++)setTimeout(()=>pt(cx,cy,30+Math.random()*55,8,i%2?'#e74c3c':'#f39c12',.6),i*20);if(vs.has('lightning')||(!vs.size&&getColors(card).includes('yellow'))){const l=document.createElement('div');l.style.cssText=`position:fixed;left:${cx-1}px;top:${cy-55}px;width:2px;height:110px;background:linear-gradient(to bottom,transparent,#f1c40f,#fff,#f1c40f,transparent);z-index:575;pointer-events:none;animation:sfA .4s ease-out forwards;box-shadow:0 0 8px #f1c40f`;document.body.appendChild(l);setTimeout(()=>l.remove(),450);}if(vs.has('shockwave')){const sw=document.createElement('div');sw.style.cssText=`position:fixed;left:${cx-55}px;top:${cy-55}px;width:110px;height:110px;border-radius:50%;border:4px solid ${mc.fx};pointer-events:none;z-index:580;animation:swA .6s ease-out forwards`;document.body.appendChild(sw);setTimeout(()=>sw.remove(),700);}if(vs.has('darkness'))fl('rgba(0,0,0,.5)');if(vs.has('rainbow'))fl('linear-gradient(135deg,rgba(255,0,0,.1),rgba(0,200,0,.1),rgba(0,0,255,.1))');}
-function atkFx(atkCard,dmg,blocked){const mc=mainC(atkCard);const{x:cx,y:cy}=gcenter();fl(mc.fx);for(let i=0;i<18;i++)pt(cx,cy,60+Math.random()*110,6+Math.random()*8,mc.fx,.45+Math.random()*.75);setTimeout(()=>{if(blocked)fnum('🛡BLOCK','#2ecc71',cx,cy-20);else fnum('-'+dmg,'#e74c3c',cx,cy-20);},180);}
+function atkFx(atkCard,dmg,blocked){const mc=mainC(atkCard);const{x:cx,y:cy}=gcenter();fl(blocked?'rgba(46,204,113,.55)':mc.fx);for(let i=0;i<22;i++)pt(cx,cy,70+Math.random()*125,5+Math.random()*8,blocked?'rgba(46,204,113,.85)':mc.fx,.42+Math.random()*.68);const ring=document.createElement('div');ring.className='hit-ring';ring.style.cssText+=`;left:${cx}px;top:${cy}px;color:${blocked?'#2ecc71':'#e74c3c'}`;document.body.appendChild(ring);setTimeout(()=>ring.remove(),650);if(!blocked){const sl=document.createElement('div');sl.className='hit-slash';sl.style.cssText+=`;left:${cx}px;top:${cy}px;color:${mc.cost||'#e74c3c'}`;document.body.appendChild(sl);setTimeout(()=>sl.remove(),500);}setTimeout(()=>{if(blocked)fnum('BLOCK','#2ecc71',cx,cy-20);else fnum('-'+dmg,'#e74c3c',cx,cy-20);},130);}
 
 function pickCard(hand,title){return new Promise(res=>{if(!hand?.length){res(-1);return;}const ov=document.getElementById('cpov');document.getElementById('cpovT').textContent=title||'手札から1枚選んでください';const s=document.getElementById('cpovS');s.innerHTML='';let done=false;hand.forEach((card,i)=>{const mc=mainC(card);const div=document.createElement('div');div.className='cpov-item';const cs=getColors(card).map(c=>`<div style="flex:1;background:${CM[c]?.dot||'#888'}"></div>`).join('');const dv=wDef(card);div.innerHTML=`<div class="gc static-card" style="border-color:${mc.border};width:90px;height:138px"><div style="height:5px;display:flex">${cs}</div><div class="gc-head" style="padding:3px 4px"><div class="gc-cost" style="background:${mc.cost};width:18px;height:18px;font-size:.65rem">${card.cost}</div><div class="gc-name" style="font-size:.5rem;word-break:break-all">${card.name||'?'}</div></div><div class="gc-art" style="height:55px">${ill(card)}</div><div class="gc-stats" style="font-size:.62rem;padding:2px"><span style="color:${mc.accent}">⚔${wAtk(card)}</span><span style="color:${dv!==(card.def||0)?'#f1c40f':mc.accent}">🛡${dv}</span></div></div>`;div.onclick=()=>{if(done)return;done=true;ov.style.display='none';res(i);};s.appendChild(div);});const cancel=document.createElement('button');cancel.type='button';cancel.className='cpov-cancel';cancel.textContent='キャンセル';cancel.onclick=()=>{if(done)return;done=true;ov.style.display='none';res(-1);};s.appendChild(cancel);ov.style.display='flex';});}
 
 function genDefault(){const cols=[['red'],['blue'],['yellow'],['green'],['red','blue'],['yellow','green']];const nms=['騎士','魔法使い','竜','妖精','戦士','弓使い','僧侶','忍者','海賊','錬金術師','天使','悪魔','剣士','盗賊','召喚士','聖騎士','魔剣士','竜騎士','幻術師','召喚魔法'];const ils=['⚔️','🔮','🐉','🦋','🛡️','🏹','✨','🌸','🗡️','🧪','👼','😈','⚡','🗺️','📖','🏰','🌙','🦅','🌀','🔥'];return nms.map((nm,i)=>({id:'def'+i,name:nm,colors:cols[i%cols.length],color:cols[i%cols.length][0],cost:1+~~(i/4),atk:2+(i%5),def:1+(i%4),illust:ils[i],flavor:'',effects:[],vfx:[]}));}
-function buildState(n){if(!pool.length)return null;let order=Array.from({length:n},(_,i)=>i+1);for(let i=order.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}const seq=[];for(let oi=0;oi<order.length;oi++){seq.push({player:order[oi],phase:'attack'});seq.push({player:order[(oi+1)%order.length],phase:'defend'});}const players={};for(let oi=0;oi<order.length;oi++){const slot=order[oi];const hand=Array.from({length:oi===0?7:8},()=>drawCard()).filter(Boolean);if(slot===mySlot)hand.forEach((_,i)=>newCards.add('i'+i));players[slot]={hp:20,maxHp:20,cost:2,_cB:0,_nAtkD:0,_nDefD:0,hand,alive:true};}const fp=seq[0].player;if(players[fp])players[fp].cost=(players[fp].cost||0)+3;return{status:'playing',numP:n,seqIdx:0,seq,players,discardCard:null,atkCardPlayed:null,defCardPlayed:null,playedThisTurn:false,turnCount:0,weather:{current:'sun',changeCount:0,defendsDone:0},log:[`ゲーム開始！先行:P${fp}「${pNames[fp]||'P'+fp}」`,`P${fp}「${pNames[fp]||'P'+fp}」の攻撃ターン（コスト+3）`]};}
+function buildState(n){if(!pool.length)return null;let order=Array.from({length:n},(_,i)=>i+1);for(let i=order.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}const seq=[];for(let oi=0;oi<order.length;oi++){seq.push({player:order[oi],phase:'attack'});seq.push({player:order[(oi+1)%order.length],phase:'defend'});}const players={};for(let oi=0;oi<order.length;oi++){const slot=order[oi];const hand=Array.from({length:oi===0?7:8},()=>drawCard()).filter(Boolean);if(slot===mySlot)hand.forEach((_,i)=>newCards.add('i'+i));players[slot]={hp:20,maxHp:20,cost:2,_cB:0,_nAtkD:0,_nDefD:0,hand,alive:true};}const fp=seq[0].player;if(players[fp])players[fp].cost=(players[fp].cost||0)+3;return{status:'playing',numP:n,seqIdx:0,seq,players,discardCard:null,atkCardPlayed:null,defCardPlayed:null,playedThisTurn:false,turnCount:0,weather:{current:'sun',changeCount:0,defendsDone:0},log:[`info|ゲーム開始: 先攻は${pLabel(fp)}`,`turn|ターン: ${pLabel(fp)}の攻撃（コスト +3）`]};}
 
 async function ensureGameState(){
   if(!amHost||gameStarted||creatingState)return;
@@ -864,9 +956,28 @@ window.playCard=async function(){
     const fc=Math.max(1,wCost(card,S)-(p._cB||0));
     if((p.cost||0)<fc){toast('コスト不足');unlock();return;}
     p.cost-=fc;p._cB=0;p.hand.splice(selCard,1);const effPickIdx=pickIdx>selCard?pickIdx-1:pickIdx;S.playedThisTurn=true;S.discardCard=clone(pc);
-    if(ph(S)==='attack'){S.atkCardPlayed=clone(pc);S.defCardPlayed=null;S.lastAtkPlayer=mySlot;S.log.push(`P${mySlot}「${pNames[mySlot]||myName}」→攻撃「${pc.name}」ATK:${wAtk(pc,S)}`);applyEff(pc,S,mySlot,'onPlay',effPickIdx);applyEff(pc,S,mySlot,'onAttack',effPickIdx);}
-    else{S.defCardPlayed=clone(pc);const ak=S.atkCardPlayed;if(ak){const av=wAtk(ak,S),dv=wDef(pc,S),dmg=Math.max(0,av-dv);if(dmg>0){p.hp=Math.max(0,p.hp-dmg);S.log.push(`⚔「${ak.name}」ATK:${av} vs「${pc.name}」DEF:${dv}→${dmg}ダメ！`);setTimeout(()=>atkFx(ak,dmg,false),150);applyEff(ak,S,S.lastAtkPlayer,'onDamage',-1);applyEff(pc,S,mySlot,'onTakeDmg',effPickIdx);}else{S.log.push(`🛡「${ak.name}」ATK:${av} vs「${pc.name}」DEF:${dv}→ブロック！`);setTimeout(()=>atkFx(ak,0,true),150);}}applyEff(pc,S,mySlot,'onPlay',effPickIdx);applyEff(pc,S,mySlot,'onDefend',effPickIdx);S.atkCardPlayed=null;wxTick(S);}
-    const dr=drawCard();if(dr){p.hand.push(dr);newCards.add('n'+(p.hand.length-1));S.log.push(`P${mySlot}→1枚ドロー`);}
+    if(ph(S)==='attack'){
+      S.atkCardPlayed=clone(pc);S.defCardPlayed=null;S.lastAtkPlayer=mySlot;
+      const target=nextDefenderSlot(S);
+      logMsg(S,'turn',`攻撃: ${pLabel(mySlot)} → ${target?pLabel(target):'相手'} / 「${pc.name||'?'}」 ATK ${wAtk(pc,S)}`);
+      applyEff(pc,S,mySlot,'onPlay',effPickIdx);applyEff(pc,S,mySlot,'onAttack',effPickIdx);
+    }
+    else{
+      S.defCardPlayed=clone(pc);const ak=S.atkCardPlayed;
+      if(ak){
+        const av=wAtk(ak,S),dv=wDef(pc,S),dmg=Math.max(0,av-dv),att=S.lastAtkPlayer||'?';
+        if(dmg>0){
+          p.hp=Math.max(0,p.hp-dmg);
+          logMsg(S,'dmg',`ダメージ: ${pLabel(att)} → ${pLabel(mySlot)} / 「${ak.name||'?'}」ATK ${av} vs 「${pc.name||'?'}」DEF ${dv} = ${dmg}ダメージ`);
+          setTimeout(()=>atkFx(ak,dmg,false),150);applyEff(ak,S,S.lastAtkPlayer,'onDamage',-1);applyEff(pc,S,mySlot,'onTakeDmg',effPickIdx);
+        }else{
+          logMsg(S,'dmg',`ブロック: ${pLabel(mySlot)} が「${pc.name||'?'}」DEF ${dv}で ${pLabel(att)}の攻撃を防御`);
+          setTimeout(()=>atkFx(ak,0,true),150);
+        }
+      }
+      applyEff(pc,S,mySlot,'onPlay',effPickIdx);applyEff(pc,S,mySlot,'onDefend',effPickIdx);S.atkCardPlayed=null;wxTick(S);
+    }
+    const dr=drawCard();if(dr){p.hand.push(dr);newCards.add('n'+(p.hand.length-1));logMsg(S,'info',`${pLabel(mySlot)} 1枚ドロー`);}
     vfx(pc);selCard=-1;G=S;renderAll();checkWin();
     await save(S);
     const snapTc=S.turnCount,snapSi=S.seqIdx;
@@ -884,9 +995,9 @@ window.playCard=async function(){
   finally{unlock();}
 };
 
-window.extraDraw=async function(){if(processing||!myTurn()||ph()!=='attack'||G.playedThisTurn)return;lock();try{const S=clone(G);const p=S.players[mySlot];if((p.hp||0)<=2){toast('HP2消費できません');return;}const card=drawW(p.hand);if(!card){toast('プールが空です');return;}p.hp-=2;p.hand.push(card);newCards.add('n'+(p.hand.length-1));S.log.push(`P${mySlot}→HP-2でドロー`);G=S;renderAll();await save(S);toast('ドロー！');}finally{unlock();}};
+window.extraDraw=async function(){if(processing||!myTurn()||ph()!=='attack'||G.playedThisTurn)return;lock();try{const S=clone(G);const p=S.players[mySlot];if((p.hp||0)<=2){toast('HP2消費できません');return;}const card=drawW(p.hand);if(!card){toast('プールが空です');return;}p.hp-=2;p.hand.push(card);newCards.add('n'+(p.hand.length-1));logMsg(S,'info',`${pLabel(mySlot)} HP-2で追加ドロー`);G=S;renderAll();await save(S);toast('ドロー！');}finally{unlock();}};
 window.endTurn=async function(){if(!myTurn())return;if(processing)unlock();lock();try{await endTurnInt();}finally{unlock();}};
-async function endTurnInt(){if(!myTurn())return;const S=clone(G);const c=S.seq[S.seqIdx%S.seq.length];if(c.phase==='defend'&&!S.playedThisTurn){const ak=S.atkCardPlayed;if(ak){const av=wAtk(ak,S);if(av>0){S.players[c.player].hp=Math.max(0,(S.players[c.player].hp||0)-av);S.log.push(`P${c.player}がガードせず${av}ダメ！`);setTimeout(()=>atkFx(ak,av,false),50);applyEff(ak,S,S.lastAtkPlayer,'onDamage',-1);}}}if(c.phase==='defend'){S.atkCardPlayed=null;S.defCardPlayed=null;wxTick(S);}for(let i=1;i<=S.numP;i++){if(S.players[i]&&(S.players[i].hp||0)<=0&&S.players[i].alive!==false){S.players[i].alive=false;S.log.push(`💀P${i}「${pNames[i]||'P'+i}」脱落！`);}}let nx=(S.seqIdx+1)%S.seq.length;for(let sf=0;sf<S.seq.length*2;sf++){if(S.players[S.seq[nx%S.seq.length].player]?.alive!==false)break;nx=(nx+1)%S.seq.length;}S.seqIdx=nx%S.seq.length;S.playedThisTurn=false;S.turnCount=(S.turnCount||0)+1;const next=S.seq[S.seqIdx%S.seq.length];const np=S.players[next.player];if(np){np.cost=(np.cost||0)+3;S.log.push(`P${next.player}「${pNames[next.player]||'P'+next.player}」の${next.phase==='attack'?'攻撃':'防御'}ターン（コスト+3）`);}selCard=-1;G=S;renderAll();checkWin();await save(S);}
+async function endTurnInt(){if(!myTurn())return;const S=clone(G);const c=S.seq[S.seqIdx%S.seq.length];if(c.phase==='defend'&&!S.playedThisTurn){const ak=S.atkCardPlayed;if(ak){const av=wAtk(ak,S),att=S.lastAtkPlayer||'?';if(av>0){S.players[c.player].hp=Math.max(0,(S.players[c.player].hp||0)-av);logMsg(S,'dmg',`ガードなし: ${pLabel(att)} → ${pLabel(c.player)} に ${av}ダメージ`);setTimeout(()=>atkFx(ak,av,false),50);applyEff(ak,S,S.lastAtkPlayer,'onDamage',-1);}}}if(c.phase==='defend'){S.atkCardPlayed=null;S.defCardPlayed=null;wxTick(S);}for(let i=1;i<=S.numP;i++){if(S.players[i]&&(S.players[i].hp||0)<=0&&S.players[i].alive!==false){S.players[i].alive=false;logMsg(S,'dmg',`脱落: ${pLabel(i)}`);}}let nx=(S.seqIdx+1)%S.seq.length;for(let sf=0;sf<S.seq.length*2;sf++){if(S.players[S.seq[nx%S.seq.length].player]?.alive!==false)break;nx=(nx+1)%S.seq.length;}S.seqIdx=nx%S.seq.length;S.playedThisTurn=false;S.turnCount=(S.turnCount||0)+1;const next=S.seq[S.seqIdx%S.seq.length];const np=S.players[next.player];if(np){np.cost=(np.cost||0)+3;logMsg(S,'turn',`ターン: ${pLabel(next.player)}の${next.phase==='attack'?'攻撃':'防御'}（コスト +3）`);}selCard=-1;G=S;renderAll();checkWin();await save(S);}
 
 window.forceEnd=async function(){if(!confirm('試合を強制終了しますか？'))return;navigating=true;try{await remove(gameRef);}catch(e){}if(roomRef)try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}window.location.href='index.html';};
 window.leaveToLobby=function(){if(confirm('ロビーに戻りますか？'))window.location.href=roomCode?'lobby.html?room='+roomCode:'index.html';};
@@ -899,7 +1010,7 @@ function checkWin(){
   const alive=[];
   for(let i=1;i<=G.numP;i++){
     const p=G.players[i]||G.players['slot_'+i];
-    if(p&&(p.hp||0)<=0&&p.alive!==false){p.alive=false;G.log=G.log||[];G.log.push(`💀P${i}「${pNames[i]||'P'+i}」脱落！`);}
+    if(p&&(p.hp||0)<=0&&p.alive!==false){p.alive=false;logMsg(G,'dmg',`脱落: ${pLabel(i)}`);}
     if(p&&p.alive!==false&&(p.hp||0)>0)alive.push(i);
   }
   if(alive.length>1)return false;
@@ -957,13 +1068,13 @@ function renderAll(){
   },0);
 }
 function rStat(){const me=G.players[mySlot];if(!me)return;document.getElementById('myNameDisp').textContent=(pNames[mySlot]||myName)+' 👤';document.getElementById('myHpBar').style.width=Math.max(0,Math.min(100,(me.hp/me.maxHp)*100))+'%';document.getElementById('myHpTxt').textContent=`${me.hp}/${me.maxHp}`;const cost=me.cost||0;document.getElementById('myCostNum').textContent=cost;const col=cost>=10?'rgba(241,196,15,.85)':cost>=5?'rgba(201,168,76,.65)':'rgba(201,168,76,.45)';const circ=document.getElementById('myCostCircle');circ.style.borderColor=col;circ.style.boxShadow=cost>=5?`0 0 10px ${col}`:'none';}
-function rBanner(){const c=cur();const tb=document.getElementById('turnBadge');const bn=document.getElementById('turnBanner');const hud=document.getElementById('hudTurn');if(hud)hud.textContent=`T${(G.turnCount||0)+1}[seq:${G.seqIdx} P${c.player}${c.phase[0]} me:${mySlot} played:${G.playedThisTurn?1:0} h:${amHost?1:0}]`;if(myTurn()&&ph()==='attack'){tb.className='tbadge tb-a';tb.textContent='あなたの攻撃';bn.className='turn-banner attack';document.getElementById('turnIcon').textContent='⚔️';document.getElementById('turnBannerTxt').textContent='攻撃ターン — カードを選んで「出す」';}else if(myTurn()&&ph()==='defend'){tb.className='tbadge tb-d';tb.textContent='あなたの防御';bn.className='turn-banner defend';document.getElementById('turnIcon').textContent='🛡️';document.getElementById('turnBannerTxt').textContent='防御ターン — カードを出すかターン終了';}else{const nm=pNames[c.player]||`P${c.player}`;tb.className='tbadge tb-w';tb.textContent=`${nm}のターン`;bn.className='turn-banner wait';document.getElementById('turnIcon').textContent='⏳';document.getElementById('turnBannerTxt').textContent=`${nm} のターン — お待ちください`;}}
-function rHint(){const d=G.discardCard,ak=G.atkCardPlayed;document.getElementById('shint').textContent=(d?`捨て札:「${d.name}」[${getColors(d).map(x=>CN[x]||x).join('/')} C${d.cost}]`:'最初は何でも出せます')+(ak?` | 攻撃:「${ak.name}」ATK:${wAtk(ak)}`:'');}
-function rWx(){const w=wData(G.weather.current);document.getElementById('wIcon').textContent=w.icon;document.getElementById('wName').textContent=w.name;document.getElementById('wEff').textContent=' '+w.eff;document.getElementById('wChg').textContent=`変化まで${2*G.numP-(G.weather.defendsDone||0)}防御`;}
+function rBanner(){const c=cur();const bn=document.getElementById('turnBanner');const hud=document.getElementById('hudTurn');if(hud)hud.textContent='';if(myTurn()&&ph()==='attack'){bn.className='turn-banner attack';document.getElementById('turnIcon').textContent='⚔️';document.getElementById('turnBannerTxt').textContent='あなたの攻撃ターン — カードを選んで「出す」';}else if(myTurn()&&ph()==='defend'){bn.className='turn-banner defend';document.getElementById('turnIcon').textContent='🛡️';document.getElementById('turnBannerTxt').textContent='あなたの防御ターン — カードを出すかターン終了';}else{bn.className='turn-banner wait';document.getElementById('turnIcon').textContent='⏳';document.getElementById('turnBannerTxt').textContent=`${pLabel(c.player)} の${c.phase==='attack'?'攻撃':'防御'}ターン`;}}
+function rHint(){document.getElementById('shint').textContent='';}
+function rWx(){const w=wData(G.weather.current);document.getElementById('wIcon').textContent=w.icon;document.getElementById('wName').textContent=w.name;document.getElementById('wEff').textContent=`${w.eff}`;document.getElementById('wChg').textContent=`あと${Math.max(0,2*G.numP-(G.weather.defendsDone||0))}防御で変化`;}
 function rOpps(){const el=document.getElementById('oppsPanel');el.innerHTML='';const c=cur();for(let i=1;i<=G.numP;i++){if(i===mySlot)continue;const p=G.players[i];if(!p)continue;const dead=p.alive===false||(p.hp||0)<=0;const isA=!dead&&c.player===i&&c.phase==='attack';const isD=!dead&&c.player===i&&c.phase==='defend';const pct=Math.max(0,Math.min(100,(p.hp/p.maxHp)*100));const nm=pNames[i]||`P${i}`;const fcard=(G.atkCardPlayed&&G.lastAtkPlayer===i)?G.atkCardPlayed:(G.defCardPlayed&&isD?G.defCardPlayed:null);const d2=document.createElement('div');d2.className='opp-area'+(dead?' opp-dead':isA?' oa':isD?' od':'');d2.innerHTML=`<div class="opp-info"><div class="opp-name">${nm}</div><div class="rpill ${dead?'rp-dead':isA?'rp-a':isD?'rp-d':'rp-w'}">${dead?'💀脱落':isA?'攻撃中':isD?'防御中':'待機'}</div><div class="opp-hp-row"><span style="font-size:.7rem">❤️</span><div class="opp-hb-out"><div class="opp-hb-in" style="width:${pct}%"></div></div><div class="opp-hp-txt">${p.hp}/${p.maxHp}</div></div><div class="opp-cost-c"><div class="occ-l">cost</div><div class="occ-n">${p.cost||0}</div></div><span style="font-family:'Rajdhani',sans-serif;font-size:.58rem;color:var(--text-dim)">🃏${p.hand?.length||0}</span></div><div style="display:flex;gap:.3rem;flex-wrap:wrap">${!dead&&p.hand?.length?`<div style="display:flex;gap:.22rem;overflow-x:auto">${Array(Math.min(p.hand.length,6)).fill(0).map(()=>`<div class="gc facedown static-card" style="border-color:rgba(201,168,76,.15);width:36px;height:52px"><div class="gc-art" style="height:26px;font-size:.75rem">🃏</div></div>`).join('')}${p.hand.length>6?`<span style="font-size:.52rem;color:var(--text-dim);align-self:center">+${p.hand.length-6}</span>`:''}</div>`:''  }${fcard?`<div style="flex-shrink:0">${gc2(fcard,false,true)}</div>`:''}</div>`;el.appendChild(d2);}}
 function rBF(){document.getElementById('atkZone').innerHTML=G.atkCardPlayed?gc2(G.atkCardPlayed,false,true):'<div class="field-empty">🗡️</div>';document.getElementById('discardZone').innerHTML=G.discardCard?gc2(G.discardCard,false,true):'<div class="discard-none">なし<br>最初は<br>自由</div>';document.getElementById('defZone').innerHTML=G.defCardPlayed?gc2(G.defCardPlayed,false,true):'<div class="field-empty">🛡️</div>';}
 function renderHand(){const me=G?.players?.[mySlot];const hand=me?.hand||[];const el=document.getElementById('myHand');if(!hand.length){el.innerHTML='<div style="color:var(--text-dim);font-size:.76rem;padding:.4rem">手札なし</div>';return;}const mt=myTurn();const sorted=[...hand.map((c,i)=>({card:c,oi:i}))].sort((a,b)=>(a.card.cost||0)-(b.card.cost||0));el.innerHTML=sorted.map(({card,oi:i},si)=>{const mc=mainC(card);const cols=getColors(card);const av=wAtk(card),dv=wDef(card);const ec=Math.max(1,wCost(card)-(me._cB||0));const sel=selCard===i;const dim=mt?(!G.playedThisTurn?!canPlay(card):true):false;const isNew=newCards.has('i'+i)||newCards.has('n'+i)||newCards.has('i'+si);if(isNew){newCards.delete('i'+i);newCards.delete('n'+i);newCards.delete('i'+si);}const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');const sk=cskills(card);return`<div class="gc hand-card${sel?' sel':''}${dim?' dim':''}${isNew?' dealing':''}" style="border-color:${mc.border};box-shadow:${sel?'0 0 16px '+mc.glow+',0 0 28px '+mc.glow.replace('.4','.15'):'none'}" onclick="${mt&&!dim?`selCardFn(${i})`:'void(0)'}" onmouseenter="showTT(event,${i})" onmouseleave="hideTT()" ontouchstart="showTT(event,${i})" ontouchend="hideTT()">${sk.length?'<div class="gc-sdot"></div>':''}<div class="gc-cs">${cs}</div><div class="gc-head"><div class="gc-cost" style="background:${mc.cost};${ec!==card.cost?'outline:2px solid #f1c40f;outline-offset:-1px':''}">${ec}</div><div class="gc-name">${card.name||'?'}</div></div><div class="gc-art">${ill(card)}</div><div class="gc-stats"><span style="color:${av!==(card.atk||0)?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${dv!==(card.def||0)?'#f1c40f':mc.accent}">🛡${dv}</span></div><div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div></div>`;}).join('');document.getElementById('handCnt').textContent=`(${hand.length}枚)`;}
-function rLog(){const el=document.getElementById('glog');el.innerHTML=(G.log||[]).slice(-12).map(t=>{let c='le';if(t.includes('ダメ')||t.includes('ガード'))c+=' dmg';else if(t.includes('回復')||t.includes('HP+'))c+=' heal';else if(t.includes('🌟'))c+=' eff';else if(t.includes('天候')||t.includes('🌤'))c+=' wth';else if(t.includes('開始'))c+=' hl';return`<div class="${c}">▸ ${t}</div>`;}).join('');el.scrollTop=el.scrollHeight;}
+function rLog(){const el=document.getElementById('glog');const rows=(G.log||[]).slice(-14).map(raw=>{let type='info',text=String(raw||'');if(text.includes('|')){const sp=text.split('|');type=sp.shift()||'info';text=sp.join('|');}else if(text.includes('ダメ')||text.includes('ガード')||text.includes('脱落'))type='dmg';else if(text.includes('回復')||text.includes('HP+'))type='heal';else if(text.includes('効果')||text.includes('🌟'))type='eff';else if(text.includes('天候')||text.includes('🌤'))type='weather';else if(text.includes('ターン')||text.includes('攻撃'))type='turn';const label={dmg:'DMG',eff:'EFFECT',turn:'TURN',weather:'WEATHER',heal:'HEAL',info:'INFO'}[type]||'INFO';return`<div class="log-entry log-${type}"><span class="log-tag">${label}</span><span class="log-text">${text}</span></div>`;});el.innerHTML=rows.join('');el.scrollTop=el.scrollHeight;}
 function updBtn(){
   const mt=myTurn();
   document.getElementById('btnDraw').disabled=!mt||ph()!=='attack'||G.playedThisTurn;
