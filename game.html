@@ -362,10 +362,15 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
   .hud-back,.hud-turn{font-size:.66rem}
   .tbadge{font-size:.58rem;padding:.18rem .36rem}
   .turn-banner{padding:.36rem .42rem;font-size:.78rem;letter-spacing:.06em}
-  .my-status{padding:.3rem .42rem;gap:.34rem}
-  .mys-name{max-width:64px;font-size:.72rem}
-  .cost-circle{width:38px;height:38px}
-  .cost-circle-num{font-size:1.05rem}
+  .my-status{padding:.18rem .36rem;gap:.24rem}
+  .mys-name{max-width:58px;font-size:.66rem}
+  .mys-hp-row{gap:.22rem;min-width:54px}
+  .mys-hp-row>span{font-size:.7rem!important}
+  .mys-hp-bar-out{height:8px}
+  .mys-hp-txt{font-size:.72rem;min-width:34px}
+  .cost-circle{width:32px;height:32px;border-width:2px}
+  .cost-circle-lbl{font-size:.34rem}
+  .cost-circle-num{font-size:.9rem}
   .wbar{font-size:.63rem;padding:.24rem .42rem}
   .shint{font-size:.6rem;padding:.24rem .42rem}
   .gscroll{padding:.28rem .3rem}
@@ -383,8 +388,13 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
   .gc.hand-card .gc-cost{width:23px;height:23px;font-size:.74rem}
   .gc.hand-card .gc-name{font-size:.56rem}
   .gc.hand-card .gc-ft,.gc.hand-card .gc-sl{font-size:.5rem}
-  .abar{gap:.32rem;padding:.42rem .42rem calc(.42rem + env(safe-area-inset-bottom))}
-  .abar .btn{flex:1 1 calc(50% - .32rem);min-height:44px;padding:.46rem .45rem;font-size:.68rem;letter-spacing:.04em}
+  .abar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.22rem;padding:.24rem .32rem calc(.28rem + env(safe-area-inset-bottom))}
+  .abar .btn{min-height:34px;padding:.24rem .12rem;font-size:0;letter-spacing:0;border-radius:8px;gap:0;white-space:nowrap}
+  .abar .btn::before{font-size:.62rem;line-height:1;font-weight:800;letter-spacing:0;text-transform:none}
+  #btnDraw::before{content:'ドロー'}
+  #btnPlay::before{content:'出す'}
+  #btnEnd::before{content:'終了'}
+  #btnForce::before{content:'中止'}
   .btn small{display:none}
   .tooltip{max-width:78vw;font-size:.68rem}
   .cpov{padding:.75rem}
@@ -397,7 +407,9 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
   .gc.hand-card{width:116px;height:184px}
   .gc.hand-card .gc-art{height:64px}
   .hand-scroll{min-height:204px}
-  .abar .btn{font-size:.64rem}
+  .abar{gap:.18rem;padding-left:.24rem;padding-right:.24rem}
+  .abar .btn{min-height:32px;padding:.2rem .08rem}
+  .abar .btn::before{font-size:.58rem}
 }
 /* Battle readability */
 .hud-turn,.hud>.tbadge{display:none}
@@ -419,6 +431,8 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
 .log-weather{background:#f3edff;border-color:rgba(122,92,145,.22)}.log-weather .log-tag{background:#7d5ab6;color:#fff}
 .log-heal{background:#eefaf2;border-color:rgba(33,139,85,.18)}.log-heal .log-tag{background:#2a9b61;color:#fff}
 .log-info .log-tag{background:#756f7a;color:#fff}
+.net-status{position:fixed;right:.55rem;top:3.9rem;z-index:760;display:none;align-items:center;gap:.28rem;max-width:min(78vw,320px);padding:.34rem .58rem;border-radius:999px;border:1px solid rgba(122,92,145,.2);background:rgba(255,255,255,.9);box-shadow:0 10px 24px rgba(63,44,88,.14);font-size:.68rem;font-weight:800;color:#4c3f58;backdrop-filter:blur(10px)}
+.net-status.show{display:flex}.net-status.ok{border-color:rgba(42,155,97,.28);color:#216f47}.net-status.warn{border-color:rgba(212,168,46,.32);color:#805f12}.net-status.err{border-color:rgba(232,93,89,.3);color:#9b3431}
 .hit-ring{position:fixed;z-index:590;width:80px;height:80px;margin:-40px 0 0 -40px;border:3px solid currentColor;border-radius:50%;pointer-events:none;animation:hitRing .55s ease-out forwards}
 .hit-slash{position:fixed;z-index:591;width:110px;height:5px;margin:-2px 0 0 -55px;background:currentColor;border-radius:999px;box-shadow:0 0 14px currentColor;pointer-events:none;animation:hitSlash .38s ease-out forwards}
 @keyframes hitRing{0%{opacity:.85;transform:scale(.25)}100%{opacity:0;transform:scale(2.2)}}
@@ -434,6 +448,64 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
   .opp-cost-c{width:30px;height:30px}
   .glog{height:92px;font-size:.68rem;padding:.36rem .42rem}
   .log-entry{padding:.24rem .32rem}.log-tag{min-width:2.8rem;font-size:.56rem}
+  .net-status{top:3.4rem;right:.42rem;font-size:.62rem;padding:.28rem .46rem}
+}
+@media(min-width:900px){
+  .hud{min-height:46px;padding:.45rem .8rem}
+  .hud-title{font-size:1.08rem}
+  .hud-back{font-size:.9rem}
+  .turn-banner{padding:.55rem .8rem;font-size:1.08rem}
+  .my-status{padding:.52rem .9rem;gap:.72rem}
+  .mys-name{font-size:1.05rem;max-width:140px}
+  .mys-hp-row{gap:.5rem;min-width:260px}
+  .mys-hp-row>span{font-size:1rem!important}
+  .mys-hp-bar-out{height:16px;border-radius:999px}
+  .mys-hp-bar-in{border-radius:999px}
+  .mys-hp-txt{font-size:1.08rem;min-width:52px}
+  .cost-circle{width:54px;height:54px}
+  .cost-circle-lbl{font-size:.48rem}
+  .cost-circle-num{font-size:1.42rem}
+  .wbar{margin:.55rem .8rem;padding:.62rem .9rem;font-size:.94rem;gap:.58rem}
+  .wbar::before{font-size:.64rem}
+  .wbar #wIcon{font-size:1.28rem}
+  .wbar #wName{font-size:1.02rem}
+  .wbar .wc{font-size:.78rem;padding:.18rem .62rem}
+  .gscroll{padding:.55rem .8rem .65rem}
+  .opp-area{padding:.62rem .8rem;margin-bottom:.5rem;border-radius:10px}
+  .opp-info{grid-template-columns:auto auto minmax(300px,1fr) auto auto;gap:.56rem;margin-bottom:.38rem}
+  .opp-name{font-size:1.08rem}
+  .rpill{font-size:.68rem;padding:.16rem .5rem}
+  .opp-hp-row{padding:.25rem .5rem}
+  .opp-hb-out{height:18px}
+  .opp-hp-txt{font-size:1.05rem;min-width:54px}
+  .opp-cost-c{width:38px;height:38px}
+  .occ-l{font-size:.44rem}
+  .occ-n{font-size:1rem}
+  .battlefield{grid-template-columns:minmax(0,1fr) 92px minmax(0,1fr);gap:.55rem;margin:.65rem 0}
+  .field-lbl,.discard-lbl{font-size:.66rem}
+  .field-zone{min-height:148px;padding:.55rem;border-radius:10px}
+  .field-empty{width:84px;height:120px;font-size:1.25rem}
+  .discard-zone{width:92px;min-height:148px;padding:.45rem;border-radius:10px}
+  .battlefield .gc,.discard-zone .gc{width:84px;height:120px;border-radius:8px}
+  .battlefield .gc .gc-art,.discard-zone .gc .gc-art{height:48px;font-size:1.7rem}
+  .battlefield .gc .gc-cost,.discard-zone .gc .gc-cost{width:21px;height:21px;font-size:.72rem}
+  .battlefield .gc .gc-name,.discard-zone .gc .gc-name{font-size:.52rem}
+  .battlefield .gc .gc-stats,.discard-zone .gc .gc-stats{font-size:.68rem}
+  .hand-label{font-size:.74rem;margin-bottom:.34rem}
+  .hand-scroll{gap:.7rem;min-height:332px;padding:.4rem .25rem .62rem;border-radius:14px}
+  .gc.hand-card{width:194px!important;height:304px!important;border-radius:12px}
+  .gc.hand-card .gc-art{height:128px!important;font-size:3.25rem!important}
+  .gc.hand-card .gc-cost{width:32px!important;height:32px!important;font-size:1rem!important}
+  .gc.hand-card .gc-name{font-size:.78rem!important}
+  .gc.hand-card .gc-stats{font-size:.9rem!important;padding:4px 7px!important}
+  .gc.hand-card .gc-ft,.gc.hand-card .gc-sl{font-size:.66rem!important}
+  .abar{gap:.48rem;padding:.5rem .8rem}
+  .abar .btn{min-height:46px;padding:.58rem .95rem;font-size:.88rem;border-radius:9px}
+  .btn-gray{font-size:.78rem}
+  .glog{height:112px!important;padding:.62rem .8rem;font-size:.86rem}
+  .log-entry{padding:.38rem .58rem;margin:.16rem 0}
+  .log-tag{font-size:.72rem;min-width:4.1rem}
+  .net-status{top:4.6rem;font-size:.78rem}
 }
 </style>
 </head>
@@ -474,7 +546,7 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
     <button class="btn btn-blue" id="btnDraw" onclick="extraDraw()" disabled>+ドロー<small style="opacity:.6;font-size:.58rem">(HP-2)</small></button>
     <button class="btn btn-gold" id="btnPlay" onclick="playCard()" disabled>▶ カードを出す</button>
     <button class="btn btn-red"  id="btnEnd"  onclick="endTurn()" disabled>⏩ ターン終了</button>
-    <button class="btn btn-gray"              onclick="forceEnd()">🚫 強制終了</button>
+    <button class="btn btn-gray" id="btnForce" onclick="forceEnd()">🚫 強制終了</button>
   </div>
   <div class="glog" id="glog"></div>
 </div>
@@ -493,6 +565,7 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
 <div class="tooltip" id="tooltip"><div class="tt-name" id="ttN"></div><div class="tt-stat" id="ttS"></div><div class="tt-skill" id="ttSk"></div><div class="tt-flavor" id="ttF"></div></div>
 <div class="cdp" id="cdp"><h3 id="cdpName"></h3><div class="cdp-stats" id="cdpStats"></div><div class="cdp-sk" id="cdpSk"></div><div class="cdp-fl" id="cdpFl"></div></div>
 <div class="toast" id="toast"></div>
+<div class="net-status" id="netStatus">接続中...</div>
 
 
 <script type="module">
@@ -546,11 +619,58 @@ const SL=(p,m)=>{document.getElementById('loadFill').style.width=p+'%';document.
 const showGame=()=>{document.getElementById('loadScr').style.display='none';document.getElementById('gameApp').style.display='flex';};
 const toast=m=>{const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);};
 const pLabel=slot=>`P${slot}「${pNames[slot]||('P'+slot)}」`;
-const logMsg=(S,type,msg)=>{S.log=S.log||[];S.log.push(`${type}|${msg}`);};
+const LOG_LIMIT=32,SAVE_TIMEOUT=8500,CARD_CACHE_LIMIT=1600000;
+const LOW_FX=matchMedia('(max-width:760px)').matches||(navigator.deviceMemory&&navigator.deviceMemory<=4)||matchMedia('(prefers-reduced-motion: reduce)').matches;
+let netStatusTimer=null;
+const logMsg=(S,type,msg)=>{S.log=S.log||[];S.log.push(`${type}|${msg}`);if(S.log.length>LOG_LIMIT)S.log=S.log.slice(-LOG_LIMIT);};
+function setNetStatus(msg,type='warn',auto=0){
+  const el=document.getElementById('netStatus');if(!el)return;
+  clearTimeout(netStatusTimer);el.textContent=msg;el.className=`net-status show ${type}`;
+  if(auto)netStatusTimer=setTimeout(()=>el.classList.remove('show'),auto);
+}
+function withTimeout(p,ms,msg='timeout'){
+  let tid;
+  const to=new Promise((_,rej)=>{tid=setTimeout(()=>rej(new Error(msg)),ms);});
+  return Promise.race([p,to]).finally(()=>clearTimeout(tid));
+}
 function nextDefenderSlot(S){if(!S?.seq?.length)return null;return S.seq[(S.seqIdx+1)%S.seq.length]?.player||null;}
 
 function setPool(cards){pool=cards;poolMap={};cards.forEach(c=>{if(c.id)poolMap[c.id]=c;});}
 function applyPool(cards){let p=cards;if(activeIdStr&&activeIdStr!=='all'){try{const s=new Set(JSON.parse(activeIdStr));p=cards.filter(c=>s.has(c.id));}catch(e){}}setPool(p.length?p:cards.length?cards:genDefault());}
+function activeIds(){if(!activeIdStr||activeIdStr==='all')return null;try{const ids=JSON.parse(activeIdStr);return Array.isArray(ids)?ids.filter(Boolean):null;}catch(e){return null;}}
+function readCardCache(){
+  try{
+    const cd=localStorage.getItem('cardrealmDeck');
+    if(!cd||cd.length>CARD_CACHE_LIMIT)return[];
+    const cards=JSON.parse(cd);
+    return Array.isArray(cards)?cards:[];
+  }catch(e){return[];}
+}
+function writeCardCache(cards){
+  try{
+    const txt=JSON.stringify(cards);
+    if(txt.length<CARD_CACHE_LIMIT)localStorage.setItem('cardrealmDeck',txt);
+  }catch(e){}
+}
+async function loadSharedCards(){
+  const ids=activeIds();
+  try{
+    setNetStatus('カードを同期中...','warn');
+    let cards=[];
+    if(ids?.length&&ids.length<=80){
+      const snaps=await withTimeout(Promise.all(ids.map(id=>get(ref(db,`sharedCards/${id}`)).catch(()=>null))),7000,'cards-timeout');
+      cards=snaps.map(s=>s?.val()).filter(Boolean);
+    }else{
+      const snap=await withTimeout(get(cardsRef),9000,'cards-timeout');
+      cards=Object.values(snap.val()||{});
+    }
+    if(cards.length){writeCardCache(cards);applyPool(cards);setNetStatus('カード同期済み','ok',1200);}
+    else setNetStatus('カード取得なし。端末内データで開始します','warn',2200);
+  }catch(e){
+    console.warn('card load delayed:',e.message);
+    setNetStatus('カード同期が遅いです。端末内データで続行します','warn',3200);
+  }
+}
 function drawCard(){return pool.length?clone(pool[~~(Math.random()*pool.length)]):null;}
 function drawW(hand){if(!pool.length)return null;const mc=new Set();(hand||[]).forEach(c=>getColors(c).forEach(col=>mc.add(col)));const w=[];for(const c of pool){const n=getColors(c).some(col=>!mc.has(col));for(let i=0;i<(n?3:1);i++)w.push(c);}return clone(w[~~(Math.random()*w.length)]);}
 function rehydrate(c){if(c?.illust==='[img]'&&c.id&&poolMap[c.id])c.illust=poolMap[c.id].illust;return c;}
@@ -788,8 +908,8 @@ function fl(col){const f=document.createElement('div');f.style.cssText=`position
 function fnum(txt,col,cx,cy){const e=document.createElement('div');e.style.cssText=`position:fixed;left:${cx-25}px;top:${cy-15}px;font-family:'Rajdhani',sans-serif;font-size:clamp(1.6rem,6vw,2.4rem);font-weight:900;color:${col};text-shadow:0 0 12px ${col};pointer-events:none;z-index:600;animation:fup 1.6s ease-out forwards`;e.textContent=txt;document.body.appendChild(e);setTimeout(()=>e.remove(),1800);}
 let biT=null;
 function bigIll(card,mc){if(biT)clearTimeout(biT);document.querySelectorAll('.bi').forEach(e=>e.remove());const ov=document.createElement('div');ov.className='bi';ov.style.cssText=`position:fixed;bottom:calc(54px + 3.5rem);right:.65rem;z-index:690;pointer-events:none;width:84px;height:120px;border-radius:8px;overflow:hidden;border:2px solid ${mc.border};box-shadow:0 10px 26px rgba(89,68,34,.22),0 0 12px ${mc.glow};animation:biIn .28s ease-out forwards`;const a=document.createElement('div');a.style.cssText='width:100%;height:calc(100% - 20px);display:flex;align-items:center;justify-content:center;font-size:3rem;background:#0d1018;overflow:hidden';if(card.illust&&card.illust!=='[img]'&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))){const img=document.createElement('img');img.src=card.illust;img.style.cssText='width:100%;height:100%;object-fit:contain;background:#0d1018';a.appendChild(img);}else a.textContent=(card.illust&&card.illust!=='[img]')?card.illust:'🃏';const nm=document.createElement('div');nm.style.cssText="height:20px;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-size:.6rem;font-weight:700;color:#fff6db;background:#080a10;overflow:hidden;white-space:nowrap;padding:0 3px";nm.textContent=card.name||'';ov.appendChild(a);ov.appendChild(nm);document.body.appendChild(ov);biT=setTimeout(()=>{ov.style.animation='biOut .22s ease-in forwards';setTimeout(()=>ov.remove(),250);},1700);}
-function vfx(card){const vs=new Set(card.vfx||[]);const mc=mainC(card);const{x:cx,y:cy}=gcenter();if(vs.size===0||vs.has('bigIllust'))bigIll(card,mc);fl(mc.fx);for(let i=0;i<16;i++)pt(cx,cy,50+Math.random()*100,5+Math.random()*7,mc.fx,.45+Math.random()*.7);if(vs.has('fire')||(!vs.size&&getColors(card).includes('red')))for(let i=0;i<6;i++)setTimeout(()=>pt(cx,cy,30+Math.random()*55,8,i%2?'#e74c3c':'#f39c12',.6),i*20);if(vs.has('lightning')||(!vs.size&&getColors(card).includes('yellow'))){const l=document.createElement('div');l.style.cssText=`position:fixed;left:${cx-1}px;top:${cy-55}px;width:2px;height:110px;background:linear-gradient(to bottom,transparent,#f1c40f,#fff,#f1c40f,transparent);z-index:575;pointer-events:none;animation:sfA .4s ease-out forwards;box-shadow:0 0 8px #f1c40f`;document.body.appendChild(l);setTimeout(()=>l.remove(),450);}if(vs.has('shockwave')){const sw=document.createElement('div');sw.style.cssText=`position:fixed;left:${cx-55}px;top:${cy-55}px;width:110px;height:110px;border-radius:50%;border:4px solid ${mc.fx};pointer-events:none;z-index:580;animation:swA .6s ease-out forwards`;document.body.appendChild(sw);setTimeout(()=>sw.remove(),700);}if(vs.has('darkness'))fl('rgba(0,0,0,.5)');if(vs.has('rainbow'))fl('linear-gradient(135deg,rgba(255,0,0,.1),rgba(0,200,0,.1),rgba(0,0,255,.1))');}
-function atkFx(atkCard,dmg,blocked){const mc=mainC(atkCard);const{x:cx,y:cy}=gcenter();fl(blocked?'rgba(46,204,113,.55)':mc.fx);for(let i=0;i<22;i++)pt(cx,cy,70+Math.random()*125,5+Math.random()*8,blocked?'rgba(46,204,113,.85)':mc.fx,.42+Math.random()*.68);const ring=document.createElement('div');ring.className='hit-ring';ring.style.cssText+=`;left:${cx}px;top:${cy}px;color:${blocked?'#2ecc71':'#e74c3c'}`;document.body.appendChild(ring);setTimeout(()=>ring.remove(),650);if(!blocked){const sl=document.createElement('div');sl.className='hit-slash';sl.style.cssText+=`;left:${cx}px;top:${cy}px;color:${mc.cost||'#e74c3c'}`;document.body.appendChild(sl);setTimeout(()=>sl.remove(),500);}setTimeout(()=>{if(blocked)fnum('BLOCK','#2ecc71',cx,cy-20);else fnum('-'+dmg,'#e74c3c',cx,cy-20);},130);}
+function vfx(card){const vs=new Set(card.vfx||[]);const mc=mainC(card);const{x:cx,y:cy}=gcenter();if(vs.size===0||vs.has('bigIllust'))bigIll(card,mc);fl(mc.fx);const pc=LOW_FX?7:16;for(let i=0;i<pc;i++)pt(cx,cy,50+Math.random()*100,5+Math.random()*7,mc.fx,.45+Math.random()*.7);if(!LOW_FX&&(vs.has('fire')||(!vs.size&&getColors(card).includes('red'))))for(let i=0;i<6;i++)setTimeout(()=>pt(cx,cy,30+Math.random()*55,8,i%2?'#e74c3c':'#f39c12',.6),i*20);if(vs.has('lightning')||(!vs.size&&getColors(card).includes('yellow'))){const l=document.createElement('div');l.style.cssText=`position:fixed;left:${cx-1}px;top:${cy-55}px;width:2px;height:110px;background:linear-gradient(to bottom,transparent,#f1c40f,#fff,#f1c40f,transparent);z-index:575;pointer-events:none;animation:sfA .4s ease-out forwards;box-shadow:0 0 8px #f1c40f`;document.body.appendChild(l);setTimeout(()=>l.remove(),450);}if(vs.has('shockwave')&&!LOW_FX){const sw=document.createElement('div');sw.style.cssText=`position:fixed;left:${cx-55}px;top:${cy-55}px;width:110px;height:110px;border-radius:50%;border:4px solid ${mc.fx};pointer-events:none;z-index:580;animation:swA .6s ease-out forwards`;document.body.appendChild(sw);setTimeout(()=>sw.remove(),700);}if(vs.has('darkness'))fl('rgba(0,0,0,.5)');if(vs.has('rainbow')&&!LOW_FX)fl('linear-gradient(135deg,rgba(255,0,0,.1),rgba(0,200,0,.1),rgba(0,0,255,.1))');}
+function atkFx(atkCard,dmg,blocked){const mc=mainC(atkCard);const{x:cx,y:cy}=gcenter();fl(blocked?'rgba(46,204,113,.55)':mc.fx);const pc=LOW_FX?9:22;for(let i=0;i<pc;i++)pt(cx,cy,70+Math.random()*125,5+Math.random()*8,blocked?'rgba(46,204,113,.85)':mc.fx,.42+Math.random()*.68);const ring=document.createElement('div');ring.className='hit-ring';ring.style.cssText+=`;left:${cx}px;top:${cy}px;color:${blocked?'#2ecc71':'#e74c3c'}`;document.body.appendChild(ring);setTimeout(()=>ring.remove(),650);if(!blocked){const sl=document.createElement('div');sl.className='hit-slash';sl.style.cssText+=`;left:${cx}px;top:${cy}px;color:${mc.cost||'#e74c3c'}`;document.body.appendChild(sl);setTimeout(()=>sl.remove(),500);}setTimeout(()=>{if(blocked)fnum('BLOCK','#2ecc71',cx,cy-20);else fnum('-'+dmg,'#e74c3c',cx,cy-20);},130);}
 
 function pickCard(hand,title){return new Promise(res=>{if(!hand?.length){res(-1);return;}const ov=document.getElementById('cpov');document.getElementById('cpovT').textContent=title||'手札から1枚選んでください';const s=document.getElementById('cpovS');s.innerHTML='';let done=false;hand.forEach((card,i)=>{const mc=mainC(card);const div=document.createElement('div');div.className='cpov-item';const cs=getColors(card).map(c=>`<div style="flex:1;background:${CM[c]?.dot||'#888'}"></div>`).join('');const dv=wDef(card);div.innerHTML=`<div class="gc static-card" style="border-color:${mc.border};width:90px;height:138px"><div style="height:5px;display:flex">${cs}</div><div class="gc-head" style="padding:3px 4px"><div class="gc-cost" style="background:${mc.cost};width:18px;height:18px;font-size:.65rem">${card.cost}</div><div class="gc-name" style="font-size:.5rem;word-break:break-all">${card.name||'?'}</div></div><div class="gc-art" style="height:55px">${ill(card)}</div><div class="gc-stats" style="font-size:.62rem;padding:2px"><span style="color:${mc.accent}">⚔${wAtk(card)}</span><span style="color:${dv!==(card.def||0)?'#f1c40f':mc.accent}">🛡${dv}</span></div></div>`;div.onclick=()=>{if(done)return;done=true;ov.style.display='none';res(i);};s.appendChild(div);});const cancel=document.createElement('button');cancel.type='button';cancel.className='cpov-cancel';cancel.textContent='キャンセル';cancel.onclick=()=>{if(done)return;done=true;ov.style.display='none';res(-1);};s.appendChild(cancel);ov.style.display='flex';});}
 
@@ -813,10 +933,25 @@ async function ensureGameState(){
   }
 }
 
+function compactCard(c){
+  if(!c)return c;
+  const o={};
+  ['id','name','colors','color','cost','atk','def','flavor','effects','vfx','illust','author'].forEach(k=>{if(c[k]!==undefined)o[k]=c[k];});
+  if(o.illust&&typeof o.illust==='string'&&o.illust.startsWith('data:'))o.illust='[img]';
+  return o;
+}
+function compactPlayer(p){
+  if(!p)return p;
+  const out={...p};
+  out.hand=(p.hand||[]).map(compactCard);
+  return out;
+}
+
 async function save(S){
   let slim;
   try{
     slim=clone(S);
+    slim.log=(slim.log||[]).slice(-LOG_LIMIT);
 
     // ★ playersを正規化してから文字列キーへ変換
     // S.playersが配列の場合も数値キーオブジェクトに正規化してから変換
@@ -834,7 +969,7 @@ async function save(S){
     }
     // playersを 'slot_1', 'slot_2' キーで保存（Firebaseの配列変換を確実に防ぐ）
     const playersOut={};
-    for(const[k,v]of Object.entries(playersNorm))playersOut['slot_'+k]=v;
+    for(const[k,v]of Object.entries(playersNorm))playersOut['slot_'+k]=compactPlayer(v);
     slim.players=playersOut;
 
     // seqを配列から 'seq_0','seq_1'... キーのオブジェクトに変換
@@ -844,15 +979,17 @@ async function save(S){
     slim.seq=seqOut;
     slim.seqLen=seqArr.length;
 
-    // 画像データを除去
-    const strip=c=>{if(c?.illust?.startsWith('data:'))c.illust='[img]';};
-    for(const p of Object.values(slim.players||{}))(p.hand||[]).forEach(strip);
-    strip(slim.atkCardPlayed);strip(slim.defCardPlayed);strip(slim.discardCard);
-    await set(gameRef,slim);
+    slim.atkCardPlayed=compactCard(slim.atkCardPlayed);
+    slim.defCardPlayed=compactCard(slim.defCardPlayed);
+    slim.discardCard=compactCard(slim.discardCard);
+    setNetStatus('試合データを同期中...','warn');
+    await withTimeout(set(gameRef,slim),SAVE_TIMEOUT,'save-timeout');
+    setNetStatus('同期済み','ok',1200);
   }catch(e){
     console.error('save fail:',e.message);
+    setNetStatus('通信が不安定です。再同期中...','err');
     // 1回だけリトライ
-    if(slim)try{await set(gameRef,slim);}catch(e2){console.error('save retry fail:',e2.message);}
+    if(slim)try{await withTimeout(set(gameRef,slim),4000,'save-retry-timeout');setNetStatus('同期済み','ok',1400);}catch(e2){console.error('save retry fail:',e2.message);toast('通信が遅いです。少し待ってから操作してください');setNetStatus('通信が不安定です。再読み込みせず少し待ってください','err',5000);}
   }
 }
 
@@ -901,22 +1038,23 @@ function onGameRef(snap){
 function init(){
   SL(20,'カードを読み込み中...');
 
-  let cachedCards=[];
-  try{const cd=localStorage.getItem('cardrealmDeck');if(cd)cachedCards=JSON.parse(cd);}catch(e){}
+  let cachedCards=readCardCache();
   applyPool(cachedCards.length?cachedCards:genDefault());
 
-  onValue(cardsRef,snap=>{
-    const cards=Object.values(snap.val()||{});
-    if(cards.length){try{localStorage.setItem('cardrealmDeck',JSON.stringify(cards));}catch(e){}applyPool(cards);}
-  },{onlyOnce:true});
+  const cardsReady=loadSharedCards();
 
   SL(50,'接続中...');
+  onValue(ref(db,'.info/connected'),snap=>{
+    if(snap.val()===false)setNetStatus('オフラインまたは通信待ちです','err');
+    else setNetStatus('接続しました','ok',1200);
+  });
 
   if(amHost){
     SL(60,'ゲームを準備中...');
     const delay=cachedCards.length?300:2000;
     setTimeout(async()=>{
       if(gameStarted)return;
+      await Promise.race([cardsReady,new Promise(r=>setTimeout(r,2500))]);
       await ensureGameState();
     },delay);
   } else {
