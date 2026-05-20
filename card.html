@@ -75,6 +75,8 @@ textarea{resize:vertical;min-height:56px;line-height:1.5}
 .vb.on{border-color:var(--g);background:rgba(201,168,76,.1)}
 .vb-icon{font-size:1.2rem;display:block;margin-bottom:.15rem}
 .vb-name{font-size:.62rem;color:var(--dim)}.vb.on .vb-name{color:var(--g)}
+.vfx-text-box{margin-top:.55rem}
+.vfx-text-box input{font-family:'Noto Sans JP',sans-serif}
 /* Buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:.25rem;padding:.52rem .95rem;border:none;border-radius:7px;font-family:'Rajdhani',sans-serif;font-size:.84rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .15s;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .btn:active{transform:scale(.94)}
@@ -332,6 +334,10 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
       <div class="panel">
         <div class="sec">ビジュアルエフェクト（複数選択可）</div>
         <div class="vgrid" id="vgrid"></div>
+        <div class="vfx-text-box">
+          <label>表示する文字（文字エフェクト用）</label>
+          <input type="text" id="vfxText" maxlength="18" placeholder="例: CRITICAL!" oninput="updatePrev()">
+        </div>
       </div>
       <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1.2rem">
         <button class="btn btn-g" id="saveBtn2" onclick="saveCard()">＋ カードを保存</button>
@@ -370,6 +376,7 @@ const cardsRef=ref(db,'sharedCards');
 
 const ILLS=['🗡️','🛡️','🔥','💧','⚡','🌿','⚔️','🏹','🪄','🐉','🦋','💀','🌙','☀️','⭐','🌊','🍀','🌸','💎','🔮','🦅','🐺','🦁','🐍','🏔️','🌋','🌪️','❄️','🎯','💥','🌺','🦄'];
 const CM={red:{border:'#c0392b',accent:'#e74c3c',glow:'rgba(192,57,43,.3)',dot:'#e74c3c'},blue:{border:'#2471a3',accent:'#3498db',glow:'rgba(36,113,163,.3)',dot:'#3498db'},yellow:{border:'#d4ac0d',accent:'#f1c40f',glow:'rgba(212,172,13,.3)',dot:'#f1c40f'},green:{border:'#1e8449',accent:'#2ecc71',glow:'rgba(30,132,73,.3)',dot:'#2ecc71'}};
+const COLOR_NAMES={red:'赤',blue:'青',yellow:'黄',green:'緑'};
 const TRIGS=[
   {v:'',l:'（条件なし・常時）',n:false,cond:false},
   {v:'onAttack',l:'このカードで攻撃した時',n:false,cond:false},
@@ -384,6 +391,7 @@ const TRIGS=[
   {v:'ifWeatherRain',l:'雨の時（プレイ時）',n:false,cond:false},
   {v:'ifWeatherStorm',l:'嵐の時（プレイ時）',n:false,cond:false},
   {v:'ifTurnGte',l:'ターンn以上（プレイ時）',n:true,cond:false},
+  {v:'ifAgainstColor',l:'相手/場が指定色（プレイ時）',n:false,cond:false,color:true},
   {v:'playCondition',l:'★出し条件（条件を満たす時のみ出せる）',n:false,cond:true},
 ];
 const PCONDS=[
@@ -391,24 +399,27 @@ const PCONDS=[
   {v:'ifChance',l:'n%の確率',n:true},{v:'ifWeatherSun',l:'晴れ時',n:false},
   {v:'ifWeatherRain',l:'雨時',n:false},{v:'ifWeatherStorm',l:'嵐時',n:false},
   {v:'ifTurnGte',l:'ターンn以上',n:true},
+  {v:'ifAgainstColor',l:'相手/場が指定色',n:false,color:true},
 ];
 const EFFS=[
-  {v:'',l:'（効果なし）'},{v:'draw',l:'n枚ドロー'},{v:'selfHeal',l:'自HP+n回復'},
+  {v:'',l:'（効果なし）'},{v:'draw',l:'n枚ドロー'},{v:'drawColor',l:'指定色をn枚ドロー'},{v:'drawCard',l:'指定カードをドロー'},
+  {v:'selfHeal',l:'自HP+n回復'},
   {v:'selfDamage',l:'自分にnダメージ（デメリット）'},{v:'selfAtkUp',l:'手札1枚ATK+n'},
   {v:'selfDefUp',l:'手札1枚DEF+n'},{v:'selfCardAtkUp',l:'このカードATK+n'},
   {v:'selfCardDefUp',l:'このカードDEF+n'},{v:'oppDamage',l:'相手に+nダメージ'},
   {v:'selfCostDown',l:'次コスト-n（最低1）'},{v:'selfCostUp',l:'自コスト+n'},
+  {v:'selfCostLose',l:'自コスト-n（デメリット）'},
   {v:'oppCostDown',l:'相コスト-n'},{v:'oppAtkDown',l:'次相手ATK-n'},
   {v:'oppDefDown',l:'次相手DEF-n'},{v:'weatherSun',l:'天候→☀️晴れ'},
   {v:'weatherRain',l:'天候→🌧️雨'},{v:'weatherStorm',l:'天候→⛈️嵐'},
   {v:'weatherChange',l:'天候ランダム変化'},
 ];
 const EFF_DESC={
-  draw:n=>`${n}枚ドロー`,selfHeal:n=>`自HP+${n}`,selfDamage:n=>`自-${n}ダメ`,
+  draw:n=>`${n}枚ドロー`,drawColor:n=>`指定色${n}枚ドロー`,drawCard:()=>`指定カードをドロー`,selfHeal:n=>`自HP+${n}`,selfDamage:n=>`自-${n}ダメ`,
   selfAtkUp:n=>`手札ATK+${n}`,selfDefUp:n=>`手札DEF+${n}`,
   selfCardAtkUp:n=>`カードATK+${n}`,selfCardDefUp:n=>`カードDEF+${n}`,
   oppDamage:n=>`相手+${n}ダメ`,selfCostDown:n=>`次コスト-${n}`,
-  selfCostUp:n=>`自コスト+${n}`,oppCostDown:n=>`相コスト-${n}`,
+  selfCostUp:n=>`自コスト+${n}`,selfCostLose:n=>`自コスト-${n}`,oppCostDown:n=>`相コスト-${n}`,
   oppAtkDown:n=>`相ATK-${n}`,oppDefDown:n=>`相DEF-${n}`,
   weatherSun:()=>'→☀️',weatherRain:()=>'→🌧️',weatherStorm:()=>'→⛈️',weatherChange:()=>'天候変化',
 };
@@ -416,7 +427,9 @@ const VFX=[{id:'bigIllust',icon:'🖼️',name:'イラスト'},{id:'fire',icon:'
   {id:'ice',icon:'❄️',name:'氷'},{id:'lightning',icon:'⚡',name:'雷'},
   {id:'leaf',icon:'🌿',name:'葉'},{id:'shockwave',icon:'💥',name:'衝撃'},
   {id:'darkness',icon:'💀',name:'暗黒'},{id:'rainbow',icon:'🌈',name:'虹'},
-  {id:'coins',icon:'✨',name:'きらめき'}];
+  {id:'coins',icon:'✨',name:'きらめき'},{id:'textPop',icon:'🔤',name:'文字'},
+  {id:'meteor',icon:'☄️',name:'流星'},{id:'burst',icon:'🎆',name:'大爆発'},
+  {id:'rose',icon:'🌹',name:'花吹雪'}];
 
 // ── State ──
 const myName=localStorage.getItem('myName')||'名無し';
@@ -442,6 +455,7 @@ onValue(cardsRef,snap=>{
   localStorage.setItem('cardrealmDeck',JSON.stringify(allCards));
   renderDeck();
   renderSelCards();
+  renderEffects();
 });
 
 // ── Emoji grid ──
@@ -519,12 +533,16 @@ ua.addEventListener('drop',e=>{e.preventDefault();ua.style.borderColor='';const 
 function buildSkillText(e){
   if(e.trigger==='playCondition'){
     const pc=PCONDS.find(c=>c.v===e.playCond);if(!pc)return '★出し条件: 未設定';
-    return `★出し条件[${pc.l.replace(/n/g,e.condVal||'?')}]`;
+    const opt=pc.color?`:${COLOR_NAMES[e.condColor]||'色未設定'}`:'';
+    return `★出し条件[${pc.l.replace(/n/g,e.condVal||'?')}${opt}]`;
   }
   const td=TRIGS.find(t=>t.v===e.trigger)||{l:'',n:false};
-  const tl=td.l.includes('n')?td.l.replace(/n/g,e.condVal||'?'):td.l;
+  let tl=td.l.includes('n')?td.l.replace(/n/g,e.condVal||'?'):td.l;
+  if(td.color)tl+=`:${COLOR_NAMES[e.condColor]||'色未設定'}`;
   const effKey=e.eff||'';const ev=e.effVal||1;
-  const el=EFF_DESC[effKey]?EFF_DESC[effKey](ev):'';
+  let el=EFF_DESC[effKey]?EFF_DESC[effKey](ev):'';
+  if(effKey==='drawColor')el=`${COLOR_NAMES[e.targetColor]||'指定色'}を${ev}枚ドロー`;
+  if(effKey==='drawCard')el=`「${e.targetCardName||allCards.find(c=>c.id===e.targetCardId)?.name||'指定カード'}」をドロー`;
   if(!tl&&!el)return '（スキルなし）';
   return `【${tl||'常時'}】${el}`;
 }
@@ -534,14 +552,22 @@ function renderEffects(){
     const hasCond=td.cond;
     const trigOpts=TRIGS.map(t=>`<option value="${t.v}"${e.trigger===t.v?' selected':''}>${t.l}</option>`).join('');
     const effOpts=EFFS.map(t=>`<option value="${t.v}"${e.eff===t.v?' selected':''}>${t.l}</option>`).join('');
+    const colOpts=Object.entries(COLOR_NAMES).map(([v,l])=>`<option value="${v}"${(e.targetColor||e.condColor||'red')===v?' selected':''}>${l}</option>`).join('');
+    const condColOpts=Object.entries(COLOR_NAMES).map(([v,l])=>`<option value="${v}"${(e.condColor||'red')===v?' selected':''}>${l}</option>`).join('');
+    const cardOpts=allCards.map(c=>`<option value="${c.id}"${e.targetCardId===c.id?' selected':''}>${c.name||'カード名なし'}</option>`).join('');
     let condUI='';
     if(hasCond){
       const pc=PCONDS.find(c=>c.v===e.playCond)||{n:false};
       const pcOpts=PCONDS.map(c=>`<option value="${c.v}"${e.playCond===c.v?' selected':''}>${c.l}</option>`).join('');
       condUI=`<div class="cond-row" style="margin-top:.4rem"><label>★ 出し条件の内容</label>
         <select style="margin-bottom:.35rem" onchange="effChg('${e.id}','playCond',this.value)"><option value="">条件を選択</option>${pcOpts}</select>
-        ${pc.n?`<label>n値</label><input type="number" value="${e.condVal||3}" min="1" max="100" onchange="effChg('${e.id}','condVal',this.value)" oninput="effChg('${e.id}','condVal',this.value)">`:''}</div>`;
+        ${pc.n?`<label>n値</label><input type="number" value="${e.condVal||3}" min="1" max="100" onchange="effChg('${e.id}','condVal',this.value)" oninput="effChg('${e.id}','condVal',this.value)">`:''}
+        ${pc.color?`<label>色</label><select onchange="effChg('${e.id}','condColor',this.value)">${colOpts}</select>`:''}</div>`;
     }
+    let detailUI='';
+    if(!hasCond&&td.color)detailUI+=`<div style="margin-top:.4rem"><label>条件の色</label><select onchange="effChg('${e.id}','condColor',this.value)">${condColOpts}</select></div>`;
+    if(!hasCond&&e.eff==='drawColor')detailUI+=`<div style="margin-top:.4rem"><label>ドローする色</label><select onchange="effChg('${e.id}','targetColor',this.value)">${colOpts}</select></div>`;
+    if(!hasCond&&e.eff==='drawCard')detailUI+=`<div style="margin-top:.4rem"><label>ドローするカード</label><select onchange="effChg('${e.id}','targetCardId',this.value)"><option value="">カードを選択</option>${cardOpts}</select></div>`;
     return `<div class="eff-entry" id="ee_${e.id}">
       <div class="eff-num">スキル ${idx+1}</div>
       <button class="del-btn" onclick="removeEff('${e.id}')">✕ 削除</button>
@@ -552,6 +578,7 @@ function renderEffects(){
       ${td.n&&!hasCond?`<div style="margin-bottom:.4rem"><label>条件のn値</label><input type="number" value="${e.condVal||3}" min="1" max="100" onchange="effChg('${e.id}','condVal',this.value)" oninput="effChg('${e.id}','condVal',this.value)"></div>`:''}
       ${condUI}
       ${!hasCond?`<div><label>効果量</label><input type="number" value="${e.effVal||1}" min="1" max="99" onchange="effChg('${e.id}','effVal',this.value)" oninput="effChg('${e.id}','effVal',this.value)"></div>`:''}
+      ${detailUI}
       <div class="eff-prev" id="ep_${e.id}">${buildSkillText(e)}</div>
     </div>`;
   }).join('');
@@ -561,15 +588,19 @@ window.removeEff=function(id){effects=effects.filter(e=>e.id!==id);renderEffects
 window.effChg=function(id,field,val){
   const e=effects.find(x=>x.id===id);if(!e)return;
   e[field]=(field==='condVal'||field==='effVal')?parseInt(val)||1:val;
+  if(field==='targetCardId'){const c=allCards.find(x=>x.id===val);e.targetCardName=c?.name||'';}
+  if(field==='playCond'&&val==='ifAgainstColor'&&!e.condColor)e.condColor='red';
+  if(field==='trigger'&&val==='ifAgainstColor'&&!e.condColor)e.condColor='red';
+  if(field==='eff'&&val==='drawColor'&&!e.targetColor)e.targetColor='red';
   if(field==='trigger'&&val==='playCondition')e.eff='';
   if(field==='trigger'&&val!=='playCondition')e.playCond='';
-  if(field==='trigger'||field==='playCond')renderEffects();
+  if(field==='trigger'||field==='playCond'||field==='eff'||field==='targetCardId')renderEffects();
   else{const ep=document.getElementById('ep_'+id);if(ep)ep.textContent=buildSkillText(e);}
   updatePrev();
 };
 
 // ── Preview update ──
-const ECOLS={draw:'#3498db',selfHeal:'#2ecc71',selfDamage:'#e74c3c',selfAtkUp:'#e74c3c',selfDefUp:'#3498db',selfCardAtkUp:'#e74c3c',selfCardDefUp:'#3498db',oppDamage:'#e74c3c',selfCostDown:'#f1c40f',selfCostUp:'#f1c40f',oppCostDown:'#e67e22',oppAtkDown:'#e67e22',oppDefDown:'#e67e22',weatherSun:'#f39c12',weatherRain:'#3498db',weatherStorm:'#9b59b6',weatherChange:'#87ceeb'};
+const ECOLS={draw:'#3498db',drawColor:'#3498db',drawCard:'#3498db',selfHeal:'#2ecc71',selfDamage:'#e74c3c',selfAtkUp:'#e74c3c',selfDefUp:'#3498db',selfCardAtkUp:'#e74c3c',selfCardDefUp:'#3498db',oppDamage:'#e74c3c',selfCostDown:'#f1c40f',selfCostUp:'#f1c40f',selfCostLose:'#e74c3c',oppCostDown:'#e67e22',oppAtkDown:'#e67e22',oppDefDown:'#e67e22',weatherSun:'#f39c12',weatherRain:'#3498db',weatherStorm:'#9b59b6',weatherChange:'#87ceeb'};
 window.updatePrev=function(){
   const name=document.getElementById('cardName').value||'カード名';
   const cost=document.getElementById('cardCost').value||'1';
@@ -602,8 +633,8 @@ window.saveCard=async function(){
   const illust=imgSrc||curIll;
   // Size check for data URLs
   if(illust&&illust.startsWith('data:')){const kb=Math.round(illust.length*.75/1024);if(kb>400){showToast(`画像が大きすぎます(${kb}KB)。自動圧縮されますが再度ファイルを選択してください`);return;}}
-  const normalizedEffects=effects.map(e=>({trigger:e.trigger||'',eff:e.trigger==='playCondition'?'':(e.eff||''),condVal:parseInt(e.condVal)||3,effVal:parseInt(e.effVal)||1,playCond:e.trigger==='playCondition'?(e.playCond||''):''})).filter(e=>e.trigger==='playCondition'?e.playCond:e.eff);
-  const card={id,name,colors,color:colors[0],cost:parseInt(document.getElementById('cardCost').value)||1,atk:parseInt(document.getElementById('cardAtk').value)||0,def:parseInt(document.getElementById('cardDef').value)||0,flavor:document.getElementById('cardFlavor').value||'',illust,effects:normalizedEffects,vfx:[...selVfx],author:myName,createdAt:editId?allCards.find(c=>c.id===editId)?.createdAt||Date.now():Date.now()};
+  const normalizedEffects=effects.map(e=>({trigger:e.trigger||'',eff:e.trigger==='playCondition'?'':(e.eff||''),condVal:parseInt(e.condVal)||3,effVal:parseInt(e.effVal)||1,playCond:e.trigger==='playCondition'?(e.playCond||''):'',condColor:e.condColor||'',targetColor:e.targetColor||'',targetCardId:e.targetCardId||'',targetCardName:e.targetCardName||''})).filter(e=>e.trigger==='playCondition'?e.playCond:e.eff);
+  const card={id,name,colors,color:colors[0],cost:parseInt(document.getElementById('cardCost').value)||1,atk:parseInt(document.getElementById('cardAtk').value)||0,def:parseInt(document.getElementById('cardDef').value)||0,flavor:document.getElementById('cardFlavor').value||'',illust,effects:normalizedEffects,vfx:[...selVfx],vfxText:document.getElementById('vfxText').value.trim(),author:myName,createdAt:editId?allCards.find(c=>c.id===editId)?.createdAt||Date.now():Date.now()};
   try{await set(ref(db,`sharedCards/${id}`),card);showToast(editId?`「${name}」更新！`:`「${name}」保存！`);if(editId)cancelEdit();else resetForm();}
   catch(e){showToast('保存失敗: '+e.message);console.error(e);}
 };
@@ -616,8 +647,9 @@ window.editCard=function(id){
   imgSrc='';document.getElementById('urlInput').value='';
   if(card.illust&&(card.illust.startsWith('http')||card.illust.startsWith('data:'))){imgSrc=card.illust;setImgUI(imgSrc);document.querySelectorAll('.ib').forEach(b=>b.classList.remove('on'));}
   else{curIll=card.illust||'🗡️';clearImgUI();document.querySelectorAll('.ib').forEach(b=>b.classList.toggle('on',b.textContent===curIll));}
-  effects=(card.effects?.length?card.effects:[]).map(e=>({id:'e'+(eid++),trigger:e.trigger||'',eff:e.eff||e.type||'',condVal:e.condVal||3,effVal:e.effVal||e.value||1,playCond:e.playCond||''}));
+  effects=(card.effects?.length?card.effects:[]).map(e=>({id:'e'+(eid++),trigger:e.trigger||'',eff:e.eff||e.type||'',condVal:e.condVal||3,effVal:e.effVal||e.value||1,playCond:e.playCond||'',condColor:e.condColor||'',targetColor:e.targetColor||'',targetCardId:e.targetCardId||'',targetCardName:e.targetCardName||''}));
   selVfx=new Set(card.vfx||[]);
+  document.getElementById('vfxText').value=card.vfxText||'';
   document.querySelectorAll('.vb').forEach((b,i)=>b.classList.toggle('on',selVfx.has(VFX[i]?.id)));
   renderEffects();
   document.getElementById('editBanner').style.display='flex';document.getElementById('editName').textContent=`「${card.name}」`;
@@ -630,7 +662,7 @@ window.resetForm=function(){
   document.getElementById('cardName').value='';document.getElementById('cardCost').value=1;document.getElementById('cardAtk').value=2;document.getElementById('cardDef').value=2;document.getElementById('cardFlavor').value='';document.getElementById('urlInput').value='';
   colors=['red'];document.querySelectorAll('.cb').forEach(b=>b.classList.toggle('on',b.dataset.col==='red'));
   curIll='🗡️';imgSrc='';clearImgUI();document.querySelectorAll('.ib').forEach((b,i)=>b.classList.toggle('on',i===0));
-  effects=[];selVfx=new Set();document.querySelectorAll('.vb').forEach(b=>b.classList.remove('on'));
+  effects=[];selVfx=new Set();document.getElementById('vfxText').value='';document.querySelectorAll('.vb').forEach(b=>b.classList.remove('on'));
   renderEffects();updatePrev();
 };
 
