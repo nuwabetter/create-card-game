@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>しんウノ — ルール</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='14' fill='%230e0e1d'/><rect x='20' y='10' width='60' height='80' rx='8' fill='%23c9a84c' opacity='.9'/><text y='62' x='50' text-anchor='middle' font-size='48' font-family='serif'>🃏</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#9b7a34;--violet:#7b5a90;--deep:#302d34;--dim:#756f7a;--line:rgba(122,92,145,.2);--paper:rgba(255,253,248,.96)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%);color:var(--deep);font-family:'Noto Sans JP',sans-serif;line-height:1.75;padding:1rem}
+.wrap{width:min(980px,100%);margin:0 auto}
+.top{display:flex;align-items:center;gap:.8rem;margin:.3rem 0 1rem}
+.back{color:var(--gold);text-decoration:none;font-family:'Rajdhani',sans-serif;font-weight:700}
+.hero{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1.4rem;box-shadow:0 18px 44px rgba(92,70,125,.14);position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0 0 auto;height:6px;background:linear-gradient(90deg,#e97878,#edc95f,#78bd91,#6db9d7,#a984d9)}
+h1{font-family:'Rajdhani',sans-serif;font-size:2rem;color:var(--violet);line-height:1.15;margin-bottom:.35rem}
+.lead{color:var(--dim);font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem;margin-top:.9rem}
+.sec{background:rgba(255,253,248,.9);border:1px solid var(--line);border-radius:12px;padding:1rem;box-shadow:0 10px 26px rgba(92,70,125,.08)}
+.sec h2{font-family:'Rajdhani',sans-serif;font-size:1.1rem;color:var(--gold);letter-spacing:.04em;margin-bottom:.45rem}
+ul{padding-left:1.15rem}
+li{margin:.18rem 0}
+.tag{display:inline-flex;align-items:center;border-radius:999px;padding:.05rem .42rem;background:#f1eafb;color:var(--violet);font-size:.78rem;font-weight:700;margin-right:.2rem}
+.note{margin-top:.65rem;padding:.58rem .7rem;border-radius:9px;background:linear-gradient(90deg,#fff8ea,#f4efff);border:1px solid rgba(122,92,145,.16);font-size:.92rem;color:#5b5065}
+.wide{grid-column:1/-1}
+.steps{counter-reset:s;list-style:none;padding-left:0}
+.steps li{counter-increment:s;display:grid;grid-template-columns:1.8rem 1fr;gap:.5rem;align-items:start;margin:.35rem 0}
+.steps li::before{content:counter(s);width:1.55rem;height:1.55rem;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f4d963,#df6c7a);color:#2f2418;font-family:'Rajdhani',sans-serif;font-weight:800}
+.footer-actions{display:flex;gap:.65rem;flex-wrap:wrap;margin:1rem 0 1.4rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.25rem;text-decoration:none;border-radius:10px;padding:.72rem 1rem;font-family:'Rajdhani',sans-serif;font-weight:800;color:#2f2418;background:linear-gradient(135deg,#f4d963,#f39b4a,#df6c7a);box-shadow:0 10px 22px rgba(92,70,125,.14)}
+.btn.sub{background:linear-gradient(135deg,#55c4de,#5d8de0,#8667d4);color:#fff}
+@media(max-width:720px){
+  body{padding:.75rem}
+  .hero{padding:1.15rem}
+  h1{font-size:1.65rem}
+  .grid{grid-template-columns:1fr;gap:.7rem}
+  .sec{padding:.9rem}
+  .footer-actions .btn{flex:1 1 100%}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><a class="back" href="index.html">← ホーム</a></div>
+  <section class="hero">
+    <h1>しんウノ ルール</h1>
+    <p class="lead">カードの色・コスト・攻撃/防御・スキルを使って、最後まで生き残る対戦カードゲームです。</p>
+  </section>
+
+  <div class="grid">
+    <section class="sec">
+      <h2>勝利条件</h2>
+      <ul>
+        <li>全員のHPは基本20から始まります。</li>
+        <li>HPが0になると脱落します。</li>
+        <li>最後の1人になったプレイヤーが勝利です。</li>
+      </ul>
+    </section>
+
+    <section class="sec">
+      <h2>カードの見方</h2>
+      <ul>
+        <li><span class="tag">COST</span>出すために必要なコストです。</li>
+        <li><span class="tag">ATK</span>攻撃時のダメージの元になります。</li>
+        <li><span class="tag">DEF</span>防御時に相手のATKを減らします。</li>
+        <li>カードの色は、出せる条件や一部効果に関係します。</li>
+      </ul>
+    </section>
+
+    <section class="sec wide">
+      <h2>ターンの流れ</h2>
+      <ol class="steps">
+        <li>攻撃プレイヤーは手札からカードを1枚出します。</li>
+        <li>次のプレイヤーが防御プレイヤーになります。</li>
+        <li>防御プレイヤーはカードを出して防御するか、ターン終了します。</li>
+        <li>防御しない場合、攻撃カードのATK分のダメージを受けます。</li>
+        <li>防御した場合、攻撃ATK - 防御DEF の差分だけダメージを受けます。0以下ならブロックです。</li>
+      </ol>
+    </section>
+
+    <section class="sec">
+      <h2>カードを出す条件</h2>
+      <ul>
+        <li>基本は、場のカードと同じ色または同じコストのカードを出せます。</li>
+        <li>カードに「出し条件」がある場合、その条件も満たす必要があります。</li>
+        <li>例: HPが一定以下、天候が晴れ、相手/場が指定色など。</li>
+      </ul>
+    </section>
+
+    <section class="sec">
+      <h2>コスト</h2>
+      <ul>
+        <li>初期コストは2です。</li>
+        <li>自分のターンが来るたびにコストが3回復します。</li>
+        <li>先攻プレイヤーも最初のターンでコストが3回復します。</li>
+      </ul>
+    </section>
+
+    <section class="sec">
+      <h2>天候</h2>
+      <ul>
+        <li><span class="tag">晴れ</span>カードのDEFが+1されます。</li>
+        <li><span class="tag">雨</span>カードのコストが1下がります。</li>
+        <li><span class="tag">嵐</span>カードのATKが+2されます。</li>
+        <li>一定回数の防御ターンごとに天候が変化します。</li>
+      </ul>
+    </section>
+
+    <section class="sec">
+      <h2>ドロー</h2>
+      <ul>
+        <li>カードを出した後、基本的に1枚ドローします。</li>
+        <li>攻撃ターン中はHPを2消費して追加ドローできます。</li>
+        <li>カード効果で、指定色や指定カードをドローできる場合があります。</li>
+      </ul>
+    </section>
+
+    <section class="sec wide">
+      <h2>スキル効果</h2>
+      <ul>
+        <li>カードには、ドロー、回復、ダメージ、手札強化、コスト増減、天候変更などの効果を設定できます。</li>
+        <li>発動条件つきの効果は、条件を満たした時だけ発動します。</li>
+        <li>デメリット効果もカード作成で設定できます。</li>
+      </ul>
+      <div class="note">カード作成で強い効果を作る場合は、コストを高くしたり、自傷/コスト減少などのデメリットを付けると遊びやすくなります。</div>
+    </section>
+  </div>
+
+  <div class="footer-actions">
+    <a class="btn" href="index.html">ホームへ</a>
+    <a class="btn sub" href="card.html">カード作成へ</a>
+  </div>
+</div>
+</body>
+</html>
