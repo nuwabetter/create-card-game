@@ -453,10 +453,10 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
   .wbar::before{font-size:.48rem}.wbar .wc{margin-left:0;font-size:.58rem}
   .opp-info{grid-template-columns:1fr auto auto;gap:.28rem}
   .opp-name{font-size:.88rem}
-  .opp-hp-row{grid-column:1/-1;order:5;width:100%;padding:.25rem .42rem}
-  .opp-hb-out{height:16px}
-  .opp-hp-txt{font-size:1rem;min-width:46px}
-  .opp-cost-c{width:30px;height:30px}
+  .opp-hp-row{grid-column:1/-1;order:5;width:100%;padding:.18rem .34rem}
+  .opp-hb-out{height:12px}
+  .opp-hp-txt{font-size:.82rem;min-width:40px}
+  .opp-cost-c{width:28px;height:28px}
   .glog{height:92px;font-size:.68rem;padding:.36rem .42rem}
   .log-entry{padding:.24rem .32rem}.log-tag{min-width:2.8rem;font-size:.56rem}
   .net-status{top:3.4rem;right:.42rem;font-size:.62rem;padding:.28rem .46rem}
@@ -517,6 +517,36 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
   .log-entry{padding:.38rem .58rem;margin:.16rem 0}
   .log-tag{font-size:.72rem;min-width:4.1rem}
   .net-status{top:4.6rem;font-size:.78rem}
+}
+@media(min-width:900px){
+  .hud{min-height:38px;padding:.32rem .7rem}
+  .turn-banner{padding:.38rem .7rem;font-size:.94rem}
+  .my-status{padding:.34rem .7rem;gap:.55rem}
+  .mys-name{font-size:.95rem}.mys-hp-bar-out{height:12px}.mys-hp-txt{font-size:.95rem}
+  .cost-circle{width:44px;height:44px}.cost-circle-num{font-size:1.15rem}
+  .wbar{margin:.32rem .7rem;padding:.42rem .68rem;font-size:.82rem}
+  .wbar #wIcon{font-size:1.08rem}.wbar #wName{font-size:.9rem}.wbar .wc{font-size:.68rem;padding:.14rem .48rem}
+  .gscroll{padding:.34rem .7rem .38rem;overflow-y:hidden}
+  .opp-area{padding:.42rem .62rem;margin-bottom:.32rem}
+  .opp-info{grid-template-columns:auto auto minmax(230px,1fr) auto;gap:.42rem;margin-bottom:.22rem}
+  .opp-name{font-size:.95rem}.rpill{font-size:.6rem}.opp-hb-out{height:14px}.opp-hp-txt{font-size:.92rem}
+  .battlefield{grid-template-columns:minmax(0,1fr) 76px minmax(0,1fr);gap:.42rem;margin:.38rem 0}
+  .field-zone{min-height:116px;padding:.4rem}.discard-zone{width:76px;min-height:116px;padding:.34rem}
+  .field-empty{width:68px;height:98px}
+  .battlefield .gc,.discard-zone .gc{width:68px;height:98px}
+  .battlefield .gc .gc-art,.discard-zone .gc .gc-art{height:38px;font-size:1.35rem}
+  .hand-label{font-size:.66rem;margin-bottom:.22rem}
+  .hand-scroll{gap:.52rem;min-height:248px;padding:.28rem .2rem .38rem}
+  .gc.hand-card{width:154px!important;height:236px!important}
+  .gc.hand-card .gc-art{height:88px!important;font-size:2.45rem!important}
+  .gc.hand-card .gc-cost{width:26px!important;height:26px!important;font-size:.82rem!important}
+  .gc.hand-card .gc-name{font-size:.62rem!important}
+  .gc.hand-card .gc-stats{font-size:.74rem!important}
+  .gc.hand-card .gc-ft,.gc.hand-card .gc-sl{font-size:.52rem!important}
+  .abar{padding:.32rem .7rem;gap:.34rem}
+  .abar .btn{min-height:36px;padding:.4rem .76rem;font-size:.76rem}
+  .glog{height:68px!important;padding:.38rem .65rem;font-size:.74rem}
+  .log-entry{padding:.22rem .4rem;margin:.1rem 0}.log-tag{font-size:.62rem;min-width:3.5rem}
 }
 </style>
 </head>
@@ -648,7 +678,7 @@ function withTimeout(p,ms,msg='timeout'){
 function nextDefenderSlot(S){if(!S?.seq?.length)return null;return S.seq[(S.seqIdx+1)%S.seq.length]?.player||null;}
 
 function setPool(cards){pool=cards;poolMap={};cards.forEach(c=>{if(c.id)poolMap[c.id]=c;});}
-function applyPool(cards){let p=cards;if(activeIdStr&&activeIdStr!=='all'){try{const s=new Set(JSON.parse(activeIdStr));p=cards.filter(c=>s.has(c.id));}catch(e){}}setPool(p.length?p:cards.length?cards:genDefault());}
+function applyPool(cards){let p=cards||[];if(activeIdStr&&activeIdStr!=='all'){try{const s=new Set(JSON.parse(activeIdStr));p=cards.filter(c=>s.has(c.id));}catch(e){}}setPool(p.length?p:(cards?.length?cards:[]));}
 function activeIds(){if(!activeIdStr||activeIdStr==='all')return null;try{const ids=JSON.parse(activeIdStr);return Array.isArray(ids)?ids.filter(Boolean):null;}catch(e){return null;}}
 function readCardCache(){
   try{
@@ -965,7 +995,7 @@ async function ensureGameState(){
   try{
     const existing=await get(gameRef);
     if(existing.exists())return;
-    if(!pool.length)applyPool(genDefault());
+    if(!pool.length){toast('カードが読み込めません。カード作成画面でカードを確認してください');setNetStatus('カードがないため開始できません','err',5000);return;}
     const ns=buildState(numP);
     if(ns)await save(ns);
   }catch(e){
@@ -1083,7 +1113,7 @@ function init(){
   SL(20,'カードを読み込み中...');
 
   let cachedCards=readCardCache();
-  applyPool(cachedCards.length?cachedCards:genDefault());
+  applyPool(cachedCards.length?cachedCards:[]);
 
   const cardsReady=loadSharedCards();
 
@@ -1253,7 +1283,7 @@ function rStat(){const me=G.players[mySlot];if(!me)return;document.getElementByI
 function rBanner(){const c=cur();const bn=document.getElementById('turnBanner');const hud=document.getElementById('hudTurn');if(hud)hud.textContent='';if(myTurn()&&ph()==='attack'){bn.className='turn-banner attack';document.getElementById('turnIcon').textContent='⚔️';document.getElementById('turnBannerTxt').textContent='あなたの攻撃ターン — カードを選んで「出す」';}else if(myTurn()&&ph()==='defend'){bn.className='turn-banner defend';document.getElementById('turnIcon').textContent='🛡️';document.getElementById('turnBannerTxt').textContent='あなたの防御ターン — カードを出すかターン終了';}else{bn.className='turn-banner wait';document.getElementById('turnIcon').textContent='⏳';document.getElementById('turnBannerTxt').textContent=`${pLabel(c.player)} の${c.phase==='attack'?'攻撃':'防御'}ターン`;}}
 function rHint(){document.getElementById('shint').textContent='';}
 function rWx(){const w=wData(G.weather.current);document.getElementById('wIcon').textContent=w.icon;document.getElementById('wName').textContent=w.name;document.getElementById('wEff').textContent=`${w.eff}`;document.getElementById('wChg').textContent=`あと${Math.max(0,2*G.numP-(G.weather.defendsDone||0))}防御で変化`;}
-function rOpps(){const el=document.getElementById('oppsPanel');el.innerHTML='';const c=cur();for(let i=1;i<=G.numP;i++){if(i===mySlot)continue;const p=G.players[i];if(!p)continue;const dead=p.alive===false||(p.hp||0)<=0;const isA=!dead&&c.player===i&&c.phase==='attack';const isD=!dead&&c.player===i&&c.phase==='defend';const pct=Math.max(0,Math.min(100,(p.hp/p.maxHp)*100));const nm=pNames[i]||`P${i}`;const fcard=(G.atkCardPlayed&&G.lastAtkPlayer===i)?G.atkCardPlayed:(G.defCardPlayed&&isD?G.defCardPlayed:null);const d2=document.createElement('div');d2.className='opp-area'+(dead?' opp-dead':isA?' oa':isD?' od':'');d2.innerHTML=`<div class="opp-info"><div class="opp-name">${nm}</div><div class="rpill ${dead?'rp-dead':isA?'rp-a':isD?'rp-d':'rp-w'}">${dead?'💀脱落':isA?'攻撃中':isD?'防御中':'待機'}</div><div class="opp-hp-row"><span style="font-size:.7rem">❤️</span><div class="opp-hb-out"><div class="opp-hb-in" style="width:${pct}%"></div></div><div class="opp-hp-txt">${p.hp}/${p.maxHp}</div></div><div class="opp-cost-c"><div class="occ-l">cost</div><div class="occ-n">${p.cost||0}</div></div><span style="font-family:'Rajdhani',sans-serif;font-size:.58rem;color:var(--text-dim)">🃏${p.hand?.length||0}</span></div><div style="display:flex;gap:.3rem;flex-wrap:wrap">${!dead&&p.hand?.length?`<div style="display:flex;gap:.22rem;overflow-x:auto">${Array(Math.min(p.hand.length,6)).fill(0).map(()=>`<div class="gc facedown static-card" style="border-color:rgba(201,168,76,.15);width:36px;height:52px"><div class="gc-art" style="height:26px;font-size:.75rem">🃏</div></div>`).join('')}${p.hand.length>6?`<span style="font-size:.52rem;color:var(--text-dim);align-self:center">+${p.hand.length-6}</span>`:''}</div>`:''  }${fcard?`<div style="flex-shrink:0">${gc2(fcard,false,true)}</div>`:''}</div>`;el.appendChild(d2);}}
+function rOpps(){const el=document.getElementById('oppsPanel');el.innerHTML='';const c=cur();for(let i=1;i<=G.numP;i++){if(i===mySlot)continue;const p=G.players[i];if(!p)continue;const dead=p.alive===false||(p.hp||0)<=0;const isA=!dead&&c.player===i&&c.phase==='attack';const isD=!dead&&c.player===i&&c.phase==='defend';const pct=Math.max(0,Math.min(100,(p.hp/p.maxHp)*100));const nm=pNames[i]||`P${i}`;const fcard=(G.atkCardPlayed&&G.lastAtkPlayer===i)?G.atkCardPlayed:(G.defCardPlayed&&isD?G.defCardPlayed:null);const d2=document.createElement('div');d2.className='opp-area'+(dead?' opp-dead':isA?' oa':isD?' od':'');d2.innerHTML=`<div class="opp-info"><div class="opp-name">${nm}</div><div class="rpill ${dead?'rp-dead':isA?'rp-a':isD?'rp-d':'rp-w'}">${dead?'💀脱落':isA?'攻撃中':isD?'防御中':'待機'}</div><div class="opp-hp-row"><span style="font-size:.7rem">❤️</span><div class="opp-hb-out"><div class="opp-hb-in" style="width:${pct}%"></div></div><div class="opp-hp-txt">${p.hp}/${p.maxHp}</div></div><div class="opp-cost-c"><div class="occ-l">cost</div><div class="occ-n">${p.cost||0}</div></div></div><div style="display:flex;gap:.3rem;flex-wrap:wrap">${!dead&&p.hand?.length?`<div style="display:flex;gap:.22rem;overflow-x:auto">${Array(Math.min(p.hand.length,6)).fill(0).map(()=>`<div class="gc facedown static-card" style="border-color:rgba(201,168,76,.15);width:36px;height:52px"><div class="gc-art" style="height:26px;font-size:.75rem">🃏</div></div>`).join('')}${p.hand.length>6?`<span style="font-size:.52rem;color:var(--text-dim);align-self:center">+${p.hand.length-6}</span>`:''}</div>`:''  }${fcard?`<div style="flex-shrink:0">${gc2(fcard,false,true)}</div>`:''}</div>`;el.appendChild(d2);}}
 function rBF(){document.getElementById('atkZone').innerHTML=G.atkCardPlayed?gc2(G.atkCardPlayed,false,true):'<div class="field-empty">🗡️</div>';document.getElementById('discardZone').innerHTML=G.discardCard?gc2(G.discardCard,false,true):'<div class="discard-none">なし<br>最初は<br>自由</div>';document.getElementById('defZone').innerHTML=G.defCardPlayed?gc2(G.defCardPlayed,false,true):'<div class="field-empty">🛡️</div>';}
 function renderHand(){const me=G?.players?.[mySlot];const hand=me?.hand||[];const el=document.getElementById('myHand');if(!hand.length){el.innerHTML='<div style="color:var(--text-dim);font-size:.76rem;padding:.4rem">手札なし</div>';return;}const mt=myTurn();const sorted=[...hand.map((c,i)=>({card:c,oi:i,playable:mt&&!G.playedThisTurn&&canPlay(c,G,{rollChance:false})}))].sort((a,b)=>(b.playable-a.playable)||((a.card.cost||0)-(b.card.cost||0)));el.innerHTML=sorted.map(({card,oi:i,playable},si)=>{const mc=mainC(card);const cols=getColors(card);const av=wAtk(card),dv=wDef(card);const ec=Math.max(1,wCost(card)-(me._cB||0));const sel=selCard===i;const dim=mt?(!G.playedThisTurn?!playable:true):false;const isNew=newCards.has('i'+i)||newCards.has('n'+i)||newCards.has('i'+si);if(isNew){newCards.delete('i'+i);newCards.delete('n'+i);newCards.delete('i'+si);}const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');const sk=cskills(card);return`<div class="gc hand-card${sel?' sel':''}${dim?' dim':''}${isNew?' dealing':''}" style="border-color:${mc.border};box-shadow:${sel?'0 0 16px '+mc.glow+',0 0 28px '+mc.glow.replace('.4','.15'):'none'}" onclick="${mt&&!dim?`selCardFn(${i})`:'void(0)'}" onmouseenter="showTT(event,${i})" onmouseleave="hideTT()" ontouchstart="showTT(event,${i})" ontouchend="hideTT()">${sk.length?'<div class="gc-sdot"></div>':''}<div class="gc-cs">${cs}</div><div class="gc-head"><div class="gc-cost" style="background:${mc.cost};${ec!==card.cost?'outline:2px solid #f1c40f;outline-offset:-1px':''}">${ec}</div><div class="gc-name">${card.name||'?'}</div></div><div class="gc-art">${ill(card)}</div><div class="gc-stats"><span style="color:${av!==(card.atk||0)?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${dv!==(card.def||0)?'#f1c40f':mc.accent}">🛡${dv}</span></div><div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div></div>`;}).join('');document.getElementById('handCnt').textContent=`(${hand.length}枚)`;}
 function rLog(){const el=document.getElementById('glog');const rows=(G.log||[]).slice(-14).map(raw=>{let type='info',text=String(raw||'');if(text.includes('|')){const sp=text.split('|');type=sp.shift()||'info';text=sp.join('|');}else if(text.includes('ダメ')||text.includes('ガード')||text.includes('脱落'))type='dmg';else if(text.includes('回復')||text.includes('HP+'))type='heal';else if(text.includes('効果')||text.includes('🌟'))type='eff';else if(text.includes('天候')||text.includes('🌤'))type='weather';else if(text.includes('ターン')||text.includes('攻撃'))type='turn';const label={dmg:'DMG',eff:'EFFECT',turn:'TURN',weather:'WEATHER',heal:'HEAL',info:'INFO'}[type]||'INFO';return`<div class="log-entry log-${type}"><span class="log-tag">${label}</span><span class="log-text">${text}</span></div>`;});el.innerHTML=rows.join('');el.scrollTop=el.scrollHeight;}
