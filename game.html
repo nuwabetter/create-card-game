@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -552,6 +552,22 @@ body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
   .glog{height:90px!important;padding:.5rem .75rem;font-size:.82rem}
   .log-entry{padding:.3rem .5rem;margin:.14rem 0}.log-tag{font-size:.68rem;min-width:3.9rem}
 }
+.opp-info{display:flex!important;align-items:center;gap:.32rem;flex-wrap:nowrap}
+.opp-name{min-width:0;max-width:7.5em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opp-hp-row{flex:0 1 210px!important;min-width:96px!important;width:auto!important;grid-column:auto!important;order:0!important}
+.opp-hb-out{max-width:150px}
+.opp-heart{font-size:.62rem!important}
+.opp-hand-count,.rpill,.opp-cost-c{flex-shrink:0}
+@media(max-width:520px){
+  .opp-info{gap:.22rem!important}
+  .opp-name{font-size:.78rem!important;max-width:5.3em}
+  .opp-hp-row{flex-basis:128px!important;padding:.1rem .24rem!important;gap:.16rem!important}
+  .opp-hb-out{height:7px!important;max-width:72px}
+  .opp-hp-txt{font-size:.62rem!important;min-width:30px!important}
+  .rpill{font-size:.46rem!important;padding:.08rem .24rem!important}
+  .opp-hand-count{font-size:.43rem!important;padding:.06rem .24rem!important}
+  .opp-cost-c{width:23px!important;height:23px!important}
+}
 </style>
 </head>
 <body>
@@ -643,6 +659,7 @@ let processing=false,selCard=-1,navigating=false,gameOverShown=false;
 let gameStarted=false;
 let creatingState=false;
 let autoAdvanceTimer=null;
+let lastOptimisticTurnAt=0;
 const newCards=new Set();
 
 const wData=id=>WEATHERS.find(w=>w.id===id)||WEATHERS[0];
@@ -676,12 +693,23 @@ const renderCache={wx:'',opps:'',bf:'',hand:'',log:''};
 let netStatusTimer=null;
 let retrySaveTimer=null,retryTurnTimer=null;
 const cardKey=c=>c?[c.id,c.name,c.cost,c.atk,c.def,JSON.stringify(c.colors||c.color||''),(c.effects||[]).length,c.illust?String(c.illust).slice(0,32):''].join(':'):'';
+function cleanText(v){
+  let s=String(v??'');
+  if(/[ÃÂãâ�]/.test(s)){
+    try{
+      const d=decodeURIComponent(escape(s));
+      if((d.match(/[ぁ-んァ-ン一-龯]/g)||[]).length>(s.match(/[ぁ-んァ-ン一-龯]/g)||[]).length)s=d;
+    }catch(e){}
+  }
+  return s.replace(/\uFFFD/g,'');
+}
+const esc=s=>cleanText(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function queueRender(){
   if(renderQueued)return;
   renderQueued=true;
   requestAnimationFrame(()=>{renderQueued=false;renderAll();});
 }
-const logMsg=(S,type,msg)=>{S.log=S.log||[];S.log.push(`${type}|${msg}`);if(S.log.length>LOG_LIMIT)S.log=S.log.slice(-LOG_LIMIT);};
+const logMsg=(S,type,msg)=>{S.log=S.log||[];S.log.push(`${type}|${cleanText(msg)}`);if(S.log.length>LOG_LIMIT)S.log=S.log.slice(-LOG_LIMIT);};
 function setNetStatus(msg,type='warn',auto=0){
   const el=document.getElementById('netStatus');if(!el)return;
   clearTimeout(netStatusTimer);el.textContent=msg;el.className=`net-status show ${type}`;
@@ -881,7 +909,8 @@ function effectTargetSlot(S,slot,trig){
   for(let i=1;i<=S.numP;i++)if(i!==slot&&S.players[i]?.alive!==false)return i;
   return null;
 }
-function canPlay(card,S,opts={}){S=S||G;const me=S.players[mySlot];if(!me)return false;if((me.cost||0)<wCost(card,S))return false;const d=S.discardCard;if(d){
+function playCost(card,S=G,slot=mySlot){const p=S?.players?.[slot];return Math.max(1,wCost(card,S)-(p?._cB||0));}
+function canPlay(card,S,opts={}){S=S||G;const me=S.players[mySlot];if(!me)return false;if((me.cost||0)<playCost(card,S,mySlot))return false;const d=S.discardCard;if(d){
     const mc=getColors(card),dc=getColors(d);
     const sameColor=mc.some(col=>dc.includes(col));
     const sameCost=(card.cost||1)===(d.cost||1);
@@ -1186,7 +1215,7 @@ function onGameRef(snap){
   if(!ng)return;
 
   // 古いデータを無視（turnCountが現在より小さい場合）
-  if(G&&(ng.turnCount||0)<(G.turnCount||0))return;
+  if(G&&(ng.turnCount||0)<(G.turnCount||0)&&Date.now()-lastOptimisticTurnAt<3500)return;
 
   const changed=ng.seqIdx!==G?.seqIdx||ng.turnCount!==G?.turnCount;
   if(changed)selCard=-1;
@@ -1284,8 +1313,8 @@ async function advanceTurnInt(force=false,reason='normal'){
   if(!force&&!myTurn())return;
   const S=clone(G);
   advanceTurnState(S,reason);
-  selCard=-1;G=S;renderAll();checkWin();
-  await saveTurnPatch(S);
+  selCard=-1;lastOptimisticTurnAt=Date.now();G=S;renderAll();const ended=checkWin();
+  await saveTurnPatch(ended?G:S);
 }
 function scheduleAutoAdvance(S=G){
   clearTimeout(autoAdvanceTimer);
@@ -1322,7 +1351,7 @@ window.playCard=async function(){
     if(p._nDefD){pc.def=Math.max(0,(pc.def||0)-p._nDefD);p._nDefD=0;}
     applySelfCardMods(card,pc,S,mySlot,'onPlay');
     applySelfCardMods(card,pc,S,mySlot,ph(S)==='attack'?'onAttack':'onDefend');
-    const fc=Math.max(1,wCost(card,S)-(p._cB||0));
+    const fc=playCost(card,S,mySlot);
     if((p.cost||0)<fc){toast('コスト不足');unlock();return;}
     p.cost-=fc;p._cB=0;p.hand.splice(selCard,1);const effPickIdx=pickIdx>selCard?pickIdx-1:pickIdx;S.playedThisTurn=true;S.playedAt=Date.now();S.discardCard=clone(pc);
     if(ph(S)==='attack'){
@@ -1347,8 +1376,8 @@ window.playCard=async function(){
       applyEff(pc,S,mySlot,'onPlay',effPickIdx);applyEff(pc,S,mySlot,'onDefend',effPickIdx);
     }
     const dr=drawCard();if(dr){addDrawnCard(p,dr,'ターンドロー');logMsg(S,'info',`${pLabel(mySlot)} 1枚ドロー`);}
-    vfx(pc);selCard=-1;G=S;renderAll();checkWin();
-    await saveActionPatch(S,mySlot);
+    vfx(pc);selCard=-1;G=S;renderAll();const ended=checkWin();
+    await saveActionPatch(ended?G:S,mySlot);
     const snapTc=S.turnCount,snapSi=S.seqIdx;
     setTimeout(async()=>{
       // turnCountとseqIdxが変わっていなければ自動ターン終了
@@ -1394,7 +1423,7 @@ function showGameOver(S){
   const nm=alive.length?alive.map(i=>pNames[i]||'P'+i).join('・'):'引き分け';
   document.getElementById('gopTitle').textContent=win?'🏆 勝利！':'💀 敗北';
   document.getElementById('gopTitle').style.color=win?'var(--gold)':'var(--red)';
-  document.getElementById('gopSub').innerHTML=`${nm} の勝利！<br><small style="opacity:.6">${S.log?.[S.log.length-1]||''}</small>`;
+  document.getElementById('gopSub').innerHTML=`${esc(nm)} の勝利！<br><small style="opacity:.6">${esc(S.log?.[S.log.length-1]||'')}</small>`;
   setTimeout(()=>document.getElementById('gop').classList.add('show'),600);
 }
 
@@ -1440,10 +1469,10 @@ function rStat(){const me=G.players[mySlot];if(!me)return;document.getElementByI
 function rBanner(){const c=cur();const bn=document.getElementById('turnBanner');const hud=document.getElementById('hudTurn');if(hud)hud.textContent='';if(myTurn()&&ph()==='attack'){bn.className='turn-banner attack';document.getElementById('turnIcon').textContent='⚔️';document.getElementById('turnBannerTxt').textContent='あなたの攻撃ターン — カードを選んで「出す」';}else if(myTurn()&&ph()==='defend'){bn.className='turn-banner defend';document.getElementById('turnIcon').textContent='🛡️';document.getElementById('turnBannerTxt').textContent='あなたの防御ターン — カードを出すかターン終了';}else{bn.className='turn-banner wait';document.getElementById('turnIcon').textContent='⏳';document.getElementById('turnBannerTxt').textContent=`${pLabel(c.player)} の${c.phase==='attack'?'攻撃':'防御'}ターン`;}}
 function rHint(){document.getElementById('shint').textContent='';}
 function rWx(){const key=[G.weather.current,G.weather.defendsDone,G.numP].join('|');if(renderCache.wx===key)return;renderCache.wx=key;const w=wData(G.weather.current);document.getElementById('wIcon').textContent=w.icon;document.getElementById('wName').textContent=w.name;document.getElementById('wEff').textContent=`${w.eff}`;document.getElementById('wChg').textContent=`あと${Math.max(0,2*G.numP-(G.weather.defendsDone||0))}防御で変化`;}
-function rOpps(){const el=document.getElementById('oppsPanel');const rows=[];for(let i=1;i<=G.numP;i++){if(i===mySlot)continue;const p=G.players[i];if(!p)continue;const dead=p.alive===false||(p.hp||0)<=0;const ri=roleInfo(i);const isA=ri.cls==='rp-a',isD=ri.cls==='rp-d';const pct=Math.max(0,Math.min(100,(p.hp/p.maxHp)*100));const nm=pNames[i]||`P${i}`;const fcard=(G.atkCardPlayed&&G.lastAtkPlayer===i)?G.atkCardPlayed:(G.defCardPlayed&&isD?G.defCardPlayed:null);rows.push(`<div class="opp-area${dead?' opp-dead':isA?' oa':isD?' od':''}"><div class="opp-info"><div class="opp-name">${nm}</div><div class="opp-hp-row"><span style="font-size:.7rem">❤️</span><div class="opp-hb-out"><div class="opp-hb-in" style="width:${pct}%"></div></div><div class="opp-hp-txt">${p.hp}/${p.maxHp}</div><div class="rpill ${ri.cls}">${ri.txt}</div></div><div class="opp-cost-c"><div class="occ-l">cost</div><div class="occ-n">${p.cost||0}</div></div></div><div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">${!dead?`<span class="opp-hand-count">手札 ${p.hand?.length||0}枚</span>`:''}${fcard?`<div style="flex-shrink:0">${gc2(fcard,false,true)}</div>`:''}</div></div>`);}const html=rows.join('');if(renderCache.opps!==html){renderCache.opps=html;el.innerHTML=html;}}
+function rOpps(){const el=document.getElementById('oppsPanel');const rows=[];for(let i=1;i<=G.numP;i++){if(i===mySlot)continue;const p=G.players[i];if(!p)continue;const dead=p.alive===false||(p.hp||0)<=0;const ri=roleInfo(i);const isA=ri.cls==='rp-a',isD=ri.cls==='rp-d';const pct=Math.max(0,Math.min(100,(p.hp/p.maxHp)*100));const nm=esc(pNames[i]||`P${i}`);const fcard=(G.atkCardPlayed&&G.lastAtkPlayer===i)?G.atkCardPlayed:(G.defCardPlayed&&isD?G.defCardPlayed:null);rows.push(`<div class="opp-area${dead?' opp-dead':isA?' oa':isD?' od':''}"><div class="opp-info"><div class="opp-name">${nm}</div><div class="opp-hp-row"><span class="opp-heart">❤️</span><div class="opp-hb-out"><div class="opp-hb-in" style="width:${pct}%"></div></div><div class="opp-hp-txt">${p.hp}/${p.maxHp}</div></div><div class="rpill ${ri.cls}">${ri.txt}</div>${!dead?`<span class="opp-hand-count">手札 ${p.hand?.length||0}枚</span>`:''}<div class="opp-cost-c"><div class="occ-l">cost</div><div class="occ-n">${p.cost||0}</div></div></div><div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">${fcard?`<div style="flex-shrink:0">${gc2(fcard,false,true)}</div>`:''}</div></div>`);}const html=rows.join('');if(renderCache.opps!==html){renderCache.opps=html;el.innerHTML=html;}}
 function rBF(){const a=G.atkCardPlayed?gc2(G.atkCardPlayed,false,true):'<div class="field-empty">🗡️</div>';const d=G.discardCard?gc2(G.discardCard,false,true):'<div class="discard-none">なし<br>最初は<br>自由</div>';const f=G.defCardPlayed?gc2(G.defCardPlayed,false,true):'<div class="field-empty">🛡️</div>';const key=a+'|'+d+'|'+f;if(renderCache.bf===key)return;renderCache.bf=key;document.getElementById('atkZone').innerHTML=a;document.getElementById('discardZone').innerHTML=d;document.getElementById('defZone').innerHTML=f;}
-function renderHand(){const me=G?.players?.[mySlot];const hand=me?.hand||[];const el=document.getElementById('myHand');document.getElementById('handCnt').textContent=`(${hand.length}枚)`;if(!hand.length){if(renderCache.hand!=='empty'){renderCache.hand='empty';el.innerHTML='<div style="color:var(--text-dim);font-size:.76rem;padding:.4rem">手札なし</div>';}return;}const mt=myTurn();const newKey=[...newCards].sort().join(',');const key=[G.turnCount,G.seqIdx,G.playedThisTurn,selCard,mt,ph(),me.cost,me._cB,G.weather.current,newKey,hand.map(cardKey).join(';')].join('|');if(renderCache.hand===key)return;renderCache.hand=key;const sorted=[...hand.map((c,i)=>({card:c,oi:i,playable:mt&&!G.playedThisTurn&&canPlay(c,G,{rollChance:false})}))].sort((a,b)=>(b.playable-a.playable)||((a.card.cost||0)-(b.card.cost||0)));el.innerHTML=sorted.map(({card,oi:i,playable},si)=>{const mc=mainC(card);const cols=getColors(card);const av=wAtk(card),dv=wDef(card);const ec=Math.max(1,wCost(card)-(me._cB||0));const sel=selCard===i;const dim=mt?(!G.playedThisTurn?!playable:true):false;const isNew=newCards.has('i'+i)||newCards.has('n'+i)||newCards.has('i'+si);if(isNew){newCards.delete('i'+i);newCards.delete('n'+i);newCards.delete('i'+si);}const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');const sk=cskills(card);const hover=HOVER_TIPS?` onmouseenter="showTT(event,${i})" onmouseleave="hideTT()"`:'';return`<div class="gc hand-card${sel?' sel':''}${dim?' dim':''}${isNew?' dealing':''}" style="border-color:${mc.border};box-shadow:${sel?'0 0 16px '+mc.glow+',0 0 28px '+mc.glow.replace('.4','.15'):'none'}" onclick="${mt&&!dim?`selCardFn(${i})`:'void(0)'}"${hover}>${sk.length?'<div class="gc-sdot"></div>':''}<div class="gc-cs">${cs}</div><div class="gc-head"><div class="gc-cost" style="background:${mc.cost};${ec!==card.cost?'outline:2px solid #f1c40f;outline-offset:-1px':''}">${ec}</div><div class="gc-name">${card.name||'?'}</div></div><div class="gc-art">${ill(card)}</div><div class="gc-stats"><span style="color:${av!==(card.atk||0)?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${dv!==(card.def||0)?'#f1c40f':mc.accent}">🛡${dv}</span></div><div class="gc-flavor">${card.flavor?`<div class="gc-ft">${card.flavor}</div>`:''}${sk.map(s=>`<div class="gc-sl">${s}</div>`).join('')}</div></div>`;}).join('');}
-function rLog(){const el=document.getElementById('glog');const src=(G.log||[]).slice(-14).join('\n');if(renderCache.log===src)return;renderCache.log=src;const rows=src.split('\n').filter(Boolean).map(raw=>{let type='info',text=String(raw||'');if(text.includes('|')){const sp=text.split('|');type=sp.shift()||'info';text=sp.join('|');}else if(text.includes('ダメ')||text.includes('ガード')||text.includes('脱落'))type='dmg';else if(text.includes('回復')||text.includes('HP+'))type='heal';else if(text.includes('効果')||text.includes('🌟'))type='eff';else if(text.includes('天候')||text.includes('🌤'))type='weather';else if(text.includes('ターン')||text.includes('攻撃'))type='turn';const label={dmg:'DMG',eff:'EFFECT',turn:'TURN',weather:'WEATHER',heal:'HEAL',info:'INFO'}[type]||'INFO';return`<div class="log-entry log-${type}"><span class="log-tag">${label}</span><span class="log-text">${text}</span></div>`;});el.innerHTML=rows.join('');el.scrollTop=el.scrollHeight;}
+function renderHand(){const me=G?.players?.[mySlot];const hand=me?.hand||[];const el=document.getElementById('myHand');document.getElementById('handCnt').textContent=`(${hand.length}枚)`;if(!hand.length){if(renderCache.hand!=='empty'){renderCache.hand='empty';el.innerHTML='<div style="color:var(--text-dim);font-size:.76rem;padding:.4rem">手札なし</div>';}return;}const mt=myTurn();const newKey=[...newCards].sort().join(',');const key=[G.turnCount,G.seqIdx,G.playedThisTurn,selCard,mt,ph(),me.cost,me._cB,G.weather.current,cardKey(G.discardCard),cardKey(G.atkCardPlayed),cardKey(G.defCardPlayed),newKey,hand.map(cardKey).join(';')].join('|');if(renderCache.hand===key)return;renderCache.hand=key;const sorted=[...hand.map((c,i)=>({card:c,oi:i,playable:mt&&!G.playedThisTurn&&canPlay(c,G,{rollChance:false})}))].sort((a,b)=>(b.playable-a.playable)||((a.card.cost||0)-(b.card.cost||0)));el.innerHTML=sorted.map(({card,oi:i,playable},si)=>{const mc=mainC(card);const cols=getColors(card);const av=wAtk(card),dv=wDef(card);const ec=playCost(card,G,mySlot);const sel=selCard===i;const dim=!mt||G.playedThisTurn||!playable;const isNew=newCards.has('i'+i)||newCards.has('n'+i)||newCards.has('i'+si);if(isNew){newCards.delete('i'+i);newCards.delete('n'+i);newCards.delete('i'+si);}const cs=cols.map(c=>`<div class="gc-cs-seg" style="background:${CM[c]?.dot||'#888'}"></div>`).join('');const sk=cskills(card);const hover=HOVER_TIPS?` onmouseenter="showTT(event,${i})" onmouseleave="hideTT()"`:'';return`<div class="gc hand-card${sel?' sel':''}${dim?' dim':''}${isNew?' dealing':''}" style="border-color:${mc.border};box-shadow:${sel?'0 0 16px '+mc.glow+',0 0 28px '+mc.glow.replace('.4','.15'):'none'}" onclick="${mt&&!dim?`selCardFn(${i})`:'void(0)'}"${hover}>${sk.length?'<div class="gc-sdot"></div>':''}<div class="gc-cs">${cs}</div><div class="gc-head"><div class="gc-cost" style="background:${mc.cost};${ec!==card.cost?'outline:2px solid #f1c40f;outline-offset:-1px':''}">${ec}</div><div class="gc-name">${esc(card.name||'?')}</div></div><div class="gc-art">${ill(card)}</div><div class="gc-stats"><span style="color:${av!==(card.atk||0)?'#f1c40f':mc.accent}">⚔${av}</span><span style="color:${dv!==(card.def||0)?'#f1c40f':mc.accent}">🛡${dv}</span></div><div class="gc-flavor">${card.flavor?`<div class="gc-ft">${esc(card.flavor)}</div>`:''}${sk.map(s=>`<div class="gc-sl">${esc(s)}</div>`).join('')}</div></div>`;}).join('');}
+function rLog(){const el=document.getElementById('glog');const src=(G.log||[]).slice(-14).map(cleanText).join('\n');if(renderCache.log===src)return;renderCache.log=src;const rows=src.split('\n').filter(Boolean).map(raw=>{let type='info',text=cleanText(raw);if(text.includes('|')){const sp=text.split('|');type=sp.shift()||'info';text=sp.join('|');}else if(text.includes('ダメ')||text.includes('ガード')||text.includes('脱落'))type='dmg';else if(text.includes('回復')||text.includes('HP+'))type='heal';else if(text.includes('効果')||text.includes('🌟'))type='eff';else if(text.includes('天候')||text.includes('🌤'))type='weather';else if(text.includes('ターン')||text.includes('攻撃'))type='turn';const label={dmg:'DMG',eff:'EFFECT',turn:'TURN',weather:'WEATHER',heal:'HEAL',info:'INFO'}[type]||'INFO';return`<div class="log-entry log-${type}"><span class="log-tag">${label}</span><span class="log-text">${esc(text)}</span></div>`;});el.innerHTML=rows.join('');el.scrollTop=el.scrollHeight;}
 function updBtn(){
   const mt=myTurn();
   document.getElementById('btnDraw').disabled=!mt||ph()!=='attack'||G.playedThisTurn;
@@ -1451,7 +1480,7 @@ function updBtn(){
   // ★ ターン終了はprocessingに関係なく自分のターンなら押せる（詰み防止）
   document.getElementById('btnEnd').disabled=!mt;
 }
-window.showTT=function(e,i){const me=G?.players?.[mySlot];if(!me)return;const card=me.hand?.[i];if(!card)return;document.getElementById('ttN').textContent=card.name||'?';document.getElementById('ttS').textContent=`コスト:${Math.max(1,wCost(card)-(me._cB||0))} ATK:${wAtk(card)} DEF:${wDef(card)} [${getColors(card).map(c=>CN[c]||c).join('/')}]`;document.getElementById('ttSk').textContent=cskills(card).join('\n')||'スキルなし';document.getElementById('ttF').textContent=card.flavor||'';const t=document.getElementById('tooltip');t.style.display='block';const cx=e.touches?e.touches[0].clientX:e.clientX;const cy=e.touches?e.touches[0].clientY:e.clientY;t.style.left=Math.min(cx+12,innerWidth-198)+'px';t.style.top=Math.max(cy-130,5)+'px';};
+window.showTT=function(e,i){const me=G?.players?.[mySlot];if(!me)return;const card=me.hand?.[i];if(!card)return;document.getElementById('ttN').textContent=cleanText(card.name||'?');document.getElementById('ttS').textContent=`コスト:${playCost(card,G,mySlot)} ATK:${wAtk(card)} DEF:${wDef(card)} [${getColors(card).map(c=>CN[c]||c).join('/')}]`;document.getElementById('ttSk').textContent=cskills(card).map(cleanText).join('\n')||'スキルなし';document.getElementById('ttF').textContent=cleanText(card.flavor||'');const t=document.getElementById('tooltip');t.style.display='block';const cx=e.touches?e.touches[0].clientX:e.clientX;const cy=e.touches?e.touches[0].clientY:e.clientY;t.style.left=Math.min(cx+12,innerWidth-198)+'px';t.style.top=Math.max(cy-130,5)+'px';};
 window.hideTT=function(){document.getElementById('tooltip').style.display='none';};
 
 document.head.insertAdjacentHTML('beforeend',`<style>
@@ -1469,3 +1498,4 @@ init();
 </script>
 </body>
 </html>
+
