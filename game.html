@@ -725,7 +725,7 @@ async function loadSharedCards(){
     else setNetStatus('カード取得なし。端末内データで開始します','warn',2200);
   }catch(e){
     console.warn('card load delayed:',e.message);
-    setNetStatus('カード同期が遅いです。端末内データで続行します','warn',3200);
+    setNetStatus('端末内データで続行します','warn',1800);
   }
 }
 function drawCard(){return pool.length?clone(pool[~~(Math.random()*pool.length)]):null;}
@@ -1071,14 +1071,47 @@ async function save(S){
     slim.atkCardPlayed=compactCard(slim.atkCardPlayed);
     slim.defCardPlayed=compactCard(slim.defCardPlayed);
     slim.discardCard=compactCard(slim.discardCard);
-    setNetStatus('試合データを同期中...','warn');
     await withTimeout(set(gameRef,slim),SAVE_TIMEOUT,'save-timeout');
     setNetStatus('同期済み','ok',1200);
   }catch(e){
     console.error('save fail:',e.message);
-    setNetStatus('通信が不安定です。再同期中...','err');
     // 1回だけリトライ
-    if(slim)try{await withTimeout(set(gameRef,slim),4000,'save-retry-timeout');setNetStatus('同期済み','ok',1400);}catch(e2){console.error('save retry fail:',e2.message);toast('通信が遅いです。少し待ってから操作してください');setNetStatus('通信が不安定です。再読み込みせず少し待ってください','err',5000);}
+    if(slim)try{await withTimeout(set(gameRef,slim),4000,'save-retry-timeout');setNetStatus('同期済み','ok',1000);}catch(e2){console.error('save retry fail:',e2.message);}
+  }
+}
+function turnPatch(S){
+  const patch={
+    seqIdx:S.seqIdx,
+    playedThisTurn:S.playedThisTurn,
+    turnCount:S.turnCount||0,
+    log:(S.log||[]).slice(-LOG_LIMIT),
+    weather:S.weather||{current:'sun',defendsDone:0},
+    atkCardPlayed:compactCard(S.atkCardPlayed),
+    defCardPlayed:compactCard(S.defCardPlayed),
+    status:S.status||'playing'
+  };
+  if(S.winnerSlots!==undefined)patch.winnerSlots=S.winnerSlots;
+  if(S.endedAt!==undefined)patch.endedAt=S.endedAt;
+  for(let i=1;i<=S.numP;i++){
+    const p=S.players[i]||S.players['slot_'+i];
+    if(!p)continue;
+    patch[`players/slot_${i}/hp`]=p.hp;
+    patch[`players/slot_${i}/maxHp`]=p.maxHp;
+    patch[`players/slot_${i}/cost`]=p.cost||0;
+    patch[`players/slot_${i}/alive`]=p.alive!==false;
+    patch[`players/slot_${i}/_cB`]=p._cB||0;
+    patch[`players/slot_${i}/_nAtkD`]=p._nAtkD||0;
+    patch[`players/slot_${i}/_nDefD`]=p._nDefD||0;
+  }
+  return patch;
+}
+async function saveTurnPatch(S){
+  const patch=turnPatch(S);
+  try{
+    await withTimeout(update(gameRef,patch),6500,'turn-advance-timeout');
+  }catch(e){
+    console.warn('turn advance sync retry:',e.message);
+    await withTimeout(update(gameRef,patch),4000,'turn-advance-retry');
   }
 }
 
@@ -1200,7 +1233,7 @@ async function advanceTurnInt(force=false){
   const S=clone(G);
   advanceTurnState(S);
   selCard=-1;G=S;renderAll();checkWin();
-  await save(S);
+  await saveTurnPatch(S);
 }
 function scheduleAutoAdvance(S=G){
   clearTimeout(autoAdvanceTimer);
