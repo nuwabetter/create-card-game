@@ -684,7 +684,7 @@ const SL=(p,m)=>{document.getElementById('loadFill').style.width=p+'%';document.
 const showGame=()=>{document.getElementById('loadScr').style.display='none';document.getElementById('gameApp').style.display='flex';};
 const toast=m=>{const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);};
 const pLabel=slot=>`P${slot}「${pNames[slot]||('P'+slot)}」`;
-const LOG_LIMIT=32,SAVE_TIMEOUT=8500,CARD_CACHE_LIMIT=1600000;
+const LOG_LIMIT=32,SAVE_TIMEOUT=8500,CARD_CACHE_LIMIT=1600000,GAME_CACHE_LIMIT=650000,GAME_CACHE_AGE=1000*60*12;
 const QUICK_ADVANCE_MS=900,DEFENSE_STALL_MS=45000,ATTACK_STALL_MS=70000;
 const LOW_FX=matchMedia('(max-width:760px)').matches||(navigator.deviceMemory&&navigator.deviceMemory<=4)||matchMedia('(prefers-reduced-motion: reduce)').matches;
 const HOVER_TIPS=matchMedia('(hover:hover) and (pointer:fine)').matches&&!LOW_FX;
@@ -693,6 +693,7 @@ const renderCache={wx:'',opps:'',bf:'',hand:'',log:''};
 let netStatusTimer=null;
 let retrySaveTimer=null,retryTurnTimer=null;
 const cardKey=c=>c?[c.id,c.name,c.cost,c.atk,c.def,JSON.stringify(c.colors||c.color||''),(c.effects||[]).length,c.illust?String(c.illust).slice(0,32):''].join(':'):'';
+const gameCacheKey=()=>`shinunoGameCache:${roomCode||'solo'}:${mySlot}`;
 function cleanText(v){
   let s=String(v??'');
   if(/[ÃÂãâ�]/.test(s)){
@@ -739,30 +740,69 @@ function writeCardCache(cards){
     if(txt.length<CARD_CACHE_LIMIT)localStorage.setItem('cardrealmDeck',txt);
   }catch(e){}
 }
-async function loadSharedCards(){
+function readGameCache(){
+  try{
+    const raw=localStorage.getItem(gameCacheKey());
+    if(!raw||raw.length>GAME_CACHE_LIMIT)return null;
+    const box=JSON.parse(raw);
+    if(!box?.state||Date.now()-(box.savedAt||0)>GAME_CACHE_AGE)return null;
+    return box.state;
+  }catch(e){return null;}
+}
+function writeGameCache(S){
+  try{
+    if(!S||S.status!=='playing')return;
+    const slim=clone(S);
+    slim.log=(slim.log||[]).slice(-LOG_LIMIT);
+    const txt=JSON.stringify({savedAt:Date.now(),state:slim});
+    if(txt.length<GAME_CACHE_LIMIT)localStorage.setItem(gameCacheKey(),txt);
+  }catch(e){}
+}
+function showCachedGame(){
+  const cached=readGameCache();
+  if(!cached||gameStarted)return false;
+  G=rehydrateState(cached);
+  SL(82,'保存済みの試合状況を表示中...');
+  showGame();
+  queueRender();
+  scheduleAutoAdvance(G);
+  return true;
+}
+async function loadSharedCards(opts={}){
+  const background=!!opts.background;
   const ids=activeIds();
   try{
-    setNetStatus('カードを同期中...','warn');
+    if(!background)setNetStatus('カードを同期中...','warn');
     let cards=[];
     if(ids?.length&&ids.length<=80){
-      const snaps=await withTimeout(Promise.all(ids.map(id=>get(ref(db,`sharedCards/${id}`)).catch(()=>null))),7000,'cards-timeout');
+      const snaps=await withTimeout(Promise.all(ids.map(id=>get(ref(db,`sharedCards/${id}`)).catch(()=>null))),background?4500:7000,'cards-timeout');
       cards=snaps.map(s=>s?.val()).filter(Boolean);
     }else{
-      const snap=await withTimeout(get(cardsRef),9000,'cards-timeout');
+      const snap=await withTimeout(get(cardsRef),background?5000:9000,'cards-timeout');
       cards=Object.values(snap.val()||{});
     }
-    if(cards.length){writeCardCache(cards);applyPool(cards);setNetStatus('カード同期済み','ok',1200);}
-    else setNetStatus('カード取得なし。端末内データで開始します','warn',2200);
+    if(cards.length){writeCardCache(cards);applyPool(cards);if(G){G=rehydrateState(G);queueRender();}if(!background)setNetStatus('カード同期済み','ok',1200);}
+    else if(!background)setNetStatus('カード取得なし。端末内データで開始します','warn',1600);
   }catch(e){
     console.warn('card load delayed:',e.message);
-    setNetStatus('端末内データで続行します','warn',1800);
+    if(!background)setNetStatus('端末内データで続行します','warn',1200);
   }
 }
 function drawCard(){return pool.length?clone(pool[~~(Math.random()*pool.length)]):null;}
 function drawW(hand){if(!pool.length)return null;const mc=new Set();(hand||[]).forEach(c=>getColors(c).forEach(col=>mc.add(col)));const w=[];for(const c of pool){const n=getColors(c).some(col=>!mc.has(col));for(let i=0;i<(n?3:1);i++)w.push(c);}return clone(w[~~(Math.random()*w.length)]);}
 function drawColorCard(color){const a=pool.filter(c=>getColors(c).includes(color));return a.length?clone(a[~~(Math.random()*a.length)]):drawCard();}
 function drawSpecificCard(id){const c=pool.find(x=>x.id===id)||poolMap[id];return c?clone(c):drawCard();}
-function rehydrate(c){if(c?.illust==='[img]'&&c.id&&poolMap[c.id])c.illust=poolMap[c.id].illust;return c;}
+function rehydrate(c){
+  if(!c)return c;
+  const base=c.id&&poolMap[c.id];
+  if(base){
+    for(const[k,v]of Object.entries(base)){
+      if(c[k]===undefined)c[k]=clone(v);
+    }
+    if(c.illust==='[img]'||!c.illust)c.illust=base.illust;
+  }
+  return c;
+}
 
 // ★ Firebaseから受け取ったデータを正規化
 // 文字列キー形式 → 数値キーのオブジェクトに戻す
@@ -1060,9 +1100,17 @@ async function ensureGameState(){
 
 function compactCard(c){
   if(!c)return c;
-  const o={};
-  ['id','name','colors','color','cost','atk','def','flavor','effects','vfx','vfxText','illust','author'].forEach(k=>{if(c[k]!==undefined)o[k]=c[k];});
-  if(o.illust&&typeof o.illust==='string'&&o.illust.startsWith('data:'))o.illust='[img]';
+  const base=c.id&&poolMap[c.id];
+  const o=c.id?{id:c.id}:{};
+  const same=(a,b)=>JSON.stringify(a??null)===JSON.stringify(b??null);
+  ['name','colors','color','cost','atk','def','flavor','effects','vfx','vfxText','author'].forEach(k=>{
+    if(c[k]===undefined)return;
+    if(!base||!same(c[k],base[k]))o[k]=c[k];
+  });
+  if(c.illust!==undefined){
+    if(typeof c.illust==='string'&&c.illust.startsWith('data:')){if(!base)o.illust='[img]';}
+    else if(!base||c.illust!==base.illust)o.illust=c.illust;
+  }
   return o;
 }
 function compactPlayer(p){
@@ -1108,6 +1156,7 @@ async function save(S){
     slim.defCardPlayed=compactCard(slim.defCardPlayed);
     slim.discardCard=compactCard(slim.discardCard);
     await withTimeout(set(gameRef,slim),SAVE_TIMEOUT,'save-timeout');
+    writeGameCache(rehydrateState(clone(S)));
     setNetStatus('同期済み','ok',900);
     return true;
   }catch(e){
@@ -1161,10 +1210,11 @@ async function saveTurnPatch(S){
   const patch=turnPatch(S);
   try{
     await withTimeout(update(gameRef,patch),6500,'turn-advance-timeout');
+    writeGameCache(rehydrateState(clone(S)));
     return true;
   }catch(e){
     console.warn('turn advance sync retry:',e.message);
-    try{await withTimeout(update(gameRef,patch),4000,'turn-advance-retry');return true;}
+    try{await withTimeout(update(gameRef,patch),4000,'turn-advance-retry');writeGameCache(rehydrateState(clone(S)));return true;}
     catch(e2){console.warn('turn advance sync failed:',e2.message);queueTurnPatchRetry(S);return false;}
   }
 }
@@ -1177,10 +1227,11 @@ async function saveActionPatch(S,slot){
   const patch=actionPatch(S,slot);
   try{
     await withTimeout(update(gameRef,patch),6500,'action-sync-timeout');
+    writeGameCache(rehydrateState(clone(S)));
     return true;
   }catch(e){
     console.warn('action sync retry:',e.message);
-    try{await withTimeout(update(gameRef,patch),4000,'action-sync-retry');return true;}
+    try{await withTimeout(update(gameRef,patch),4000,'action-sync-retry');writeGameCache(rehydrateState(clone(S)));return true;}
     catch(e2){console.warn('action sync failed:',e2.message);queueFullSaveRetry(S);return false;}
   }
 }
@@ -1196,6 +1247,7 @@ function onGameRef(snap){
     if(ng){
       gameStarted=true;
       G=rehydrateState(ng);
+      writeGameCache(G);
       if(!ng.phaseStartedAt)update(gameRef,{phaseStartedAt:G.phaseStartedAt}).catch(()=>{});
       // 手札配布アニメーション
       const myHand=G.players?.[mySlot]?.hand||[];
@@ -1220,6 +1272,7 @@ function onGameRef(snap){
   const changed=ng.seqIdx!==G?.seqIdx||ng.turnCount!==G?.turnCount;
   if(changed)selCard=-1;
   G=rehydrateState(ng);
+  writeGameCache(G);
   if(!ng.phaseStartedAt)update(gameRef,{phaseStartedAt:G.phaseStartedAt}).catch(()=>{});
   queueRender();
   if(G.status==='over')showGameOver(G);
@@ -1231,10 +1284,12 @@ function init(){
 
   let cachedCards=readCardCache();
   applyPool(cachedCards.length?cachedCards:[]);
+  const usedGameCache=showCachedGame();
 
-  const cardsReady=loadSharedCards();
+  const cardsReady=cachedCards.length?Promise.resolve(cachedCards):loadSharedCards();
+  if(cachedCards.length)setTimeout(()=>loadSharedCards({background:true}),1200);
 
-  SL(50,'接続中...');
+  if(!usedGameCache)SL(50,'接続中...');
   onValue(ref(db,'.info/connected'),snap=>{
     if(snap.val()===false)setNetStatus('オフラインまたは通信待ちです','err');
     else setNetStatus('接続しました','ok',1200);
