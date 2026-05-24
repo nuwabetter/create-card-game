@@ -668,11 +668,13 @@ const showGame=()=>{document.getElementById('loadScr').style.display='none';docu
 const toast=m=>{const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);};
 const pLabel=slot=>`P${slot}「${pNames[slot]||('P'+slot)}」`;
 const LOG_LIMIT=32,SAVE_TIMEOUT=8500,CARD_CACHE_LIMIT=1600000;
+const QUICK_ADVANCE_MS=900,DEFENSE_STALL_MS=45000,ATTACK_STALL_MS=70000;
 const LOW_FX=matchMedia('(max-width:760px)').matches||(navigator.deviceMemory&&navigator.deviceMemory<=4)||matchMedia('(prefers-reduced-motion: reduce)').matches;
 const HOVER_TIPS=matchMedia('(hover:hover) and (pointer:fine)').matches&&!LOW_FX;
 let renderQueued=false;
 const renderCache={wx:'',opps:'',bf:'',hand:'',log:''};
 let netStatusTimer=null;
+let retrySaveTimer=null,retryTurnTimer=null;
 const cardKey=c=>c?[c.id,c.name,c.cost,c.atk,c.def,JSON.stringify(c.colors||c.color||''),(c.effects||[]).length,c.illust?String(c.illust).slice(0,32):''].join(':'):'';
 function queueRender(){
   if(renderQueued)return;
@@ -791,6 +793,11 @@ function normalizeState(S){
   fixCardColors(S.discardCard);
   fixCardColors(S.atkCardPlayed);
   fixCardColors(S.defCardPlayed);
+  S.status=S.status||'playing';
+  S.seqIdx=S.seqIdx||0;
+  S.turnCount=S.turnCount||0;
+  S.phaseStartedAt=S.phaseStartedAt||Date.now();
+  S.weather=S.weather||{current:'sun',defendsDone:0};
   return S;
 }
 
@@ -1003,7 +1010,7 @@ function atkFx(atkCard,dmg,blocked){const mc=mainC(atkCard);const{x:cx,y:cy}=gce
 function pickCard(hand,title){return new Promise(res=>{if(!hand?.length){res(-1);return;}const ov=document.getElementById('cpov');document.getElementById('cpovT').textContent=title||'手札から1枚選んでください';const s=document.getElementById('cpovS');s.innerHTML='';let done=false;hand.forEach((card,i)=>{const mc=mainC(card);const div=document.createElement('div');div.className='cpov-item';const cs=getColors(card).map(c=>`<div style="flex:1;background:${CM[c]?.dot||'#888'}"></div>`).join('');const dv=wDef(card);div.innerHTML=`<div class="gc static-card" style="border-color:${mc.border};width:90px;height:138px"><div style="height:5px;display:flex">${cs}</div><div class="gc-head" style="padding:3px 4px"><div class="gc-cost" style="background:${mc.cost};width:18px;height:18px;font-size:.65rem">${card.cost}</div><div class="gc-name" style="font-size:.5rem;word-break:break-all">${card.name||'?'}</div></div><div class="gc-art" style="height:55px">${ill(card)}</div><div class="gc-stats" style="font-size:.62rem;padding:2px"><span style="color:${mc.accent}">⚔${wAtk(card)}</span><span style="color:${dv!==(card.def||0)?'#f1c40f':mc.accent}">🛡${dv}</span></div></div>`;div.onclick=()=>{if(done)return;done=true;ov.style.display='none';res(i);};s.appendChild(div);});const cancel=document.createElement('button');cancel.type='button';cancel.className='cpov-cancel';cancel.textContent='キャンセル';cancel.onclick=()=>{if(done)return;done=true;ov.style.display='none';res(-1);};s.appendChild(cancel);ov.style.display='flex';});}
 
 function genDefault(){const cols=[['red'],['blue'],['yellow'],['green'],['red','blue'],['yellow','green']];const nms=['騎士','魔法使い','竜','妖精','戦士','弓使い','僧侶','忍者','海賊','錬金術師','天使','悪魔','剣士','盗賊','召喚士','聖騎士','魔剣士','竜騎士','幻術師','召喚魔法'];const ils=['⚔️','🔮','🐉','🦋','🛡️','🏹','✨','🌸','🗡️','🧪','👼','😈','⚡','🗺️','📖','🏰','🌙','🦅','🌀','🔥'];return nms.map((nm,i)=>({id:'def'+i,name:nm,colors:cols[i%cols.length],color:cols[i%cols.length][0],cost:1+~~(i/4),atk:2+(i%5),def:1+(i%4),illust:ils[i],flavor:'',effects:[],vfx:[]}));}
-function buildState(n){if(!pool.length)return null;let order=Array.from({length:n},(_,i)=>i+1);for(let i=order.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}const seq=[];for(let oi=0;oi<order.length;oi++){seq.push({player:order[oi],phase:'attack'});seq.push({player:order[(oi+1)%order.length],phase:'defend'});}const players={};for(let oi=0;oi<order.length;oi++){const slot=order[oi];const hand=Array.from({length:oi===0?7:8},()=>drawCard()).filter(Boolean);if(slot===mySlot)hand.forEach((_,i)=>newCards.add('i'+i));players[slot]={hp:20,maxHp:20,cost:2,_cB:0,_nAtkD:0,_nDefD:0,hand,alive:true};}const fp=seq[0].player;if(players[fp])players[fp].cost=(players[fp].cost||0)+3;return{status:'playing',numP:n,seqIdx:0,seq,players,discardCard:null,atkCardPlayed:null,defCardPlayed:null,playedThisTurn:false,turnCount:0,weather:{current:'sun',changeCount:0,defendsDone:0},log:[`info|ゲーム開始: 先攻は${pLabel(fp)}`,`turn|ターン: ${pLabel(fp)}の攻撃（コスト +3）`]};}
+function buildState(n){if(!pool.length)return null;let order=Array.from({length:n},(_,i)=>i+1);for(let i=order.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}const seq=[];for(let oi=0;oi<order.length;oi++){seq.push({player:order[oi],phase:'attack'});seq.push({player:order[(oi+1)%order.length],phase:'defend'});}const players={};for(let oi=0;oi<order.length;oi++){const slot=order[oi];const hand=Array.from({length:oi===0?7:8},()=>drawCard()).filter(Boolean);if(slot===mySlot)hand.forEach((_,i)=>newCards.add('i'+i));players[slot]={hp:20,maxHp:20,cost:2,_cB:0,_nAtkD:0,_nDefD:0,hand,alive:true};}const fp=seq[0].player;if(players[fp])players[fp].cost=(players[fp].cost||0)+3;return{status:'playing',numP:n,seqIdx:0,seq,players,discardCard:null,atkCardPlayed:null,defCardPlayed:null,playedThisTurn:false,turnCount:0,phaseStartedAt:Date.now(),weather:{current:'sun',changeCount:0,defendsDone:0},log:[`info|ゲーム開始: 先攻は${pLabel(fp)}`,`turn|ターン: ${pLabel(fp)}の攻撃（コスト +3）`]};}
 
 async function ensureGameState(){
   if(!amHost||gameStarted||creatingState)return;
@@ -1072,22 +1079,32 @@ async function save(S){
     slim.defCardPlayed=compactCard(slim.defCardPlayed);
     slim.discardCard=compactCard(slim.discardCard);
     await withTimeout(set(gameRef,slim),SAVE_TIMEOUT,'save-timeout');
-    setNetStatus('同期済み','ok',1200);
+    setNetStatus('同期済み','ok',900);
+    return true;
   }catch(e){
     console.error('save fail:',e.message);
     // 1回だけリトライ
-    if(slim)try{await withTimeout(set(gameRef,slim),4000,'save-retry-timeout');setNetStatus('同期済み','ok',1000);}catch(e2){console.error('save retry fail:',e2.message);}
+    if(slim)try{await withTimeout(set(gameRef,slim),4000,'save-retry-timeout');setNetStatus('同期済み','ok',800);return true;}catch(e2){console.error('save retry fail:',e2.message);queueFullSaveRetry(S);}
+    return false;
   }
+}
+function queueFullSaveRetry(S){
+  clearTimeout(retrySaveTimer);
+  const snap=clone(S);
+  retrySaveTimer=setTimeout(()=>save(snap),1800);
 }
 function turnPatch(S){
   const patch={
     seqIdx:S.seqIdx,
     playedThisTurn:S.playedThisTurn,
+    playedAt:S.playedAt||null,
     turnCount:S.turnCount||0,
+    phaseStartedAt:S.phaseStartedAt||Date.now(),
     log:(S.log||[]).slice(-LOG_LIMIT),
     weather:S.weather||{current:'sun',defendsDone:0},
     atkCardPlayed:compactCard(S.atkCardPlayed),
     defCardPlayed:compactCard(S.defCardPlayed),
+    discardCard:compactCard(S.discardCard),
     status:S.status||'playing'
   };
   if(S.winnerSlots!==undefined)patch.winnerSlots=S.winnerSlots;
@@ -1105,13 +1122,37 @@ function turnPatch(S){
   }
   return patch;
 }
+function actionPatch(S,slot){
+  const patch=turnPatch(S);
+  const p=S.players[slot]||S.players['slot_'+slot];
+  if(p)patch[`players/slot_${slot}/hand`]=(p.hand||[]).map(compactCard);
+  return patch;
+}
 async function saveTurnPatch(S){
   const patch=turnPatch(S);
   try{
     await withTimeout(update(gameRef,patch),6500,'turn-advance-timeout');
+    return true;
   }catch(e){
     console.warn('turn advance sync retry:',e.message);
-    await withTimeout(update(gameRef,patch),4000,'turn-advance-retry');
+    try{await withTimeout(update(gameRef,patch),4000,'turn-advance-retry');return true;}
+    catch(e2){console.warn('turn advance sync failed:',e2.message);queueTurnPatchRetry(S);return false;}
+  }
+}
+function queueTurnPatchRetry(S){
+  clearTimeout(retryTurnTimer);
+  const snap=clone(S);
+  retryTurnTimer=setTimeout(()=>saveTurnPatch(snap),1600);
+}
+async function saveActionPatch(S,slot){
+  const patch=actionPatch(S,slot);
+  try{
+    await withTimeout(update(gameRef,patch),6500,'action-sync-timeout');
+    return true;
+  }catch(e){
+    console.warn('action sync retry:',e.message);
+    try{await withTimeout(update(gameRef,patch),4000,'action-sync-retry');return true;}
+    catch(e2){console.warn('action sync failed:',e2.message);queueFullSaveRetry(S);return false;}
   }
 }
 
@@ -1126,6 +1167,7 @@ function onGameRef(snap){
     if(ng){
       gameStarted=true;
       G=rehydrateState(ng);
+      if(!ng.phaseStartedAt)update(gameRef,{phaseStartedAt:G.phaseStartedAt}).catch(()=>{});
       // 手札配布アニメーション
       const myHand=G.players?.[mySlot]?.hand||[];
       myHand.forEach((_,i)=>newCards.add('i'+i));
@@ -1149,6 +1191,7 @@ function onGameRef(snap){
   const changed=ng.seqIdx!==G?.seqIdx||ng.turnCount!==G?.turnCount;
   if(changed)selCard=-1;
   G=rehydrateState(ng);
+  if(!ng.phaseStartedAt)update(gameRef,{phaseStartedAt:G.phaseStartedAt}).catch(()=>{});
   queueRender();
   if(G.status==='over')showGameOver(G);
   else{checkWin();scheduleAutoAdvance(G);}
@@ -1194,15 +1237,22 @@ function init(){
 
 window.selCardFn=function(i){if(processing)return;if(!myTurn()){toast('あなたのターンではありません');return;}if(G.playedThisTurn){toast('今ターンはすでにカードを出しました');return;}const card=G.players[mySlot]?.hand?.[i];if(!card)return;if(selCard===i){selCard=-1;renderHand();updBtn();return;}if(!canPlay(card)){toast(G.discardCard?'出せません（同色/同コスト または出し条件未達）':'コスト不足か出し条件未達');return;}selCard=i;renderHand();updBtn();};
 
-function shouldAutoAdvance(S){
-  if(!S||S.status!=='playing'||!S.playedThisTurn)return false;
-  const c=cur(S);
-  if(c.phase==='attack')return !!S.atkCardPlayed;
-  if(c.phase==='defend')return !!S.defCardPlayed;
-  return false;
+function phaseAge(S){return Date.now()-(S?.phaseStartedAt||Date.now());}
+function stallLimit(S){const c=S?.seq?.length?cur(S):null;return c?.phase==='defend'?DEFENSE_STALL_MS:ATTACK_STALL_MS;}
+function shouldAutoAdvance(S,allowStall=false){
+  if(!S||S.status!=='playing'||!S.seq?.length)return false;
+  const c=cur(S);if(!c)return false;
+  if(S.playedThisTurn){
+    if(c.phase==='attack')return !!S.atkCardPlayed;
+    if(c.phase==='defend')return !!S.defCardPlayed;
+  }
+  if(c.phase==='defend'&&!S.atkCardPlayed)return true;
+  return allowStall&&phaseAge(S)>=stallLimit(S);
 }
-function advanceTurnState(S){
+function advanceTurnState(S,reason='normal'){
   const c=S.seq[S.seqIdx%S.seq.length];
+  const emptyAttack=c.phase==='attack'&&!S.atkCardPlayed;
+  if(emptyAttack&&reason==='stalled')logMsg(S,'turn',`自動進行: ${pLabel(c.player)}の攻撃ターンをスキップ`);
   if(c.phase==='defend'&&!S.playedThisTurn){
     const ak=S.atkCardPlayed;
     if(ak){
@@ -1215,38 +1265,43 @@ function advanceTurnState(S){
       }
     }
   }
-  if(c.phase==='defend'){S.atkCardPlayed=null;S.defCardPlayed=null;wxTick(S);}
+  if(c.phase==='defend'&&S.atkCardPlayed){S.atkCardPlayed=null;S.defCardPlayed=null;wxTick(S);}
+  else if(c.phase==='defend'){S.atkCardPlayed=null;S.defCardPlayed=null;}
   for(let i=1;i<=S.numP;i++){
     if(S.players[i]&&(S.players[i].hp||0)<=0&&S.players[i].alive!==false){S.players[i].alive=false;logMsg(S,'dmg',`脱落: ${pLabel(i)}`);}
   }
   let nx=(S.seqIdx+1)%S.seq.length;
+  if(emptyAttack&&S.seq[nx]?.phase==='defend')nx=(nx+1)%S.seq.length;
   for(let sf=0;sf<S.seq.length*2;sf++){
     if(S.players[S.seq[nx%S.seq.length].player]?.alive!==false)break;
     nx=(nx+1)%S.seq.length;
   }
-  S.seqIdx=nx%S.seq.length;S.playedThisTurn=false;S.turnCount=(S.turnCount||0)+1;
+  S.seqIdx=nx%S.seq.length;S.playedThisTurn=false;S.playedAt=null;S.turnCount=(S.turnCount||0)+1;S.phaseStartedAt=Date.now();
   const next=S.seq[S.seqIdx%S.seq.length],np=S.players[next.player];
   if(np){np.cost=(np.cost||0)+3;logMsg(S,'turn',`ターン: ${pLabel(next.player)}の${next.phase==='attack'?'攻撃':'防御'}（コスト +3）`);}
 }
-async function advanceTurnInt(force=false){
+async function advanceTurnInt(force=false,reason='normal'){
   if(!force&&!myTurn())return;
   const S=clone(G);
-  advanceTurnState(S);
+  advanceTurnState(S,reason);
   selCard=-1;G=S;renderAll();checkWin();
   await saveTurnPatch(S);
 }
 function scheduleAutoAdvance(S=G){
   clearTimeout(autoAdvanceTimer);
-  if(!shouldAutoAdvance(S))return;
-  const tc=S.turnCount||0,si=S.seqIdx||0,delay=900+(mySlot*160);
+  if(!S||S.status!=='playing')return;
+  const ready=shouldAutoAdvance(S,false);
+  const delay=(ready?QUICK_ADVANCE_MS:Math.max(1200,stallLimit(S)-phaseAge(S)))+(mySlot*160);
+  const tc=S.turnCount||0,si=S.seqIdx||0;
   autoAdvanceTimer=setTimeout(async()=>{
     if(processing){scheduleAutoAdvance(G);return;}
     try{
       const snap=await get(gameRef);
       const latest=rehydrateState(snap.val());
-      if(!latest||latest.status!=='playing'||(latest.turnCount||0)!==tc||latest.seqIdx!==si||!shouldAutoAdvance(latest))return;
+      const stalled=latest&&phaseAge(latest)>=stallLimit(latest);
+      if(!latest||latest.status!=='playing'||(latest.turnCount||0)!==tc||latest.seqIdx!==si||!shouldAutoAdvance(latest,stalled)){scheduleAutoAdvance(latest);return;}
       G=latest;
-      await advanceTurnInt(true);
+      await advanceTurnInt(true,stalled?'stalled':'auto');
     }catch(e){console.warn('auto advance failed:',e);}
   },delay);
 }
@@ -1269,7 +1324,7 @@ window.playCard=async function(){
     applySelfCardMods(card,pc,S,mySlot,ph(S)==='attack'?'onAttack':'onDefend');
     const fc=Math.max(1,wCost(card,S)-(p._cB||0));
     if((p.cost||0)<fc){toast('コスト不足');unlock();return;}
-    p.cost-=fc;p._cB=0;p.hand.splice(selCard,1);const effPickIdx=pickIdx>selCard?pickIdx-1:pickIdx;S.playedThisTurn=true;S.discardCard=clone(pc);
+    p.cost-=fc;p._cB=0;p.hand.splice(selCard,1);const effPickIdx=pickIdx>selCard?pickIdx-1:pickIdx;S.playedThisTurn=true;S.playedAt=Date.now();S.discardCard=clone(pc);
     if(ph(S)==='attack'){
       S.atkCardPlayed=clone(pc);S.defCardPlayed=null;S.lastAtkPlayer=mySlot;
       const target=nextDefenderSlot(S);
@@ -1293,7 +1348,7 @@ window.playCard=async function(){
     }
     const dr=drawCard();if(dr){addDrawnCard(p,dr,'ターンドロー');logMsg(S,'info',`${pLabel(mySlot)} 1枚ドロー`);}
     vfx(pc);selCard=-1;G=S;renderAll();checkWin();
-    await save(S);
+    await saveActionPatch(S,mySlot);
     const snapTc=S.turnCount,snapSi=S.seqIdx;
     setTimeout(async()=>{
       // turnCountとseqIdxが変わっていなければ自動ターン終了
@@ -1309,7 +1364,7 @@ window.playCard=async function(){
   finally{unlock();}
 };
 
-window.extraDraw=async function(){if(processing||!myTurn()||ph()!=='attack'||G.playedThisTurn)return;lock();try{const S=clone(G);const p=S.players[mySlot];if((p.hp||0)<=2){toast('HP2消費できません');return;}const card=drawW(p.hand);if(!card){toast('プールが空です');return;}p.hp-=2;addDrawnCard(p,card,'追加ドロー');logMsg(S,'info',`${pLabel(mySlot)} HP-2で追加ドロー`);G=S;renderAll();await save(S);toast('ドロー！');}finally{unlock();}};
+window.extraDraw=async function(){if(processing||!myTurn()||ph()!=='attack'||G.playedThisTurn)return;lock();try{const S=clone(G);const p=S.players[mySlot];if((p.hp||0)<=2){toast('HP2消費できません');return;}const card=drawW(p.hand);if(!card){toast('プールが空です');return;}p.hp-=2;addDrawnCard(p,card,'追加ドロー');logMsg(S,'info',`${pLabel(mySlot)} HP-2で追加ドロー`);G=S;renderAll();await saveActionPatch(S,mySlot);toast('ドロー！');}finally{unlock();}};
 window.endTurn=async function(){if(!myTurn())return;if(processing)unlock();lock();try{await advanceTurnInt(false);}finally{unlock();}};
 
 window.forceEnd=async function(){if(!confirm('試合を強制終了しますか？'))return;navigating=true;try{await remove(gameRef);}catch(e){}if(roomRef)try{await update(roomRef,{action:'home',status:'waiting'});}catch(e){}window.location.href='index.html';};
