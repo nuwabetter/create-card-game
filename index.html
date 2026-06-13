@@ -1,167 +1,257 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>バックパックすごろくバトル</title>
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">2〜4人 / ローカル対戦</p>
-          <h1>バックパックすごろくバトル</h1>
-        </div>
-        <div class="top-actions">
-          <button class="icon-button" id="saveButton" type="button" title="保存">
-            <span aria-hidden="true">S</span>
-          </button>
-          <button class="icon-button" id="loadButton" type="button" title="読み込み">
-            <span aria-hidden="true">L</span>
-          </button>
-          <button class="icon-button danger" id="resetButton" type="button" title="最初から">
-            <span aria-hidden="true">R</span>
-          </button>
-        </div>
-      </header>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>しんウノ -新世界UNOバトル-</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='14' fill='%230e0e1d'/><rect x='20' y='10' width='60' height='80' rx='8' fill='%23c9a84c' opacity='.9'/><text y='62' x='50' text-anchor='middle' font-size='48' font-family='serif'>🃏</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#c9a84c;--gold-light:#f0d080;--gold-dim:#7a6430;--deep:#0a0a14;--panel:#0f1020;--panel2:#141428;--text:#e8e0d0;--text-dim:#8a8070;--border:rgba(201,168,76,.25);--red:#e74c3c;--green:#2ecc71}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--deep);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:2rem 1.5rem;width:100%;max-width:420px}
+header{text-align:center;margin-bottom:2rem}
+.logo{font-family:'Rajdhani',sans-serif;font-size:2.2rem;font-weight:700;color:var(--gold)}
+.logo-sub{font-size:.7rem;letter-spacing:.3em;color:var(--gold-dim);margin-top:.3rem}
+.sec{margin-bottom:1.4rem}
+.sec-title{font-family:'Rajdhani',sans-serif;font-size:.68rem;letter-spacing:.22em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:.65rem;padding-bottom:.32rem;border-bottom:1px solid var(--border)}
+label{display:block;font-size:.76rem;color:var(--text-dim);margin-bottom:.28rem;font-family:'Rajdhani',sans-serif;letter-spacing:.06em;text-transform:uppercase}
+input{width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:.58rem .82rem;color:var(--text);font-family:'Noto Sans JP',sans-serif;font-size:.95rem;outline:none;transition:border-color .2s;margin-bottom:.65rem}
+input:focus{border-color:var(--gold-dim)}
+input::placeholder{color:var(--text-dim)}
+.room-input{text-align:center;font-size:1.5rem;letter-spacing:.35em;font-family:'Rajdhani',sans-serif;font-weight:700}
+.btn{display:flex;align-items:center;justify-content:center;gap:.3rem;width:100%;padding:.65rem;border:none;border-radius:9px;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .18s;touch-action:manipulation;-webkit-user-select:none;user-select:none;margin-bottom:.5rem}
+.btn:last-child{margin-bottom:0}
+.btn:active{transform:scale(.96)}
+.btn-gold{background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:#05050e;box-shadow:0 3px 14px rgba(201,168,76,.3)}
+.btn-blue{background:linear-gradient(135deg,#1a4a6b,#2471a3);color:#fff}
+.divider{display:flex;align-items:center;gap:.7rem;margin:.2rem 0 .9rem;font-size:.7rem;color:var(--text-dim);font-family:'Rajdhani',sans-serif}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.nav-links{display:flex;gap:.65rem;margin-top:1.2rem}
+.nl{flex:1;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:.7rem .5rem;text-decoration:none;text-align:center;transition:border-color .2s}
+.nl:hover{border-color:var(--gold-dim)}
+.nl-i{font-size:1.3rem;display:block;margin-bottom:.22rem}
+.nl-t{font-family:'Rajdhani',sans-serif;font-size:.74rem;font-weight:700;color:var(--gold);letter-spacing:.07em}
+.spin-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;backdrop-filter:blur(4px)}
+.spin-overlay.show{display:flex}
+.spin{width:38px;height:38px;border:3px solid rgba(201,168,76,.2);border-top-color:var(--gold);border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.spin-msg{font-family:'Rajdhani',sans-serif;font-size:.95rem;letter-spacing:.15em;color:var(--text-dim)}
+.toast{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(130px);background:var(--panel);border:1px solid var(--gold);border-radius:8px;padding:.6rem 1.1rem;font-family:'Rajdhani',sans-serif;font-size:.82rem;color:var(--gold);z-index:300;transition:transform .4s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+/* Bright readable theme */
+:root{--gold:#b88425;--gold-light:#f3d27a;--gold-dim:#87642b;--deep:#f6f2e8;--panel:#fffdf8;--panel2:#f1eadc;--text:#2f2a24;--text-dim:#766d5f;--border:rgba(139,105,36,.24);--red:#d94a3a;--green:#218b55}
+body{background:linear-gradient(145deg,#fff8e8 0%,#eef7fb 54%,#f7f1e5 100%);color:var(--text)}
+.card{background:rgba(255,253,248,.96);box-shadow:0 18px 48px rgba(89,68,34,.14),0 1px 0 rgba(255,255,255,.8) inset}
+.logo{color:#9f6f20;text-shadow:0 1px 0 #fff4cd}
+.logo-sub,.sec-title,.nl-t{color:var(--gold-dim)}
+input{background:#fff;border-color:rgba(139,105,36,.28);color:var(--text);box-shadow:0 1px 0 rgba(255,255,255,.8) inset}
+input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(216,169,71,.18)}
+.btn-gold{background:linear-gradient(135deg,#f5d77a,#c8912f);color:#2d210c;box-shadow:0 8px 18px rgba(184,132,37,.22)}
+.btn-blue{background:linear-gradient(135deg,#59a7da,#2f73ab)}
+.nl{background:#fffaf0;border-color:rgba(139,105,36,.22);box-shadow:0 8px 22px rgba(89,68,34,.08)}
+.spin-overlay{background:rgba(255,250,239,.86)}
+.spin-msg{color:var(--text-dim)}
+.toast{background:#fffdf8;color:#8b6322;box-shadow:0 12px 28px rgba(89,68,34,.16)}
+/* Colorful polish */
+body{background:linear-gradient(135deg,rgba(255,236,191,.82) 0%,rgba(239,248,255,.9) 34%,rgba(246,239,255,.86) 67%,rgba(236,255,242,.9) 100%)}
+.card{border-color:rgba(80,132,190,.26);position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;inset:0 0 auto;height:6px;background:linear-gradient(90deg,#ef5f5f,#f4c75f,#43b979,#4e9ee8,#b06be8)}
+.sec-title{border-bottom-color:rgba(80,132,190,.18)}
+.btn-gold{background:linear-gradient(135deg,#ffe27a,#f0a23b,#e56b6f)}
+.btn-blue{background:linear-gradient(135deg,#55c3e8,#437de4,#6d5bd7)}
+.nav-links{align-items:stretch}
+.nl:nth-child(1){background:linear-gradient(145deg,#fff7df,#fff)}
+.nl:nth-child(2){background:linear-gradient(145deg,#eaf7ff,#fff)}
+.nl:nth-child(3){background:linear-gradient(145deg,#f4efff,#fff)}
+.nl:nth-child(1) .nl-i{color:#e56b6f}.nl:nth-child(2) .nl-i{color:#4e9ee8}
+.room-input{background:linear-gradient(180deg,#fff,#f3f8ff)}
+/* Gentle tone */
+body{background:linear-gradient(135deg,#f7efd9 0%,#edf5f4 45%,#f3edf7 100%)}
+.card{background:rgba(255,253,247,.94);border-color:rgba(126,139,128,.24);box-shadow:0 18px 44px rgba(77,71,58,.12)}
+.card::before{height:5px;background:linear-gradient(90deg,#d88975,#e4c76b,#80b991,#7aaed2,#b498d0);opacity:.82}
+.btn-gold{background:linear-gradient(135deg,#edd372,#d99c52,#d27c78)}
+.btn-blue{background:linear-gradient(135deg,#75b9d3,#6f91d0,#7f75c5)}
+.nl:nth-child(1){background:linear-gradient(145deg,#fff8e8,#fffdf8)}
+.nl:nth-child(2){background:linear-gradient(145deg,#edf7fb,#fffdf8)}
+.nl:nth-child(3){background:linear-gradient(145deg,#f4efff,#fffdf8)}
+/* Soft violet tint */
+:root{--gold:#9b7a34;--gold-light:#ead589;--gold-dim:#716047;--deep:#f2edf7;--panel:#fffcf8;--panel2:#eee7f5;--text:#302b36;--text-dim:#756b7d;--border:rgba(122,92,145,.22)}
+body{background:linear-gradient(135deg,#f7efd9 0%,#eee8f7 42%,#e8f2f4 100%);color:var(--text)}
+.card{background:rgba(255,252,248,.94);border-color:rgba(122,92,145,.24);box-shadow:0 18px 44px rgba(70,58,84,.14)}
+.card::before{background:linear-gradient(90deg,#c98f86,#dac36e,#96bd9b,#8facd3,#aa8fc8)}
+.logo{color:#7b5a90;text-shadow:0 1px 0 #fff}
+.btn-gold{background:linear-gradient(135deg,#ead589,#c79a70,#a980c6);color:#2f2635}
+.btn-blue{background:linear-gradient(135deg,#8ebbd2,#8e9ed1,#9277c0)}
+.nl:nth-child(1){background:linear-gradient(145deg,#fff8ea,#fbf7ff)}
+.nl:nth-child(2){background:linear-gradient(145deg,#f2edfb,#f7fcff)}
+.nl:nth-child(3){background:linear-gradient(145deg,#fff8ea,#f2edfb)}
+/* Lavender background only */
+:root{--gold:#9b7a34;--gold-light:#ead589;--gold-dim:#716047;--text:#302d34;--text-dim:#756f7a;--border:rgba(122,92,145,.2)}
+body{background:linear-gradient(135deg,#f6effb 0%,#eee6f7 46%,#f7f1e8 100%)}
+.logo{color:#9b7a34;text-shadow:0 1px 0 #fff}
+.logo-sub,.sec-title,.nl-t{color:#716047}
+.card::before{background:linear-gradient(90deg,#d2a36f,#dec776,#8fbd9c,#83afd0);opacity:.78}
+.btn-gold{background:linear-gradient(135deg,#ead589,#d39b56,#c88466);color:#302612}
+.btn-blue{background:linear-gradient(135deg,#78bad2,#5f8fc4)}
+.nl:nth-child(1){background:linear-gradient(145deg,#fff8ea,#fffdf8)}
+.nl:nth-child(2){background:linear-gradient(145deg,#edf7fb,#fffdf8)}
+.nl:nth-child(3){background:linear-gradient(145deg,#f6effb,#fffdf8)}
+/* Rich violet contrast */
+body{background:radial-gradient(circle at 22% 18%,rgba(205,185,255,.5) 0,rgba(205,185,255,0) 34%),linear-gradient(135deg,#d8c7f0 0%,#b9a3dd 45%,#efe4da 100%)}
+.card{background:rgba(255,253,248,.96);border-color:rgba(88,61,126,.34);box-shadow:0 22px 56px rgba(64,42,92,.28),0 1px 0 rgba(255,255,255,.85) inset}
+.card::before{height:6px;background:linear-gradient(90deg,#8058bd,#b58ddd,#d6bd6b,#78b5c9);opacity:.95}
+.logo{color:#6b4a92}
+.btn-gold{background:linear-gradient(135deg,#f0d575,#d39150,#8b62b8);color:#2b2035;box-shadow:0 10px 22px rgba(88,61,126,.22)}
+.btn-blue{background:linear-gradient(135deg,#78bed5,#5d91ca,#755fc0)}
+.nl{box-shadow:0 10px 24px rgba(64,42,92,.12)}
+/* Purple gradient background */
+body{background:linear-gradient(135deg,#5f3f91 0%,#8c6bc6 46%,#d8c9f2 100%)}
+.card{box-shadow:0 24px 60px rgba(50,31,82,.32),0 1px 0 rgba(255,255,255,.85) inset}
+.card::before{background:linear-gradient(90deg,#6d45a8,#9c7bd3,#d8c9f2);opacity:1}
+/* White and purple gradient */
+body{background:linear-gradient(135deg,#fffdf9 0%,#f5f1fb 44%,#d8c9f2 100%)}
+.card{background:rgba(255,253,248,.97);box-shadow:0 22px 54px rgba(92,70,125,.18),0 1px 0 rgba(255,255,255,.9) inset}
+.card::before{background:linear-gradient(90deg,#e97878,#edc95f,#78bd91,#6db9d7,#a984d9)}
+.btn-gold{background:linear-gradient(135deg,#f4d963,#f39b4a,#df6c7a);color:#2f2418}
+.btn-blue{background:linear-gradient(135deg,#55c4de,#5d8de0,#8667d4)}
+.nl:nth-child(1){background:linear-gradient(145deg,#fff8e6,#fffdf9)}
+.nl:nth-child(2){background:linear-gradient(145deg,#edf8ff,#faf7ff)}
+.nl:nth-child(3){background:linear-gradient(145deg,#f4efff,#fffdf9)}
+/* Mobile comfort */
+@media(max-width:520px){
+  body{align-items:flex-start;padding:.7rem;padding-top:max(.7rem,env(safe-area-inset-top))}
+  .card{max-width:none;border-radius:14px;padding:1.35rem 1rem;margin:0 auto}
+  header{margin-bottom:1.45rem}
+  .logo{font-size:1.85rem}
+  .logo-sub{font-size:.64rem;letter-spacing:.22em}
+  .sec{margin-bottom:1.15rem}
+  input{min-height:46px;font-size:1rem}
+  .room-input{font-size:1.35rem;letter-spacing:.28em}
+  .btn{min-height:48px;padding:.78rem .75rem;font-size:.92rem}
+  .nav-links{gap:.5rem}
+  .nl{min-height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .toast{bottom:max(.8rem,env(safe-area-inset-bottom));white-space:normal}
+}
+</style>
+</head>
+<body>
+<div class="card">
+  <header>
+    <div class="logo">🃏 しんウノ</div>
+    <div class="logo-sub">-新世界UNOバトル-</div>
+  </header>
 
-      <main class="layout">
-        <section class="board-column">
-          <div class="board-header">
-            <div>
-              <p class="eyebrow">Sugoroku Map</p>
-              <h2>マップ</h2>
-            </div>
-            <div class="round-pill" id="phaseBadge">準備中</div>
-          </div>
-          <div class="board-wrap">
-            <div class="board-grid" id="boardGrid" aria-label="すごろくマップ"></div>
-          </div>
-          <div class="legend" id="legend"></div>
-        </section>
+  <div class="sec">
+    <div class="sec-title">プレイヤー名</div>
+    <input type="text" id="nameInput" placeholder="あなたの名前を入力..." maxlength="12">
+  </div>
 
-        <section class="control-column">
-          <section class="panel online-panel" id="onlinePanel">
-            <div class="panel-title-row">
-              <div>
-                <p class="eyebrow">Online</p>
-                <h2>オンライン部屋</h2>
-              </div>
-              <div class="round-pill" id="onlineStatus">未接続</div>
-            </div>
-            <textarea id="firebaseConfigInput" rows="5" spellcheck="false" placeholder='Firebase の Web 設定を貼り付けます。例: {"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}'></textarea>
-            <div class="online-grid">
-              <button class="primary-button" id="createRoomButton" type="button">部屋を作る</button>
-              <input id="roomCodeInput" maxlength="6" placeholder="部屋コード" />
-              <button class="secondary-button" id="joinRoomButton" type="button">部屋に入る</button>
-            </div>
-            <div class="online-grid compact">
-              <select id="seatSelect" aria-label="この端末の担当プレイヤー">
-                <option value="">観戦</option>
-                <option value="1">P1担当</option>
-                <option value="2">P2担当</option>
-                <option value="3">P3担当</option>
-                <option value="4">P4担当</option>
-              </select>
-              <button class="small-button" id="leaveRoomButton" type="button">退出</button>
-            </div>
-            <div class="message-box" id="onlineHelp">Firebase 設定は登録済みです。部屋を作ると、他端末は同じサイトと部屋コードで参加できます。</div>
-          </section>
+  <div class="sec">
+    <div class="sec-title">ゲームに参加</div>
+    <button class="btn btn-gold" onclick="createRoom()">🏠 部屋を作成する</button>
+    <div class="divider">または部屋番号で入室</div>
+    <input type="text" id="roomInput" placeholder="0000" maxlength="4"
+      pattern="[0-9]*" inputmode="numeric" class="room-input">
+    <button class="btn btn-blue" onclick="joinRoom()">🚪 部屋に入る</button>
+  </div>
 
-          <section class="panel setup-panel" id="setupPanel">
-            <p class="eyebrow">Game Setup</p>
-            <h2>プレイヤー設定</h2>
-            <div class="segmented" id="playerCountGroup" role="group" aria-label="プレイヤー人数">
-              <button type="button" data-count="2">2人</button>
-              <button type="button" data-count="3" class="active">3人</button>
-              <button type="button" data-count="4">4人</button>
-            </div>
-            <label class="range-field">
-              <span>マス数 <strong id="boardSizeValue">40</strong></span>
-              <input id="boardSizeInput" type="range" min="24" max="80" step="2" value="40" />
-            </label>
-            <div class="name-fields" id="nameFields"></div>
-            <button class="primary-button" id="startGameButton" type="button">順番決定へ</button>
-          </section>
+  <div class="nav-links">
+    <a href="card.html" class="nl"><span class="nl-i">🎨</span><span class="nl-t">カード作成</span></a>
+    <a href="lobby.html" class="nl"><span class="nl-i">📋</span><span class="nl-t">ロビー一覧</span></a>
+    <a href="rules.html" class="nl"><span class="nl-i">📖</span><span class="nl-t">ルール</span></a>
+  </div>
+</div>
 
-          <section class="panel status-panel">
-            <div class="panel-title-row">
-              <div>
-                <p class="eyebrow">Players</p>
-                <h2>プレイヤー状況</h2>
-              </div>
-              <div class="round-pill" id="eventCounter">イベント: 2周ごと</div>
-            </div>
-            <div class="players-list" id="playersList"></div>
-          </section>
+<div class="spin-overlay" id="spinOverlay">
+  <div class="spin"></div>
+  <div class="spin-msg" id="spinMsg">処理中...</div>
+</div>
+<div class="toast" id="toast"></div>
 
-          <section class="panel turn-panel" id="turnPanel">
-            <div class="panel-title-row">
-              <div>
-                <p class="eyebrow">Turn</p>
-                <h2 id="turnTitle">待機中</h2>
-              </div>
-              <div class="dice-face" id="diceFace">?</div>
-            </div>
-            <div class="action-area" id="actionArea"></div>
-          </section>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, get, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-          <section class="panel backpack-panel">
-            <div class="panel-title-row">
-              <div>
-                <p class="eyebrow">Backpack</p>
-                <h2>バックパック</h2>
-              </div>
-              <select id="editorSelect" aria-label="編集するプレイヤー"></select>
-            </div>
-            <div class="edit-lock" id="editLock"></div>
-            <div class="stash" id="stashList"></div>
-            <div class="backpack-grid" id="backpackGrid"></div>
-            <div class="item-detail" id="itemDetail">アイテムを選択すると詳細が表示されます。</div>
-          </section>
-        </section>
+const FB={apiKey:"AIzaSyBsASKwkmpRx_vi7JBqC-fvBl3LOgoOtbo",authDomain:"newcard-8fd59.firebaseapp.com",databaseURL:"https://newcard-8fd59-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"newcard-8fd59",storageBucket:"newcard-8fd59.firebasestorage.app",messagingSenderId:"822236707244",appId:"1:822236707244:web:f2a82f612226d7ac3f6209"};
+const db=getDatabase(initializeApp(FB));
 
-        <section class="side-column">
-          <section class="panel shop-panel" id="shopPanel">
-            <p class="eyebrow">Market / Forge</p>
-            <h2 id="shopTitle">ショップ</h2>
-            <div id="shopContent" class="shop-content"></div>
-          </section>
+// 名前を復元
+const sn=localStorage.getItem('myName');if(sn)document.getElementById('nameInput').value=sn;
+// 部屋番号が前回残っていれば入力欄に復元
+const sr=localStorage.getItem('lastRoomCode');if(sr)document.getElementById('roomInput').value=sr;
 
-          <section class="panel battle-panel" id="battlePanel">
-            <div class="panel-title-row">
-              <div>
-                <p class="eyebrow">Battle</p>
-                <h2>戦闘</h2>
-              </div>
-              <div class="round-pill" id="battleTimer">待機</div>
-            </div>
-            <div id="battleArena" class="battle-arena"></div>
-          </section>
+function getName(){
+  const n=document.getElementById('nameInput').value.trim();
+  if(!n){showToast('名前を入力してください');return null;}
+  localStorage.setItem('myName',n);return n;
+}
+function spin(show,msg='処理中...'){
+  const ov=document.getElementById('spinOverlay');
+  ov.style.display=show?'flex':'none';
+  document.getElementById('spinMsg').textContent=msg;
+}
+async function genRoomCode(){
+  for(let i=0;i<20;i++){
+    const c=String(Math.floor(1000+Math.random()*9000));
+    const s=await get(ref(db,`rooms/${c}/status`));
+    if(!s.exists())return c;
+  }
+  throw new Error('部屋番号の生成に失敗しました');
+}
+function makePlayerId(){return 'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);}
 
-          <section class="panel log-panel">
-            <div class="panel-title-row">
-              <div>
-                <p class="eyebrow">History</p>
-                <h2>ログ</h2>
-              </div>
-              <button class="small-button" id="clearLogButton" type="button">消去</button>
-            </div>
-            <div class="log-list" id="logList" aria-live="polite"></div>
-          </section>
-        </section>
-      </main>
-    </div>
+window.createRoom=async function(){
+  const name=getName();if(!name)return;
+  spin(true,'部屋を作成中...');
+  try{
+    const code=await genRoomCode();
+    const myId=makePlayerId();
+    await set(ref(db,`rooms/${code}`),{
+      code,status:'waiting',hostId:myId,
+      createdAt:Date.now(),
+      players:{[myId]:{name,id:myId,slot:1,joinedAt:Date.now()}}
+    });
+    localStorage.setItem('roomCode',code);
+    localStorage.setItem('myPlayerId',myId);
+    localStorage.setItem('myName',name);
+    localStorage.setItem('lastRoomCode',code);
+    spin(false);
+    window.location.href='lobby.html?room='+code;
+  }catch(e){spin(false);showToast('エラー: '+e.message);}
+};
 
-    <template id="itemCardTemplate">
-      <button class="item-card" type="button">
-        <span class="rarity-dot"></span>
-        <span class="item-name"></span>
-        <span class="item-meta"></span>
-      </button>
-    </template>
+window.joinRoom=async function(){
+  const name=getName();if(!name)return;
+  const code=document.getElementById('roomInput').value.trim().replace(/\D/g,'');
+  if(code.length!==4){showToast('4桁の部屋番号を入力してください');return;}
+  spin(true,'部屋を検索中...');
+  try{
+    const snap=await get(ref(db,`rooms/${code}`));
+    if(!snap.exists()){spin(false);showToast('部屋が見つかりません ('+code+')');return;}
+    const room=snap.val();
+    if(room.status==='playing'){spin(false);showToast('この部屋はすでに試合中です');return;}
+    const players=Object.values(room.players||{});
+    if(players.length>=4){spin(false);showToast('この部屋は満員です（最大4人）');return;}
+    const used=new Set(players.map(p=>p.slot));
+    let slot=1;while(used.has(slot))slot++;
+    const myId=makePlayerId();
+    await set(ref(db,`rooms/${code}/players/${myId}`),{name,id:myId,slot,joinedAt:Date.now()});
+    localStorage.setItem('roomCode',code);
+    localStorage.setItem('myPlayerId',myId);
+    localStorage.setItem('myName',name);
+    localStorage.setItem('lastRoomCode',code);
+    spin(false);
+    window.location.href='lobby.html?room='+code;
+  }catch(e){spin(false);showToast('エラー: '+e.message);}
+};
 
-    <script src="./app.js"></script>
-  </body>
+// Enterキーで入室
+document.getElementById('roomInput').addEventListener('keydown',e=>{if(e.key==='Enter')window.joinRoom();});
+
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3500);}
+</script>
+</body>
 </html>
